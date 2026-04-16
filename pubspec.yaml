@@ -1,0 +1,59 @@
+name: bluesnafer_pro
+version: 1.0.0
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+  flutter: ">=3.10.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Bluetooth dependencies
+  flutter_blue_plus: ^2.1.0
+
+  # AI dependencies
+  tflite_flutter: ^0.12.1
+
+  # Core dependencies
+  path_provider: ^2.1.5
+  shared_preferences: ^2.5.3
+  permission_handler: ^12.0.1
+  device_info_plus: ^12.3.0
+
+  # UI and utilities
+  provider: ^6.1.5
+  cupertino_icons: ^1.0.8
+
+  # Network
+  http: ^1.5.0
+  connectivity_plus: ^7.0.0
+
+  # System utilities
+  uuid: ^4.5.1
+  encrypt: ^5.0.3
+  share_plus: ^12.0.1
+  url_launcher: ^6.3.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/
+    - assets/models/
+
+  # fonts:
+  #   - family: Roboto
+  #     fonts:
+  #       - asset: fonts/Roboto-Regular.ttf
+  #       - asset: fonts/Roboto-Bold.ttf
+  #         weight: 700
+# NOTAS IMPORTANTES:
+# - Configuraciones de Android (package, permisos, etc.) van en android/app/build.gradle y AndroidManifest.xml
+# - Configuraciones de iOS (bundle identifier, etc.) van en ios/Runner/Info.plist y ios/Runner.xcodeproj
+# - Estas configuraciones no son válidas directamente en pubspec.yaml

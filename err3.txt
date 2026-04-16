@@ -1,0 +1,34 @@
+e: file:///D:/PROJECTS/bluesnafer_pro/android/app/src/main/kotlin/com/bluesnafer_pro/ExploitIntegration.kt:110:70 No value passed for parameter 'onLog'.
+e: file:///D:/PROJECTS/bluesnafer_pro/android/app/src/main/kotlin/com/bluesnafer_pro/ExploitIntegration.kt:575:64 Unresolved reference 'exploit'.
+e: file:///D:/PROJECTS/bluesnafer_pro/android/app/src/main/kotlin/com/bluesnafer_pro/ExploitIntegration.kt:576:75 Unresolved reference 'it'.
+e: file:///D:/PROJECTS/bluesnafer_pro/android/app/src/main/kotlin/com/bluesnafer_pro/ExploitIntegration.kt:585:65 Unresolved reference 'executeSpoofing'.
+e: file:///D:/PROJECTS/bluesnafer_pro/android/app/src/main/kotlin/com/bluesnafer_pro/ExploitIntegration.kt:586:75 Unresolved reference 'it'.
+e: file:///D:/PROJECTS/bluesnafer_pro/android/app/src/main/kotlin/com/bluesnafer_pro/ExploitIntegration.kt:605:56 Unresolved reference 'inject'.
+e: file:///D:/PROJECTS/bluesnafer_pro/android/app/src/main/kotlin/com/bluesnafer_pro/ExploitIntegration.kt:606:75 Unresolved reference 'it'.
+e: file:///D:/PROJECTS/bluesnafer_pro/android/app/src/main/kotlin/com/bluesnafer_pro/MissingClasses.kt:1020:7 Redeclaration:
+object BlueBorneExploit : Any
+e: file:///D:/PROJECTS/bluesnafer_pro/android/app/src/main/kotlin/com/bluesnafer_pro/MissingClasses.kt:2582:25 Unresolved reference 'CountDownLatch'.
+e: file:///D:/PROJECTS/bluesnafer_pro/android/app/src/main/kotlin/com/bluesnafer_pro/MissingClasses.kt:2584:23 Unresolved reference 'appContext'.
+e: file:///D:/PROJECTS/bluesnafer_pro/android/app/src/main/kotlin/com/bluesnafer_pro/MissingClasses.kt:2601:29 Unresolved reference 'TimeUnit'.
+e: file:///D:/PROJECTS/bluesnafer_pro/android/app/src/main/kotlin/com/bluesnafer_pro/MissingClasses.kt:2611:25 Unresolved reference 'CountDownLatch'.
+e: file:///D:/PROJECTS/bluesnafer_pro/android/app/src/main/kotlin/com/bluesnafer_pro/MissingClasses.kt:2632:29 Unresolved reference 'TimeUnit'.
+e: file:///D:/PROJECTS/bluesnafer_pro/android/app/src/main/kotlin/com/bluesnafer_pro/MissingClasses.kt:2638:8 Redeclaration:
+class BlueBorneExploit : Any
+e: file:///D:/PROJECTS/bluesnafer_pro/android/app/src/main/kotlin/com/bluesnafer_pro/MissingClasses.kt:2645:38 Argument type mismatch: actual type is 'java.io.Serializable', but 'kotlin.Pair<K, V>' was expected.
+e: file:///D:/PROJECTS/bluesnafer_pro/android/app/src/main/kotlin/com/bluesnafer_pro/MissingClasses.kt:2657:26 Unresolved reference 'CountDownLatch'.
+e: file:///D:/PROJECTS/bluesnafer_pro/android/app/src/main/kotlin/com/bluesnafer_pro/MissingClasses.kt:2668:30 Unresolved reference 'TimeUnit'.
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':app:compileDebugKotlin'.
+> A failure occurred while executing org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction
+   > Compilation error. See log for more details
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 6s

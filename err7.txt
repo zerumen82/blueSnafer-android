@@ -1,0 +1,46 @@
+lib/services/attack_suggestion_engine.dart:194:23: Error: Method 'contains' cannot be called on 'List<String>?' because it is potentially null.
+ - 'List' is from 'dart:core'.
+Try calling using ?. instead.
+        if (!excluded.contains('hid') && !excluded.contains('hid_script')) {
+                      ^^^^^^^^
+lib/services/attack_suggestion_engine.dart:194:52: Error: Method 'contains' cannot be called on 'List<String>?' because it is potentially null.
+ - 'List' is from 'dart:core'.
+Try calling using ?. instead.
+        if (!excluded.contains('hid') && !excluded.contains('hid_script')) {
+                                                   ^^^^^^^^
+lib/services/attack_suggestion_engine.dart:214:23: Error: Method 'contains' cannot be called on 'List<String>?' because it is potentially null.
+ - 'List' is from 'dart:core'.
+Try calling using ?. instead.
+        if (!excluded.contains('btlejack')) {
+                      ^^^^^^^^
+lib/services/attack_suggestion_engine.dart:232:23: Error: Method 'contains' cannot be called on 'List<String>?' because it is potentially null.
+ - 'List' is from 'dart:core'.
+Try calling using ?. instead.
+        if (!excluded.contains('full_scan')) {
+                      ^^^^^^^^
+lib/services/attack_suggestion_engine.dart:253:19: Error: Method 'contains' cannot be called on 'List<String>?' because it is potentially null.
+ - 'List' is from 'dart:core'.
+Try calling using ?. instead.
+    if (!excluded.contains('full_scan')) {
+                  ^^^^^^^^
+lib/services/attack_suggestion_engine.dart:262:19: Error: Method 'contains' cannot be called on 'List<String>?' because it is potentially null.
+ - 'List' is from 'dart:core'.
+Try calling using ?. instead.
+    if (!excluded.contains('bypass')) {
+                  ^^^^^^^^
+Target kernel_snapshot_program failed: Exception
+
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':app:compileFlutterBuildDebug'.
+> Process 'command 'C:\Users\INdaHouse\flutter\bin\flutter.bat'' finished with non-zero exit value 1
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 7s

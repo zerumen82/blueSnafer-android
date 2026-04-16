@@ -1,0 +1,22 @@
+e: file:///D:/PROJECTS/bluesnafer_pro/android/app/src/main/kotlin/com/bluesnafer_pro/ExploitIntegration.kt:575:64 Unresolved reference 'exploit'.
+e: file:///D:/PROJECTS/bluesnafer_pro/android/app/src/main/kotlin/com/bluesnafer_pro/ExploitIntegration.kt:576:75 Unresolved reference 'it'.
+e: file:///D:/PROJECTS/bluesnafer_pro/android/app/src/main/kotlin/com/bluesnafer_pro/MissingClasses.kt:1022:7 Redeclaration:
+object BlueBorneExploit : Any
+e: file:///D:/PROJECTS/bluesnafer_pro/android/app/src/main/kotlin/com/bluesnafer_pro/MissingClasses.kt:2639:8 Redeclaration:
+class BlueBorneExploit : Any
+e: file:///D:/PROJECTS/bluesnafer_pro/android/app/src/main/kotlin/com/bluesnafer_pro/MissingClasses.kt:2646:38 Argument type mismatch: actual type is 'java.io.Serializable', but 'kotlin.Pair<K, V>' was expected.
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':app:compileDebugKotlin'.
+> A failure occurred while executing org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction
+   > Compilation error. See log for more details
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 36s

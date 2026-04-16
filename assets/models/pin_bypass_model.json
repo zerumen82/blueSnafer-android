@@ -1,0 +1,35 @@
+{
+  "model_version": "1.0.0",
+  "model_type": "pin_bypass_predictor",
+  "input_features": [
+    "ble_active",
+    "obex_enabled",
+    "ftp_enabled",
+    "no_pairing_auth",
+    "android_version_lt_10",
+    "bluetooth_version_lt_5",
+    "manufacturer_samsung",
+    "manufacturer_xiaomi",
+    "services_gatt",
+    "services_spp"
+  ],
+  "input_shape": [10],
+  "output_classes": [
+    "NOT_VULNERABLE",
+    "PIN_BYPASS_VULNERABLE"
+  ],
+  "output_shape": [1],
+  "vulnerability_threshold": 0.7,
+  "model_metrics": {
+    "accuracy": 1.0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "loss": 0.005401968955993652
+  },
+  "training_info": {
+    "samples": 1000,
+    "vulnerable_samples": 432,
+    "epochs": 50,
+    "batch_size": 32
+  }
+}

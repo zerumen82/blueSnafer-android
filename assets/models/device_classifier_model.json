@@ -1,0 +1,41 @@
+{
+  "input_features": [
+    "ble_active",
+    "obex_enabled",
+    "ftp_enabled",
+    "spp_enabled",
+    "gatt_enabled",
+    "device_age_years",
+    "signal_strength_db",
+    "battery_level",
+    "has_display",
+    "has_microphone",
+    "has_speakers",
+    "has_camera"
+  ],
+  "output_categories": [
+    "smartphone",
+    "headset",
+    "speaker",
+    "car_system",
+    "wearable",
+    "other"
+  ],
+  "category_descriptions": [
+    "Tel\u00e9fono inteligente con capacidades Bluetooth avanzadas",
+    "Auriculares o headset Bluetooth",
+    "Altavoz Bluetooth port\u00e1til o fijo",
+    "Sistema de audio de autom\u00f3vil",
+    "Dispositivo wearable (smartwatch, fitness tracker)",
+    "Otro tipo de dispositivo Bluetooth"
+  ],
+  "training_samples": 3000,
+  "input_shape": [
+    12
+  ],
+  "output_shape": [
+    6
+  ],
+  "model_type": "multiclass_classification",
+  "confidence_threshold": 0.7
+}

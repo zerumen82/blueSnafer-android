@@ -1,0 +1,48 @@
+{
+  "input_features": [
+    "ble_active",
+    "obex_enabled",
+    "ftp_enabled",
+    "no_pairing_auth",
+    "android_version_lt_10",
+    "bluetooth_version_lt_5",
+    "manufacturer_samsung",
+    "manufacturer_xiaomi",
+    "services_gatt",
+    "services_spp",
+    "device_age_years",
+    "signal_strength_db",
+    "has_known_vulnerabilities",
+    "security_patches_level",
+    "device_category"
+  ],
+  "output_attacks": [
+    "obex_put",
+    "ftp_anonymous",
+    "pin_bypass",
+    "fake_pairing",
+    "sdp_overflow",
+    "l2cap_overflow",
+    "at_commands",
+    "ble_sniff"
+  ],
+  "attack_descriptions": [
+    "OBEX File Transfer Exploit",
+    "Anonymous FTP Access",
+    "PIN Bypass Attack",
+    "Fake Pairing Exploit",
+    "SDP Buffer Overflow",
+    "L2CAP Buffer Overflow",
+    "AT Command Injection",
+    "BLE Traffic Sniffing"
+  ],
+  "training_samples": 5000,
+  "input_shape": [
+    15
+  ],
+  "output_shape": [
+    8
+  ],
+  "model_type": "multi_label_classification",
+  "threshold_success": 0.6
+}

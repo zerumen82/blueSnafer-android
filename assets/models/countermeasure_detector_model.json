@@ -1,0 +1,49 @@
+{
+  "input_features": [
+    "ble_active",
+    "obex_enabled",
+    "ftp_enabled",
+    "spp_enabled",
+    "gatt_enabled",
+    "device_age_years",
+    "signal_strength_db",
+    "battery_level",
+    "has_display",
+    "has_microphone",
+    "has_speakers",
+    "has_camera",
+    "security_patches_level",
+    "device_category",
+    "connection_attempts",
+    "response_time_variation",
+    "blocks_unknown_devices",
+    "requires_authorization"
+  ],
+  "output_countermeasures": [
+    "pin_required",
+    "authentication",
+    "encryption",
+    "device_whitelist",
+    "rate_limiting",
+    "intrusion_detection",
+    "secure_pairing"
+  ],
+  "countermeasure_descriptions": [
+    "Requiere PIN para emparejamiento Bluetooth",
+    "Implementa mecanismos de autenticaci\u00f3n estrictos",
+    "Fuerza encriptaci\u00f3n en todas las comunicaciones",
+    "Mantiene lista blanca de dispositivos autorizados",
+    "Limita velocidad de conexiones para prevenir ataques",
+    "Tiene sistema de detecci\u00f3n de intrusiones activo",
+    "Usa emparejamiento seguro (Secure Simple Pairing)"
+  ],
+  "training_samples": 4000,
+  "input_shape": [
+    18
+  ],
+  "output_shape": [
+    7
+  ],
+  "model_type": "multi_label_countermeasure_detection",
+  "detection_threshold": 0.55
+}

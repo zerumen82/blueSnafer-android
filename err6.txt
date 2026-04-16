@@ -1,0 +1,46 @@
+lib/services/real_exploit_service.dart:537:32: Error: 'rotateHardwareIdentity' is already declared in this scope.
+  Future<Map<String, dynamic>> rotateHardwareIdentity() async {
+                               ^^^^^^^^^^^^^^^^^^^^^^
+lib/services/real_exploit_service.dart:256:19: Context: Previous declaration of 'rotateHardwareIdentity'.
+  Future<String?> rotateHardwareIdentity() async {
+                  ^^^^^^^^^^^^^^^^^^^^^^
+lib/services/real_exploit_service.dart:543:32: Error: 'startBLESpam' is already declared in this scope.
+  Future<Map<String, dynamic>> startBLESpam() async {
+                               ^^^^^^^^^^^^
+lib/services/real_exploit_service.dart:270:16: Context: Previous declaration of 'startBLESpam'.
+  Future<bool> startBLESpam() async {
+               ^^^^^^^^^^^^
+lib/services/real_exploit_service.dart:549:32: Error: 'stopBLESpam' is already declared in this scope.
+  Future<Map<String, dynamic>> stopBLESpam() async {
+                               ^^^^^^^^^^^
+lib/services/real_exploit_service.dart:282:16: Context: Previous declaration of 'stopBLESpam'.
+  Future<bool> stopBLESpam() async {
+               ^^^^^^^^^^^
+lib/services/real_exploit_service.dart:555:32: Error: 'startLogicJammer' is already declared in this scope.
+  Future<Map<String, dynamic>> startLogicJammer() async {
+                               ^^^^^^^^^^^^^^^^
+lib/services/real_exploit_service.dart:292:16: Context: Previous declaration of 'startLogicJammer'.
+  Future<bool> startLogicJammer() async {
+               ^^^^^^^^^^^^^^^^
+lib/services/real_exploit_service.dart:561:32: Error: 'stopLogicJammer' is already declared in this scope.
+  Future<Map<String, dynamic>> stopLogicJammer() async {
+                               ^^^^^^^^^^^^^^^
+lib/services/real_exploit_service.dart:303:16: Context: Previous declaration of 'stopLogicJammer'.
+  Future<bool> stopLogicJammer() async {
+               ^^^^^^^^^^^^^^^
+Target kernel_snapshot_program failed: Exception
+
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':app:compileFlutterBuildDebug'.
+> Process 'command 'C:\Users\INdaHouse\flutter\bin\flutter.bat'' finished with non-zero exit value 1
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 33s
