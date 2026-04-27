@@ -276,7 +276,49 @@ class BtleJackExecutor(
     fun jam(durationMs: Long): Boolean {
         return try {
             onLog("[BtleJack] Iniciando jamming por ${durationMs}ms...")
-            onLog("[BtleJack] Jamming completado")
+            
+            val advertiser = (context.getSystemService(Context.BLUETOOTH_SERVICE) as? android.bluetooth.BluetoothManager
+                ?.adapter?.bluetoothLeAdvertiser
+            
+            if (advertiser == null) {
+                onLog("[BtleJack] Error: No se pudo obtener Advertiser")
+                return false
+            }
+            
+            // Jamming mediante advertising masivo con datos aleatorios
+            val random = java.util.Random()
+            var jamCount = 0
+            val endTime = System.currentTimeMillis() + durationMs
+            
+            while (System.currentTimeMillis() < endTime && jamCount < 1000) {
+                try {
+                    val advSettings = AdvertiseSettings.Builder()
+                        .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
+                        .setConnectable(false)
+                        .build()
+                    
+                    val advData = AdvertiseData.Builder()
+                        .setIncludeDeviceName(false)
+                        .addManufacturerData(0xFFFF.toInt(), ByteArray(20) { random.nextInt(256).toByte() })
+                        .build()
+                    
+                    advertiser.startAdvertising(advSettings, advData, object : AdvertiseCallback() {
+                        override fun onStartSuccess(settingsInEffect: AdvertiseSettings?) {
+                            // OK
+                        }
+                        override fun onStartFailure(errorCode: Int) {
+                            // Ignore
+                        }
+                    })
+                    
+                    jamCount++
+                    Thread.sleep(50) // 50ms entre anuncios
+                } catch (e: Exception) {
+                    // Ignore individual failures
+                }
+            }
+            
+            onLog("[BtleJack] Jamming completado: $jamCount anuncios enviados")
             true
         } catch (e: Exception) {
             onLog("[BtleJack] Error en jamming: ${e.message}")
