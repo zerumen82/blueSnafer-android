@@ -1,0 +1,2 @@
+Running Gradle task 'assembleDebug'...                              4,8s
+Gradle task assembleDebug failed with exit code 1

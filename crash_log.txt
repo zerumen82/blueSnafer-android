@@ -1,0 +1,134 @@
+
+04-26 19:02:41.484 14349 14419 I AmazonPhotos_StartupTaskManager: Running startup-task: SetupCrashDetectionTask
+04-26 19:02:41.489 14349 14419 I com.amazon.device.crashmanager.CrashDetectionHelper: Installing crash detector as default exception handler.
+04-26 19:02:41.490 14349 14419 I AmazonPhotos_SetupCrashDetectionTask: SetupCrashDetectionTask completed in 5 ms
+04-26 19:02:41.490 14349 14494 I com.amazon.device.crashmanager.CrashDetectionHelper: Uploading Crash Report
+04-26 19:02:41.496 14349 14494 I CrashManager.ArtifactUploader: uploadArtifacts: Finished uploading artifacts. Uploaded 0 artifacts.
+04-26 19:02:42.983 14635 14635 I .bluesnafer_pro: Late-enabling -Xcheck:jni
+04-26 19:02:43.066 14635 14635 I .bluesnafer_pro: Using CollectorTypeCC GC.
+04-26 19:02:43.126 14635 14635 E .bluesnafer_pro: BBinder_init Processname  com.bluesnafer_pro  
+04-26 19:02:43.127 14635 14635 E .bluesnafer_pro: BBinder_init hasGetProcessName  com.bluesnafer_pro
+04-26 19:02:43.452 14635 14635 I .bluesnafer_pro: AssetManager2(0xb400006f77012438) locale list changing from [] to [es-ES]
+04-26 19:02:43.586 14635 14675 I GameManager: __progname=com.bluesnafer_pro
+04-26 19:02:43.588 14635 14635 I .bluesnafer_pro: AssetManager2(0xb400006f77017578) locale list changing from [] to [es-ES]
+04-26 19:02:43.807 14635 14635 I .bluesnafer_pro: AssetManager2(0xb400006f77015318) locale list changing from [] to [es-ES]
+04-26 19:02:44.852 14635 14635 I .bluesnafer_pro: hiddenapi: Accessing hidden method Landroid/view/accessibility/AccessibilityNodeInfo;->getSourceNodeId()J (runtime_flags=0, domain=platform, api=unsupported,test-api) from Lio/flutter/view/AccessibilityViewEmbedder$ReflectionAccessors; (domain=app, TargetSdkVersion=36) using reflection: allowed
+04-26 19:02:44.852 14635 14635 I .bluesnafer_pro: hiddenapi: Accessing hidden method Landroid/view/accessibility/AccessibilityRecord;->getSourceNodeId()J (runtime_flags=0, domain=platform, api=unsupported) from Lio/flutter/view/AccessibilityViewEmbedder$ReflectionAccessors; (domain=app, TargetSdkVersion=36) using reflection: allowed
+04-26 19:02:44.853 14635 14635 I .bluesnafer_pro: hiddenapi: Accessing hidden field Landroid/view/accessibility/AccessibilityNodeInfo;->mChildNodeIds:Landroid/util/LongArray; (runtime_flags=0, domain=platform, api=unsupported) from Lio/flutter/view/AccessibilityViewEmbedder$ReflectionAccessors; (domain=app, TargetSdkVersion=36) using reflection: allowed
+04-26 19:02:44.853 14635 14635 I .bluesnafer_pro: hiddenapi: Accessing hidden method Landroid/util/LongArray;->get(I)J (runtime_flags=0, domain=platform, api=unsupported) from Lio/flutter/view/AccessibilityViewEmbedder$ReflectionAccessors; (domain=app, TargetSdkVersion=36) using reflection: allowed
+04-26 19:02:46.505 14635 14635 E .bluesnafer_pro: [perfctl] 14635 14635 FPSGO ver:0
+04-26 19:02:46.505 14635 14635 E .bluesnafer_pro: [perfctl] 0 0 0 0
+04-26 19:02:46.539 14635 14702 E .bluesnafer_pro: Invalid base format! req_base_format = 0x0, req_format = 0x38
+04-26 19:02:46.539 14635 14702 E .bluesnafer_pro: Invalid base format! req_base_format = 0x0, req_format = 0x3b
+04-26 19:02:46.539 14635 14702 E .bluesnafer_pro: Invalid base format! req_base_format = 0x0, req_format = 0x38
+04-26 19:02:46.539 14635 14702 E .bluesnafer_pro: Invalid base format! req_base_format = 0x0, req_format = 0x3b
+04-26 19:02:46.553 14635 14645 I .bluesnafer_pro: Compiler allocated 7174KB to compile void android.view.ViewRootImpl.performTraversals()
+04-26 19:02:46.830  1616  1643 I ActivityTaskManager: Displayed com.bluesnafer_pro/.MainActivity for user 0: +3s812ms
+04-26 19:02:46.832  1616  1643 I ActivityTaskManager: Fully drawn com.bluesnafer_pro/.MainActivity: +3s812ms
+04-26 19:02:47.637 14635 14635 I flutter : Error al registrar log: PathNotFoundException: Cannot open file, path = 'logs/bluesnafer.log' (OS Error: No such file or directory, errno = 2)
+04-26 19:02:47.742 14635 14635 I flutter : Error al registrar log: PathNotFoundException: Cannot open file, path = 'logs/bluesnafer.log' (OS Error: No such file or directory, errno = 2)
+04-26 19:02:47.747 14635 14635 I flutter : Error al registrar log: PathNotFoundException: Cannot open file, path = 'logs/bluesnafer.log' (OS Error: No such file or directory, errno = 2)
+04-26 19:02:47.754 14635 14635 I flutter : Error al registrar log: PathNotFoundException: Cannot open file, path = 'logs/bluesnafer.log' (OS Error: No such file or directory, errno = 2)
+04-26 19:02:47.757 14635 14635 I flutter : Error al registrar log: PathNotFoundException: Cannot open file, path = 'logs/bluesnafer.log' (OS Error: No such file or directory, errno = 2)
+04-26 19:02:47.776 14635 14635 I flutter : Error al registrar log: PathNotFoundException: Cannot open file, path = 'logs/bluesnafer.log' (OS Error: No such file or directory, errno = 2)
+04-26 19:02:47.779 30420 30420 I GoogleInputMethodService: GoogleInputMethodService.onStartInput():1444 onStartInput(EditorInfo{EditorInfo{packageName=com.bluesnafer_pro, inputType=0, inputTypeString=NULL, enableLearning=false, autoCorrection=false, autoComplete=false, imeOptions=0, privateImeOptions=null, actionName=UNSPECIFIED, actionLabel=null, initialSelStart=-1, initialSelEnd=-1, initialCapsMode=0, label=null, fieldId=0, fieldName=null, extras=null, hintText=null, hintLocales=[]}}, false)
+04-26 19:02:47.784 14635 14635 I ImeTracker: com.bluesnafer_pro:ddc8dbf6: onCancelled at PHASE_CLIENT_ALREADY_HIDDEN
+04-26 19:02:47.847 14635 14635 I flutter : Error al registrar log: PathNotFoundException: Cannot open file, path = 'logs/bluesnafer.log' (OS Error: No such file or directory, errno = 2)
+04-26 19:02:47.847 14635 14635 I flutter : Error al registrar log: PathNotFoundException: Cannot open file, path = 'logs/bluesnafer.log' (OS Error: No such file or directory, errno = 2)
+04-26 19:02:47.847 14635 14635 I flutter : Error al registrar log: PathNotFoundException: Cannot open file, path = 'logs/bluesnafer.log' (OS Error: No such file or directory, errno = 2)
+04-26 19:02:47.848 14635 14635 I flutter : Error al registrar log: PathNotFoundException: Cannot open file, path = 'logs/bluesnafer.log' (OS Error: No such file or directory, errno = 2)
+04-26 19:03:29.284 14635 14635 I flutter : Error al registrar log: PathNotFoundException: Cannot open file, path = 'logs/bluesnafer.log' (OS Error: No such file or directory, errno = 2)
+04-26 19:03:29.284 14635 14635 I flutter : Error al registrar log: PathNotFoundException: Cannot open file, path = 'logs/bluesnafer.log' (OS Error: No such file or directory, errno = 2)
+04-26 19:03:39.021 14635 14635 I flutter : Error al registrar log: PathNotFoundException: Cannot open file, path = 'logs/bluesnafer.log' (OS Error: No such file or directory, errno = 2)
+04-26 19:03:39.022 14635 14635 I flutter : Error al registrar log: PathNotFoundException: Cannot open file, path = 'logs/bluesnafer.log' (OS Error: No such file or directory, errno = 2)
+04-26 19:03:39.224 14635 14635 I flutter : Error al registrar log: PathNotFoundException: Cannot open file, path = 'logs/bluesnafer.log' (OS Error: No such file or directory, errno = 2)
+04-26 19:03:39.226 14635 14635 I flutter : Error al registrar log: PathNotFoundException: Cannot open file, path = 'logs/bluesnafer.log' (OS Error: No such file or directory, errno = 2)
+04-26 19:03:43.991 14635 14635 I flutter : Error al registrar log: PathNotFoundException: Cannot open file, path = 'logs/bluesnafer.log' (OS Error: No such file or directory, errno = 2)
+04-26 19:03:43.991 14635 14635 I flutter : Error al registrar log: PathNotFoundException: Cannot open file, path = 'logs/bluesnafer.log' (OS Error: No such file or directory, errno = 2)
+04-26 19:03:43.991 14635 14635 I flutter : Error al registrar log: PathNotFoundException: Cannot open file, path = 'logs/bluesnafer.log' (OS Error: No such file or directory, errno = 2)
+04-26 19:03:43.991 14635 14635 I flutter : Error al registrar log: PathNotFoundException: Cannot open file, path = 'logs/bluesnafer.log' (OS Error: No such file or directory, errno = 2)
+04-26 19:03:43.991 14635 14635 I flutter : Error al registrar log: PathNotFoundException: Cannot open file, path = 'logs/bluesnafer.log' (OS Error: No such file or directory, errno = 2)
+04-26 19:03:43.992 14635 14635 I flutter : Error al registrar log: PathNotFoundException: Cannot open file, path = 'logs/bluesnafer.log' (OS Error: No such file or directory, errno = 2)
+--------- beginning of crash
+04-26 19:04:02.514 14635 14635 E AndroidRuntime: FATAL EXCEPTION: main
+04-26 19:04:02.514 14635 14635 E AndroidRuntime: Process: com.bluesnafer_pro, PID: 14635
+04-26 19:04:02.514 14635 14635 E AndroidRuntime: java.lang.IllegalArgumentException: Unsupported value: 'kotlin.Unit' of type 'class kotlin.Unit'
+04-26 19:04:02.514 14635 14635 E AndroidRuntime: 	at io.flutter.plugin.common.StandardMessageCodec.writeValue(StandardMessageCodec.java:296)
+04-26 19:04:02.514 14635 14635 E AndroidRuntime: 	at io.flutter.plugin.common.StandardMethodCodec.encodeSuccessEnvelope(StandardMethodCodec.java:61)
+04-26 19:04:02.514 14635 14635 E AndroidRuntime: 	at io.flutter.plugin.common.MethodChannel$IncomingMethodCallHandler$1.success(MethodChannel.java:272)
+04-26 19:04:02.514 14635 14635 E AndroidRuntime: 	at com.bluesnafer_pro.ExploitIntegration.extractPBAPData$lambda$123$lambda$122(ExploitIntegration.kt:1386)
+04-26 19:04:02.514 14635 14635 E AndroidRuntime: 	at com.bluesnafer_pro.ExploitIntegration.$r8$lambda$gCUvOIT6Ptd37rGajsiSYeikD-Q(Unknown Source:0)
+04-26 19:04:02.514 14635 14635 E AndroidRuntime: 	at com.bluesnafer_pro.ExploitIntegration$$ExternalSyntheticLambda83.run(D8$$SyntheticClass:0)
+04-26 19:04:02.514 14635 14635 E AndroidRuntime: 	at android.os.Handler.handleCallback(Handler.java:1051)
+04-26 19:04:02.514 14635 14635 E AndroidRuntime: 	at android.os.Handler.dispatchMessage(Handler.java:107)
+04-26 19:04:02.514 14635 14635 E AndroidRuntime: 	at android.os.Looper.loopOnce(Looper.java:266)
+04-26 19:04:02.514 14635 14635 E AndroidRuntime: 	at android.os.Looper.loop(Looper.java:361)
+04-26 19:04:02.514 14635 14635 E AndroidRuntime: 	at android.app.ActivityThread.main(ActivityThread.java:10345)
+04-26 19:04:02.514 14635 14635 E AndroidRuntime: 	at java.lang.reflect.Method.invoke(Native Method)
+04-26 19:04:02.514 14635 14635 E AndroidRuntime: 	at com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:675)
+04-26 19:04:02.514 14635 14635 E AndroidRuntime: 	at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:1002)
+04-26 19:06:18.511 16144 16144 I .bluesnafer_pro: Late-enabling -Xcheck:jni
+04-26 19:06:18.546 16144 16144 I .bluesnafer_pro: Using CollectorTypeCC GC.
+04-26 19:06:18.585 16144 16144 E .bluesnafer_pro: BBinder_init Processname  com.bluesnafer_pro  
+04-26 19:06:18.585 16144 16144 E .bluesnafer_pro: BBinder_init hasGetProcessName  com.bluesnafer_pro
+04-26 19:06:19.011 16144 16144 D nativeloader: Configuring clns-9 for other apk /data/app/~~W9LflGZO7zXClupQS5Cl6Q==/com.bluesnafer_pro-1O8XBsSCk6YezjTcBvXeQQ==/base.apk. target_sdk_version=36, uses_libraries=, library_path=/data/app/~~W9LflGZO7zXClupQS5Cl6Q==/com.bluesnafer_pro-1O8XBsSCk6YezjTcBvXeQQ==/lib/arm64:/data/app/~~W9LflGZO7zXClupQS5Cl6Q==/com.bluesnafer_pro-1O8XBsSCk6YezjTcBvXeQQ==/base.apk!/lib/arm64-v8a, permitted_path=/data:/mnt/expand:/data/user/0/com.bluesnafer_pro
+04-26 19:06:19.020 16144 16144 I .bluesnafer_pro: AssetManager2(0xb400006f77012438) locale list changing from [] to [es-ES]
+04-26 19:06:19.051 16144 16144 V GraphicsEnvironment: com.bluesnafer_pro is not listed in per-application setting
+04-26 19:06:19.051 16144 16144 V GraphicsEnvironment: com.bluesnafer_pro is not listed in ANGLE allowlist or settings, returning default
+04-26 19:06:19.164 16144 16144 I .bluesnafer_pro: AssetManager2(0xb400006f77017578) locale list changing from [] to [es-ES]
+04-26 19:06:19.167 16144 16208 I GameManager: __progname=com.bluesnafer_pro
+04-26 19:06:19.278 16144 16228 D nativeloader: Load /data/app/~~W9LflGZO7zXClupQS5Cl6Q==/com.bluesnafer_pro-1O8XBsSCk6YezjTcBvXeQQ==/base.apk!/lib/arm64-v8a/libflutter.so using class loader ns clns-9 (caller=/data/app/~~W9LflGZO7zXClupQS5Cl6Q==/com.bluesnafer_pro-1O8XBsSCk6YezjTcBvXeQQ==/base.apk): ok
+04-26 19:06:19.301 16144 16144 I .bluesnafer_pro: AssetManager2(0xb400006f77018838) locale list changing from [] to [es-ES]
+04-26 19:06:19.350 16144 16236 D vulkan  : searching for layers in '/data/app/~~W9LflGZO7zXClupQS5Cl6Q==/com.bluesnafer_pro-1O8XBsSCk6YezjTcBvXeQQ==/lib/arm64'
+04-26 19:06:19.350 16144 16236 D vulkan  : searching for layers in '/data/app/~~W9LflGZO7zXClupQS5Cl6Q==/com.bluesnafer_pro-1O8XBsSCk6YezjTcBvXeQQ==/base.apk!/lib/arm64-v8a'
+04-26 19:06:19.459 16144 16236 D vulkan  : added global layer 'VK_LAYER_KHRONOS_validation' from library '/data/app/~~W9LflGZO7zXClupQS5Cl6Q==/com.bluesnafer_pro-1O8XBsSCk6YezjTcBvXeQQ==/base.apk!/lib/arm64-v8a/libVkLayer_khronos_validation.so'
+04-26 19:06:20.188 16144 16144 I .bluesnafer_pro: hiddenapi: Accessing hidden method Landroid/view/accessibility/AccessibilityNodeInfo;->getSourceNodeId()J (runtime_flags=0, domain=platform, api=unsupported,test-api) from Lio/flutter/view/AccessibilityViewEmbedder$ReflectionAccessors; (domain=app, TargetSdkVersion=36) using reflection: allowed
+04-26 19:06:20.188 16144 16144 I .bluesnafer_pro: hiddenapi: Accessing hidden method Landroid/view/accessibility/AccessibilityRecord;->getSourceNodeId()J (runtime_flags=0, domain=platform, api=unsupported) from Lio/flutter/view/AccessibilityViewEmbedder$ReflectionAccessors; (domain=app, TargetSdkVersion=36) using reflection: allowed
+04-26 19:06:20.188 16144 16144 I .bluesnafer_pro: hiddenapi: Accessing hidden field Landroid/view/accessibility/AccessibilityNodeInfo;->mChildNodeIds:Landroid/util/LongArray; (runtime_flags=0, domain=platform, api=unsupported) from Lio/flutter/view/AccessibilityViewEmbedder$ReflectionAccessors; (domain=app, TargetSdkVersion=36) using reflection: allowed
+04-26 19:06:20.188 16144 16144 I .bluesnafer_pro: hiddenapi: Accessing hidden method Landroid/util/LongArray;->get(I)J (runtime_flags=0, domain=platform, api=unsupported) from Lio/flutter/view/AccessibilityViewEmbedder$ReflectionAccessors; (domain=app, TargetSdkVersion=36) using reflection: allowed
+04-26 19:06:21.976 16144 16144 E .bluesnafer_pro: [perfctl] 16144 16144 FPSGO ver:0
+04-26 19:06:21.976 16144 16144 E .bluesnafer_pro: [perfctl] 0 0 0 0
+04-26 19:06:21.995 16144 16151 I .bluesnafer_pro: Compiler allocated 7174KB to compile void android.view.ViewRootImpl.performTraversals()
+04-26 19:06:21.996 16144 16144 D BLASTBufferQueue: [228afb0 SurfaceView[com.bluesnafer_pro/com.bluesnafer_pro.MainActivity]#1](f:0,a:0) constructor()
+04-26 19:06:21.997 16144 16144 D BLASTBufferQueue: [228afb0 SurfaceView[com.bluesnafer_pro/com.bluesnafer_pro.MainActivity]#1](f:0,a:0) update width=720 height=1600 format=4 mTransformHint=0
+04-26 19:06:22.004 16144 16236 E .bluesnafer_pro: Invalid base format! req_base_format = 0x0, req_format = 0x38
+04-26 19:06:22.004 16144 16236 E .bluesnafer_pro: Invalid base format! req_base_format = 0x0, req_format = 0x3b
+04-26 19:06:22.004 16144 16236 E .bluesnafer_pro: Invalid base format! req_base_format = 0x0, req_format = 0x38
+04-26 19:06:22.004 16144 16236 E .bluesnafer_pro: Invalid base format! req_base_format = 0x0, req_format = 0x3b
+04-26 19:06:22.249  1616  1835 D BatteryStatsService: noteVideoSurfaceChanged  noteWhich: 49,arg1: 720, arg2: 1600, arg3: 16144, arg4: 72126931989954561, name: com.bluesnafer_pro
+04-26 19:06:22.332 16144 16144 D WindowLayoutComponentImpl: Register WindowLayoutInfoListener on Context=com.bluesnafer_pro.MainActivity@75f3e5, of which baseContext=android.app.ContextImpl@305ef0c
+04-26 19:06:22.378 16144 16236 D BLASTBufferQueue: [228afb0 SurfaceView[com.bluesnafer_pro/com.bluesnafer_pro.MainActivity]#1](f:0,a:1) acquireNextBufferLocked size=720x1600 mFrameNumber=1 applyTransaction=true mTimestamp=827732566852490(auto) mPendingTransactions.size=0 graphicBufferId=69337952026634 transform=0
+04-26 19:06:23.001  1616  3410 D BatteryStatsService: noteVideoSurfaceChanged  noteWhich: 49,arg1: 720, arg2: 1600, arg3: 16144, arg4: 72126931989954561, name: com.bluesnafer_pro
+04-26 19:06:23.166  1616  1643 I ActivityTaskManager: Displayed com.bluesnafer_pro/.MainActivity for user 0: +4s530ms
+04-26 19:06:23.168  1616  1643 I ActivityTaskManager: Fully drawn com.bluesnafer_pro/.MainActivity: +4s530ms
+04-26 19:06:23.178 16144 16144 I flutter : Error al registrar log: PathNotFoundException: Cannot open file, path = 'logs/bluesnafer.log' (OS Error: No such file or directory, errno = 2)
+04-26 19:06:23.304 16144 16144 I flutter : Error al registrar log: PathNotFoundException: Cannot open file, path = 'logs/bluesnafer.log' (OS Error: No such file or directory, errno = 2)
+04-26 19:06:23.318 16144 16144 I flutter : Error al registrar log: PathNotFoundException: Cannot open file, path = 'logs/bluesnafer.log' (OS Error: No such file or directory, errno = 2)
+04-26 19:06:23.319 16144 16144 I flutter : Error al registrar log: PathNotFoundException: Cannot open file, path = 'logs/bluesnafer.log' (OS Error: No such file or directory, errno = 2)
+04-26 19:06:23.322 16144 16144 I flutter : Error al registrar log: PathNotFoundException: Cannot open file, path = 'logs/bluesnafer.log' (OS Error: No such file or directory, errno = 2)
+04-26 19:06:23.323 16144 16144 I ImeTracker: com.bluesnafer_pro:27dcd416: onCancelled at PHASE_CLIENT_ALREADY_HIDDEN
+04-26 19:06:23.326 16144 16144 I flutter : Error al registrar log: PathNotFoundException: Cannot open file, path = 'logs/bluesnafer.log' (OS Error: No such file or directory, errno = 2)
+04-26 19:06:23.327 16144 16144 I flutter : Error al registrar log: PathNotFoundException: Cannot open file, path = 'logs/bluesnafer.log' (OS Error: No such file or directory, errno = 2)
+04-26 19:06:23.327 16144 16144 I flutter : Error al registrar log: PathNotFoundException: Cannot open file, path = 'logs/bluesnafer.log' (OS Error: No such file or directory, errno = 2)
+04-26 19:06:23.327 16144 16144 I flutter : Error al registrar log: PathNotFoundException: Cannot open file, path = 'logs/bluesnafer.log' (OS Error: No such file or directory, errno = 2)
+04-26 19:06:23.328 16144 16144 I flutter : Error al registrar log: PathNotFoundException: Cannot open file, path = 'logs/bluesnafer.log' (OS Error: No such file or directory, errno = 2)
+04-26 19:06:23.330 30420 30420 D InlineSuggestionSessionController: notifyOnStartInput: com.bluesnafer_pro, 0
+04-26 19:06:23.330 30420 30420 I GoogleInputMethodService: GoogleInputMethodService.onStartInput():1444 onStartInput(EditorInfo{EditorInfo{packageName=com.bluesnafer_pro, inputType=0, inputTypeString=NULL, enableLearning=false, autoCorrection=false, autoComplete=false, imeOptions=0, privateImeOptions=null, actionName=UNSPECIFIED, actionLabel=null, initialSelStart=-1, initialSelEnd=-1, initialCapsMode=0, label=null, fieldId=0, fieldName=null, extras=null, hintText=null, hintLocales=[]}}, false)
+04-26 19:06:26.290 16144 16144 W support-thread: type=1400 audit(0.0:7394248): avc:  denied  { read } for  name="u:object_r:vendor_feature_prop:s0" dev="tmpfs" ino=600 scontext=u:r:untrusted_app:s0:c189,c257,c512,c768 tcontext=u:object_r:vendor_feature_prop:s0 tclass=file permissive=0 app=com.bluesnafer_pro
+04-26 19:06:27.571 16144 16436 D ProfileInstaller: Installing profile for com.bluesnafer_pro
+04-26 19:07:04.151 16144 16144 I flutter : Error al registrar log: PathNotFoundException: Cannot open file, path = 'logs/bluesnafer.log' (OS Error: No such file or directory, errno = 2)
+04-26 19:07:04.151 16144 16144 I flutter : Error al registrar log: PathNotFoundException: Cannot open file, path = 'logs/bluesnafer.log' (OS Error: No such file or directory, errno = 2)
+04-26 19:07:04.625 16144 16144 I flutter : Error al registrar log: PathNotFoundException: Cannot open file, path = 'logs/bluesnafer.log' (OS Error: No such file or directory, errno = 2)
+04-26 19:07:04.626 16144 16144 I flutter : Error al registrar log: PathNotFoundException: Cannot open file, path = 'logs/bluesnafer.log' (OS Error: No such file or directory, errno = 2)
+04-26 19:07:13.506 16144 16144 I flutter : Error al registrar log: PathNotFoundException: Cannot open file, path = 'logs/bluesnafer.log' (OS Error: No such file or directory, errno = 2)
+04-26 19:07:13.506 16144 16144 I flutter : Error al registrar log: PathNotFoundException: Cannot open file, path = 'logs/bluesnafer.log' (OS Error: No such file or directory, errno = 2)
+04-26 19:07:17.868 16144 16144 D ExploitIntegration: ­ƒô× Metodo llamado: sdpDiscover
+04-26 19:07:17.869 16144 16144 D ExploitIntegration: SDP: Discovering services on 1C:BA:3A:04:FA:F0
+04-26 19:07:17.873 16144 16653 D BluetoothDevice: fetchUuidsWithSdp() 1C:BA:3A:04:FA:F0, transport 0
+04-26 19:07:17.968 16144 16144 I flutter : Error al registrar log: PathNotFoundException: Cannot open file, path = 'logs/bluesnafer.log' (OS Error: No such file or directory, errno = 2)
+04-26 19:07:17.968 16144 16144 I flutter : Error al registrar log: PathNotFoundException: Cannot open file, path = 'logs/bluesnafer.log' (OS Error: No such file or directory, errno = 2)
+04-26 19:07:17.969 16144 16144 I flutter : Error al registrar log: PathNotFoundException: Cannot open file, path = 'logs/bluesnafer.log' (OS Error: No such file or directory, errno = 2)
+04-26 19:07:17.969 16144 16144 I flutter : Error al registrar log: PathNotFoundException: Cannot open file, path = 'logs/bluesnafer.log' (OS Error: No such file or directory, errno = 2)
+04-26 19:07:17.969 16144 16144 I flutter : Error al registrar log: PathNotFoundException: Cannot open file, path = 'logs/bluesnafer.log' (OS Error: No such file or directory, errno = 2)
+04-26 19:07:17.970 16144 16144 I flutter : Error al registrar log: PathNotFoundException: Cannot open file, path = 'logs/bluesnafer.log' (OS Error: No such file or directory, errno = 2)
+04-26 19:07:18.350 16144 16236 E BLASTBufferQueue: [228afb0 SurfaceView[com.bluesnafer_pro/com.bluesnafer_pro.MainActivity]#1](f:1,a:6) acquireNextBufferLocked: Can't acquire next buffer. Already acquired max frames 6 max:4 + 2
