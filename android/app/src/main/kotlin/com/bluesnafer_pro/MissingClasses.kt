@@ -579,17 +579,25 @@ object PBAPClient {
         return extractPBAPData(device, "calls")
     }
     
-    fun extractContacts(device: BluetoothDevice, callback: (List<Map<String, String>>) -> Unit) {
+fun extractContactsWithLogging(device: BluetoothDevice, callback: (String) -> Unit) {
         executor.execute {
-            val contacts = extractContacts(device)
-            callback(contacts)
+            try {
+                val contacts = extractPBAPData(device, "contacts")
+                callback("Extracted ${contacts.size} contacts")
+            } catch (e: Exception) {
+                callback("Error: ${e.message}")
+            }
         }
     }
     
-    fun extractCallHistory(device: BluetoothDevice, callback: (List<Map<String, Any>>) -> Unit) {
+    fun extractCallHistoryWithLogging(device: BluetoothDevice, callback: (String) -> Unit) {
         executor.execute {
-            val calls = extractPBAPData(device, "calls")
-            callback(calls)
+            try {
+                val calls = extractPBAPData(device, "calls")
+                callback("Extracted ${calls.size} calls")
+            } catch (e: Exception) {
+                callback("Error: ${e.message}")
+            }
         }
     }
     

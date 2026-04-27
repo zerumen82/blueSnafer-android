@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'unified_attack_screen.dart';
+import 'utils/advanced_logger.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+  
+  await AdvancedLogger.initialize();
+  
   runApp(const BlueSnaferApp());
 }
 
