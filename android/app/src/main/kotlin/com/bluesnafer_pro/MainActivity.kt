@@ -18,12 +18,13 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-
-        // Configurar contexto para ExploitIntegration
-        ExploitIntegration.configureContext(this@MainActivity)
-
+        
         // Registrar ExploitIntegration
         ExploitIntegration.registerWith(flutterEngine)
+        ExploitIntegration.setContext(applicationContext)
+
+        // Registrar BluetoothMethodHandler para com.bluesnafer_pro/bluetooth
+        BluetoothMethodHandler.registerWith(flutterEngine)
 
         // Configurar MethodChannel para comunicación básica
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler {

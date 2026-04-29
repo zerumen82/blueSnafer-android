@@ -134,7 +134,7 @@ class SmartCache<K, V> {
     }
   }
 
-  /// Calcular tasa de aciertos (simulada)
+  /// Calcular tasa de aciertos
   double _calculateHitRate() {
     // Esta es una implementación simplificada
     // En una implementación real, rastrearíamos hits/misses

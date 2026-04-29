@@ -1,6 +1,7 @@
 // Pantalla de escaneo Bluetooth minimalista
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../services/bluetooth_service.dart';
 import '../utils/device_utils.dart' as device_utils;
 import 'stats_dashboard.dart';
@@ -101,7 +102,7 @@ class _BluetoothScannerScreenState extends State<BluetoothScannerScreen> {
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
-              // TODO: Abrir configuración de Bluetooth
+              openAppSettings();
             },
             child: const Text('Abrir Configuración'),
           ),

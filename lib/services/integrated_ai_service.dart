@@ -156,11 +156,11 @@ class IntegratedAIService {
         'obex_put',
         'ftp_anonymous',
         'pin_bypass',
-        'fake_pairing',
         'sdp_overflow',
         'l2cap_overflow',
         'at_commands',
-        'ble_sniff'
+        'ble_sniff',
+        'mac_spoofing'
       ];
 
       final probabilities =
@@ -193,15 +193,15 @@ class IntegratedAIService {
           .logError('Error en predicción real de éxito de ataque: $e');
       return AttackSuccessPrediction(
         attackSuccessProbabilities: [0.3, 0.2, 0.4, 0.1, 0.2, 0.3, 0.1, 0.2],
-        attackTypes: [
+         attackTypes: [
           'obex_put',
           'ftp_anonymous',
           'pin_bypass',
-          'fake_pairing',
           'sdp_overflow',
           'l2cap_overflow',
           'at_commands',
-          'ble_sniff'
+          'ble_sniff',
+          'mac_spoofing'
         ],
         overallSuccessScore: 0.23,
       );
@@ -554,11 +554,11 @@ class IntegratedAIService {
         'obex_put': 'path_traversal',
         'ftp_anonymous': 'authentication_bypass',
         'pin_bypass': 'authentication_bypass',
-        'fake_pairing': 'authentication_bypass',
         'sdp_overflow': 'buffer_overflow',
         'l2cap_overflow': 'buffer_overflow',
         'at_commands': 'command_injection',
         'ble_sniff': 'information_disclosure',
+        'mac_spoofing': 'identity_spoofing',
       };
 
       final vulnerabilityType =
@@ -682,44 +682,44 @@ public class $selectedExploit {
 
   /// Obtiene multiplicador de prioridad para diferentes tipos de ataques
   double _getAttackPriorityMultiplier(String attackType) {
-    final priorities = {
-      'pin_bypass': 1.0,
-      'obex_put': 0.9,
-      'ftp_anonymous': 0.8,
-      'fake_pairing': 0.7,
-      'sdp_overflow': 0.6,
-      'l2cap_overflow': 0.5,
-      'at_commands': 0.4,
-      'ble_sniff': 0.3,
-    };
+      final priorities = {
+        'pin_bypass': 1.0,
+        'obex_put': 0.9,
+        'ftp_anonymous': 0.8,
+        'sdp_overflow': 0.7,
+        'mac_spoofing': 0.65,
+        'l2cap_overflow': 0.5,
+        'at_commands': 0.4,
+        'ble_sniff': 0.3,
+      };
     return priorities[attackType] ?? 0.5;
   }
 
   /// Verifica si un ataque está bloqueado por una contramedida
   bool _isAttackBlockedByCountermeasure(
       String attackType, String countermeasure) {
-    final blockingMap = {
-      'pin_required': ['pin_bypass', 'fake_pairing'],
-      'authentication': ['pin_bypass', 'fake_pairing', 'ftp_anonymous'],
-      'encryption': ['ble_sniff', 'information_disclosure'],
-      'device_whitelist': ['obex_put', 'ftp_anonymous'],
-      'rate_limiting': ['sdp_overflow', 'l2cap_overflow'],
-    };
+      final blockingMap = {
+        'pin_required': ['pin_bypass', 'mac_spoofing'],
+        'authentication': ['pin_bypass', 'ftp_anonymous', 'mac_spoofing'],
+        'encryption': ['ble_sniff', 'information_disclosure'],
+        'device_whitelist': ['obex_put', 'ftp_anonymous'],
+        'rate_limiting': ['sdp_overflow', 'l2cap_overflow'],
+      };
     return blockingMap[attackType]?.contains(countermeasure) ?? false;
   }
 
   /// Estima recursos necesarios para un ataque
   List<String> _estimateAttackResources(String attackType) {
-    final resourceMap = {
-      'pin_bypass': ['bluetooth_connection', 'pin_manipulation'],
-      'obex_put': ['bluetooth_connection', 'file_system_access'],
-      'ftp_anonymous': ['bluetooth_connection', 'ftp_client'],
-      'fake_pairing': ['bluetooth_connection', 'pairing_spoofing'],
-      'sdp_overflow': ['bluetooth_connection', 'buffer_manipulation'],
-      'l2cap_overflow': ['bluetooth_connection', 'protocol_manipulation'],
-      'at_commands': ['bluetooth_connection', 'command_injection'],
-      'ble_sniff': ['bluetooth_connection', 'traffic_monitoring'],
-    };
+      final resourceMap = {
+        'pin_bypass': ['bluetooth_connection', 'pin_manipulation'],
+        'obex_put': ['bluetooth_connection', 'file_system_access'],
+        'ftp_anonymous': ['bluetooth_connection', 'ftp_client'],
+        'sdp_overflow': ['bluetooth_connection', 'buffer_manipulation'],
+        'l2cap_overflow': ['bluetooth_connection', 'protocol_manipulation'],
+        'at_commands': ['bluetooth_connection', 'command_injection'],
+        'ble_sniff': ['bluetooth_connection', 'traffic_monitoring'],
+        'mac_spoofing': ['bluetooth_connection', 'address_manipulation'],
+      };
     return resourceMap[attackType] ?? ['bluetooth_connection'];
   }
 
@@ -1105,11 +1105,11 @@ public class $selectedExploit {
     weights['obex_put'] = 0.8;
     weights['ftp_anonymous'] = 0.7;
     weights['pin_bypass'] = 0.9;
-    weights['fake_pairing'] = 0.6;
     weights['sdp_overflow'] = 0.5;
     weights['l2cap_overflow'] = 0.4;
     weights['at_commands'] = 0.3;
     weights['ble_sniff'] = 0.7;
+    weights['mac_spoofing'] = 0.6;
 
     // Ajustes según fabricante
     if (manufacturer.contains('samsung')) {
@@ -1119,7 +1119,7 @@ public class $selectedExploit {
 
     if (manufacturer.contains('xiaomi')) {
       weights['ftp_anonymous'] = (weights['ftp_anonymous'] ?? 0.7) + 0.3;
-      weights['fake_pairing'] = (weights['fake_pairing'] ?? 0.6) + 0.2;
+      weights['mac_spoofing'] = (weights['mac_spoofing'] ?? 0.6) + 0.2;
     }
 
     // Ajustes según versión

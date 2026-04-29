@@ -148,6 +148,7 @@ const List<String> kUnknownNames = [
   'Hidden',
   'N/A',
   'null',
+  'device',
 ];
 
 /// Get manufacturer/vendor from MAC address OUI prefix

@@ -2685,7 +2685,7 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
       else ...[
         _buildExploitCard('📇 EXTRAER CONTACTOS', 'Phone Book Access - telecom.pb', Icons.contacts, Colors.orange, () => _pbapExtract('contacts')),
         _buildExploitCard('📞 HISTORIAL LLAMADAS', 'Incoming/Outgoing/Missed calls', Icons.phone, Colors.deepOrange, () => _pbapExtract('call_history')),
-        _buildExploitCard('📋 EXTRAER TODO', 'Contactos + historial completo', Icons.folder_shared, Colors.amber, () => _pbapExtract('all')),
+        _buildExploitCard('📋 EXTRAER COMPLETO', 'Contactos + historial completo', Icons.folder_shared, Colors.amber, () => _pbapExtract('all')),
       ],
       if (_pbapContacts.isNotEmpty) ...[
         const SizedBox(height: 12),
