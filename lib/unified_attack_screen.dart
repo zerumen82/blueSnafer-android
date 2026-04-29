@@ -1,6 +1,7 @@
 // BlueSnafer Pro - UI UNIFICADA Y MODERNA
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -1794,6 +1795,7 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
   // EJECUTA TODOS los exploits disponibles con reintentos y logs
   // VERSIÓN MEJORADA CON TODAS LAS MEJORAS INTEGRADAS
   Future<void> _startUnattendedMode() async {
+    try {
     if (_isUnattendedRunning) {
       setState(() => _isUnattendedRunning = false);
       _appendLog('🛑 MODO DESATENDIDO CANCELADO');
@@ -1868,7 +1870,15 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
     _appendLog('📊 RESUMEN FINAL:');
     _appendLog('   🎯 Objetivo: $name ($address)');
     _appendLog('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    } catch (error) {
+      _appendLog('💥 CRASH: $error');
+      try {
+        final File f = File('/storage/emulated/0/Download/bluesnafer_crash.txt');
+        f.writeAsStringSync('CRASH: $error');
+      } catch (_) {}
+      if (mounted) setState(() => _isUnattendedRunning = false);
   }
+}
 
   // OBEX con reintentos inteligentes en múltiples directorios
   Future<int> _unattendedOBEXExtract(String address, String displayName) async {
