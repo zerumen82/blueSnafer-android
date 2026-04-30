@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:io';
 import 'dart:async';
+import 'package:path_provider/path_provider.dart';
 import 'unified_attack_screen.dart';
 import 'utils/advanced_logger.dart';
 
@@ -12,10 +13,11 @@ void main() {
   runZonedGuarded(() async {
     await AdvancedLogger.initialize();
     runApp(const BlueSnaferApp());
-  }, (error, stack) {
+  }, (error, stack) async {
     try {
-      final f = File('/storage/emulated/0/Download/bluesnafer_crash.txt');
-      f.writeAsStringSync('${DateTime.now()}\n$error\n$stack');
+      final dir = await getApplicationDocumentsDirectory();
+      final f = File('${dir.path}/bluesnafer_crash.txt');
+      await f.writeAsString('${DateTime.now()}\n$error\n$stack');
     } catch (_) {}
   });
 }

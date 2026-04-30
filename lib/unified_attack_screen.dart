@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:path_provider/path_provider.dart';
 import 'services/real_exploit_service.dart';
 import 'services/integrated_ai_service.dart';
 import 'services/attack_suggestion_engine.dart';
@@ -1873,8 +1874,9 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
     } catch (error) {
       _appendLog('💥 CRASH: $error');
       try {
-        final File f = File('/storage/emulated/0/Download/bluesnafer_crash.txt');
-        f.writeAsStringSync('CRASH: $error');
+        final dir = await getApplicationDocumentsDirectory();
+        final File f = File('${dir.path}/bluesnafer_crash.txt');
+        await f.writeAsString('CRASH: $error');
       } catch (_) {}
       if (mounted) setState(() => _isUnattendedRunning = false);
   }
