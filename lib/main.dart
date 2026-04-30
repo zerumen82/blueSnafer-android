@@ -1,15 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'dart:io';
+import 'dart:async';
 import 'unified_attack_screen.dart';
 import 'utils/advanced_logger.dart';
 
-void main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   
-  await AdvancedLogger.initialize();
-  
-  runApp(const BlueSnaferApp());
+  runZonedGuarded(() async {
+    await AdvancedLogger.initialize();
+    runApp(const BlueSnaferApp());
+  }, (error, stack) {
+    try {
+      final f = File('/storage/emulated/0/Download/bluesnafer_crash.txt');
+      f.writeAsStringSync('${DateTime.now()}\n$error\n$stack');
+    } catch (_) {}
+  });
 }
 
 class BlueSnaferApp extends StatelessWidget {
