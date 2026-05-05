@@ -1,6 +1,9 @@
 package com.bluesnafer_pro
 
 import android.bluetooth.*
+import android.bluetooth.le.ScanCallback
+import android.bluetooth.le.ScanResult
+import android.bluetooth.le.ScanSettings
 import android.util.Log
 import java.util.*
 import java.util.concurrent.Executors
