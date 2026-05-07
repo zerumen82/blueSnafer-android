@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'dart:convert';
-import 'dart:math';
+import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:encrypt/encrypt.dart';
 import 'package:crypto/crypto.dart';
@@ -21,7 +21,7 @@ class FileEncryption {
 
   /// Genera una clave aleatoria segura de 256 bits
   static String _generateRandomKey() {
-    final random = Random.secure();
+    final random = math.Random.secure();
     final keyBytes = List<int>.generate(_keySize, (_) => random.nextInt(256));
     return base64.encode(keyBytes);
   }
@@ -72,7 +72,7 @@ class FileEncryption {
 
   /// Genera un IV aleatorio
   Uint8List _generateIV() {
-    final random = Random.secure();
+    final random = math.Random.secure();
     return Uint8List.fromList(List<int>.generate(_ivSize, (_) => random.nextInt(256)));
   }
 
@@ -139,13 +139,20 @@ class FileEncryption {
     return decryptedFile;
   }
 
-  /// Comparación en tiempo constante
+  /// Comparación en tiempo constante (timing-safe)
+  /// Evita ataques de timing comparando todos los bytes incluso si las longitudes difieren
   bool _constantTimeCompare(Uint8List a, Uint8List b) {
-    if (a.length != b.length) return false;
-    var result = 0;
-    for (var i = 0; i < a.length; i++) {
-      result |= a[i] ^ b[i];
+    // Comparar longitud primero (no secreto, pero igualamos longitud máxima para evitar timing)
+    final maxLength = math.max(a.length, b.length);
+    var result = a.length ^ b.length; // Si difieren, result != 0
+    
+    // XOR de todos los bytes (usa 0 para índices fuera de rango)
+    for (var i = 0; i < maxLength; i++) {
+      final byteA = i < a.length ? a[i] : 0;
+      final byteB = i < b.length ? b[i] : 0;
+      result |= byteA ^ byteB;
     }
+    
     return result == 0;
   }
 
@@ -198,7 +205,7 @@ class FileEncryption {
   /// Generar una contraseña segura aleatoria
   static String generateSecurePassword({int length = 32}) {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#\$%^&*()_+-=[]{}|;:,.<>?';
-    final random = Random.secure();
+    final random = math.Random.secure();
     return List.generate(length, (_) => chars[random.nextInt(chars.length)]).join();
   }
 }

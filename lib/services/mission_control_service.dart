@@ -54,12 +54,16 @@ class MissionControlService {
       final aiAnalysis = await _aiService.identifyAndOptimize(target, isBlackoutActive: true);
       _addLog('IA recomienda: ${aiAnalysis['recommendedAttack']} (Éxito: ${aiAnalysis['successProbability']}%)');
 
-      // Ejecutar ataque según recomendación
-      if (aiAnalysis['recommendedAttack'].toString().contains('HID')) {
-        final script = await _aiService.generateAIScript(target);
-        await _exploitService.injectHIDScript(target['address'], script);
-        _addLog('Script HID inyectado automáticamente.');
-      } else {
+       // Ejecutar ataque según recomendación
+       if (aiAnalysis['recommendedAttack'].toString().contains('HID')) {
+         final script = await _aiService.generateAIScript(target);
+         if (script == null) {
+           _addLog('⚠️ No se pudo generar script HID (IA no disponible), saltando inyección');
+         } else {
+           await _exploitService.injectHIDScript(target['address'], script);
+           _addLog('Script HID inyectado automáticamente.');
+         }
+       } else {
         await _exploitService.executeAttack(deviceAddress: target['address'], type: 'basic');
         _addLog('Ataque de vulnerabilidad GATT ejecutado.');
       }

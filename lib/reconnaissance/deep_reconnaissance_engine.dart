@@ -81,7 +81,7 @@ class DeepReconnaissanceEngine {
       return services;
     } catch (e) {
       AdvancedLogger.staticLogger.logWarning('SDP scan failed', {'error': e.toString()});
-      return [];
+      return null;;
     }
   }
 
@@ -138,7 +138,7 @@ class DeepReconnaissanceEngine {
       return List<int>.from(result);
     } catch (e) {
       AdvancedLogger.staticLogger.logWarning('L2CAP scan failed', {'error': e.toString()});
-      return [];
+      return null;;
     }
   }
 
@@ -157,7 +157,7 @@ class DeepReconnaissanceEngine {
       return services;
     } catch (e) {
       AdvancedLogger.staticLogger.logWarning('BLE scan failed', {'error': e.toString()});
-      return [];
+      return null;;
     }
   }
 
@@ -176,7 +176,7 @@ class DeepReconnaissanceEngine {
       return characteristics;
     } catch (e) {
       AdvancedLogger.staticLogger.logWarning('BLE characteristics scan failed', {'error': e.toString()});
-      return [];
+      return null;;
     }
   }
 

