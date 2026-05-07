@@ -1,10 +1,9 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:path_provider/path_provider.dart';
 
 /// Sistema de logging avanzado para BlueSnafer Pro
 class AdvancedLogger {
-  static const String _logDir = 'logs';
-  static const String _logFile = '$_logDir/bluesnafer.log';
   static const int _maxLogSize = 10 * 1024 * 1024; // 10MB
   static const int _maxLogFiles = 5;
   final String _name;
@@ -37,14 +36,15 @@ class AdvancedLogger {
     if (_initialized) return;
 
     try {
-      final directory = Directory(_logDir);
-      if (!await directory.exists()) {
-        await directory.create(recursive: true);
+      final directory = await getApplicationDocumentsDirectory();
+      final logDir = Directory('${directory.path}/bluesnafer_logs');
+      if (!await logDir.exists()) {
+        await logDir.create(recursive: true);
       }
       _initialized = true;
 
       // Crear archivo de log si no existe
-      final logFile = File(_logFile);
+      final logFile = File('${logDir.path}/bluesnafer.log');
       if (!await logFile.exists()) {
         await logFile.create();
       }
@@ -100,6 +100,8 @@ class AdvancedLogger {
     }
 
     try {
+      final directory = await getApplicationDocumentsDirectory();
+      final logFile = File('${directory.path}/bluesnafer_logs/bluesnafer.log');
       final timestamp = DateTime.now().toIso8601String();
       final prefix = _levelPrefixes[level] ?? '[UNKNOWN]';
       final logEntry = {
@@ -117,8 +119,7 @@ class AdvancedLogger {
       }
 
       // Escribir en archivo
-      final file = File(_logFile);
-      final sink = file.openWrite(mode: FileMode.writeOnlyAppend);
+      final sink = logFile.openWrite(mode: FileMode.writeOnlyAppend);
       sink.writeln(jsonEncode(logEntry));
       await sink.flush();
       await sink.close();
@@ -133,7 +134,8 @@ class AdvancedLogger {
   /// Rotar archivos de log si es necesario
   static Future<void> _rotateLogsIfNeeded() async {
     try {
-      final logFile = File(_logFile);
+      final directory = await getApplicationDocumentsDirectory();
+      final logFile = File('${directory.path}/bluesnafer_logs/bluesnafer.log');
       if (!await logFile.exists()) return;
 
       final fileSize = await logFile.length();
@@ -141,8 +143,8 @@ class AdvancedLogger {
 
       // Renombrar archivos existentes
       for (int i = _maxLogFiles - 1; i >= 1; i--) {
-        final oldFile = File('$_logDir/bluesnafer.$i.log');
-        final newFile = File('$_logDir/bluesnafer.${i + 1}.log');
+        final oldFile = File('${directory.path}/bluesnafer_logs/bluesnafer.$i.log');
+        final newFile = File('${directory.path}/bluesnafer_logs/bluesnafer.${i + 1}.log');
 
         if (await oldFile.exists()) {
           if (await newFile.exists()) {
@@ -153,7 +155,7 @@ class AdvancedLogger {
       }
 
       // Mover archivo actual a .1.log
-      final backupFile = File('$_logDir/bluesnafer.1.log');
+      final backupFile = File('${directory.path}/bluesnafer_logs/bluesnafer.1.log');
       if (await backupFile.exists()) {
         await backupFile.delete();
       }
@@ -170,7 +172,8 @@ class AdvancedLogger {
   /// Obtener logs recientes
   static Future<List<String>> getRecentLogs({int lines = 100}) async {
     try {
-      final logFile = File(_logFile);
+      final directory = await getApplicationDocumentsDirectory();
+      final logFile = File('${directory.path}/bluesnafer_logs/bluesnafer.log');
       if (!await logFile.exists()) return [];
 
       final content = await logFile.readAsString();
@@ -185,10 +188,11 @@ class AdvancedLogger {
   /// Limpiar logs antiguos
   static Future<void> clearOldLogs() async {
     try {
-      final directory = Directory(_logDir);
-      if (!await directory.exists()) return;
+      final directory = await getApplicationDocumentsDirectory();
+      final logDir = Directory('${directory.path}/bluesnafer_logs');
+      if (!await logDir.exists()) return;
 
-      final files = await directory.list().toList();
+      final files = await logDir.list().toList();
       final logFiles = files.where((file) =>
         file.path.endsWith('.log') && file.path.contains('bluesnafer'));
 

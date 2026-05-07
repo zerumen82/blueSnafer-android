@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 import '../utils/theme_manager.dart';
 import '../security/auto_destruct.dart';
 import '../utils/export_manager.dart';
 import 'encrypted_files_viewer.dart';
 import 'exploit_config_screen.dart';
 import '../services/bluetooth_service.dart';
+import 'unified_attack_screen.dart';
 
 /// Pantalla de configuración
 class SettingsScreen extends StatefulWidget {
@@ -60,6 +62,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
           // Sección: Configuración de Exploits
           _buildSectionHeader('🛠️ Configuración de Exploits', theme),
           _buildConfigSection(),
+          const Divider(),
+
+          // Sección: Reportes
+          _buildSectionHeader('📊 Reportes', theme),
+          _buildReportsButton(context),
           const Divider(),
 
           // Sección: Exportar
@@ -301,6 +308,125 @@ class _SettingsScreenState extends State<SettingsScreen> {
         }
       }
     }
+  }
+
+  Widget _buildReportsButton(BuildContext context) {
+    return Column(
+      children: [
+        ListTile(
+          leading: const Icon(Icons.assessment, color: Colors.cyanAccent),
+          title: const Text('Ver Reporte', style: TextStyle(color: Colors.white)),
+          subtitle: const Text('Reporte automático de ataques', style: TextStyle(color: Colors.white70)),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const UnifiedAttackScreen()),
+            );
+          },
+        ),
+        ListTile(
+          leading: const Icon(Icons.history, color: Colors.orangeAccent),
+          title: const Text('Reportes Guardados', style: TextStyle(color: Colors.white)),
+          subtitle: const Text('Historial de ataques ejecutados', style: TextStyle(color: Colors.white70)),
+          onTap: () async {
+            final reports = await _loadSavedReports();
+            showDialog(
+              context: context,
+              builder: (context) => _buildSavedReportsDialog(context, reports),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Future<Map<String, dynamic>> _loadSavedReports() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final reportsKey = 'device_reports';
+      final existingData = prefs.getString(reportsKey);
+      if (existingData == null) return {};
+      return Map<String, dynamic>.from(jsonDecode(existingData));
+    } catch (e) {
+      return {};
+    }
+  }
+
+  Widget _buildSavedReportsDialog(BuildContext context, Map<String, dynamic> reports) {
+    if (reports.isEmpty) {
+      return AlertDialog(
+        backgroundColor: const Color(0xFF0F172A),
+        title: const Row(
+          children: [
+            Icon(Icons.history, color: Colors.orangeAccent),
+            SizedBox(width: 8),
+            Text('REPORTES GUARDADOS', style: TextStyle(color: Colors.white)),
+          ],
+        ),
+        content: const Text('No hay reportes guardados.', style: TextStyle(color: Colors.white70)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('CERRAR', style: TextStyle(color: Colors.cyanAccent)),
+          ),
+        ],
+      );
+    }
+
+    return AlertDialog(
+      backgroundColor: const Color(0xFF0F172A),
+      title: Row(
+        children: [
+          const Icon(Icons.history, color: Colors.orangeAccent),
+          const SizedBox(width: 8),
+          Text('REPORTES (${reports.length})', style: const TextStyle(color: Colors.white)),
+        ],
+      ),
+      content: SizedBox(
+        width: double.maxFinite,
+        height: 400,
+        child: ListView.builder(
+          itemCount: reports.length,
+          itemBuilder: (context, index) {
+            final entry = reports.entries.elementAt(index);
+            final data = entry.value as Map<String, dynamic>;
+            final success = data['success'] as bool? ?? false;
+            final timestamp = data['timestamp'] as String? ?? '';
+            return Card(
+              color: const Color(0xFF1E293B),
+              child: ListTile(
+                leading: Icon(
+                  success ? Icons.check_circle : Icons.error,
+                  color: success ? Colors.greenAccent : Colors.redAccent,
+                ),
+                title: Text(
+                  entry.key.length > 8 ? entry.key.substring(0, 8) + '...' : entry.key,
+                  style: const TextStyle(color: Colors.white, fontSize: 12),
+                ),
+                subtitle: Text(
+                  timestamp,
+                  style: const TextStyle(color: Colors.white70, fontSize: 10),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () async {
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.remove('device_reports');
+            Navigator.pop(context);
+          },
+          child: const Text('LIMPIAR', style: TextStyle(color: Colors.redAccent)),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('CERRAR', style: TextStyle(color: Colors.cyanAccent)),
+        ),
+      ],
+    );
   }
 
   Widget _buildAboutTile() {

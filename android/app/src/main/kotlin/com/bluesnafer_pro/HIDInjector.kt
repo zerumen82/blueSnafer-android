@@ -1,7 +1,6 @@
 package com.bluesnafer_pro
 
 import android.bluetooth.*
-import android.util.Log
 import java.io.*
 import java.util.*
 import java.util.concurrent.CountDownLatch
@@ -26,7 +25,7 @@ object HIDInjector {
      * Inject HID script via GATT (for use with existing GATT connection)
      */
     fun injectScript(gatt: BluetoothGatt, script: String, callback: (String) -> Unit): Boolean {
-        Log.d(TAG, "Injecting HID script via GATT: $script")
+        BluesnaferLogger.d(TAG, "Injecting HID script via GATT: $script")
         callback("[HID] Starting injection via GATT: $script")
         
         return try {
@@ -60,7 +59,7 @@ object HIDInjector {
             
             success
         } catch (e: Exception) {
-            Log.e(TAG, "HID injection error: ${e.message}")
+            BluesnaferLogger.e(TAG, "HID injection error: ${e.message}")
             callback("[HID] ✗ Error: ${e.message}")
             false
         }
@@ -70,7 +69,7 @@ object HIDInjector {
      * Inject HID script via device (creates new GATT connection)
      */
     fun inject(device: BluetoothDevice, script: String, callback: (String) -> Unit): Map<*, *> {
-        Log.d(TAG, "Injecting HID script via device connection: $script")
+        BluesnaferLogger.d(TAG, "Injecting HID script via device connection: $script")
         callback("[HID] Connecting to ${device.address}...")
         
         return try {
@@ -108,7 +107,7 @@ object HIDInjector {
             
             mapOf("success" to success)
         } catch (e: Exception) {
-            Log.e(TAG, "HID connection error: ${e.message}")
+            BluesnaferLogger.e(TAG, "HID connection error: ${e.message}")
             callback("[HID] ✗ Error: ${e.message}")
             mapOf("success" to false)
         }
@@ -177,7 +176,7 @@ object HIDInjector {
             
             true
         } catch (e: Exception) {
-            Log.e(TAG, "Keystroke error: ${e.message}")
+            BluesnaferLogger.e(TAG, "Keystroke error: ${e.message}")
             callback("[HID] ✗ Keystroke error: ${e.message}")
             false
         }

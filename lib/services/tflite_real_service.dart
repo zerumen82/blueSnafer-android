@@ -43,13 +43,13 @@ class TFLiteRealService {
     if (!_isInitialized) {
       await initializeAll();
     }
-
+    
     final interpreter = _interpreters[modelName];
     if (interpreter == null) {
       AdvancedLogger.staticLogger.logWarning('Intérprete no encontrado para: $modelName');
       return List<double>.filled(10, 0.0);
     }
-
+    
     try {
       // Preparar entrada (TensorFloat)
       var inputTensor = Float32List.fromList(input).buffer.asFloat32List();
@@ -57,12 +57,25 @@ class TFLiteRealService {
       // Obtener forma de salida del modelo
       var outputShape = interpreter.getOutputTensor(0).shape;
       var outputSize = outputShape.reduce((a, b) => a * b);
-      var output = Float32List(outputSize).buffer.asFloat32List();
-
+      
+      // Crear salida con la forma correcta
+      var output = Float32List(outputSize);
+      
       // Ejecutar inferencia
       interpreter.run(inputTensor, output);
       
-      return output.toList();
+      // Convertir salida a List<double> y reshapar según la forma del modelo
+      if (outputShape.length == 1) {
+        // Salida unidimensional: [n]
+        return output.toList();
+      } else if (outputShape.length == 2) {
+        // Salida bidimensional: [n, m] - aplanar a una lista
+        return output.toList();
+      } else {
+        // Forma desconocida, devolver como lista plana
+        return output.toList();
+      }
+      
     } catch (e) {
       AdvancedLogger.staticLogger.logError('Error en inferencia TFLite ($modelName): $e');
       return List<double>.filled(10, 0.0);

@@ -1,7 +1,6 @@
 package com.bluesnafer_pro
 
 import android.bluetooth.*
-import android.util.Log
 import java.io.*
 import java.util.*
 
@@ -17,7 +16,7 @@ object OPPClient {
      * Push file via OPP - REAL implementation
      */
     fun pushFile(device: BluetoothDevice, filePath: String, onLog: (String) -> Unit = {}): Map<String, Any> {
-        Log.d(TAG, "OPP push - file: $filePath to ${device.address}")
+        BluesnaferLogger.d(TAG, "OPP push - file: $filePath to ${device.address}")
         onLog("[OPP] Pushing file: $filePath")
         
         return try {
@@ -121,7 +120,7 @@ object OPPClient {
             socket.close()
             mapOf("success" to false, "file" to filePath, "message" to "OPP push failed")
         } catch (e: Exception) {
-            Log.e(TAG, "OPP push error: ${e.message}")
+            BluesnaferLogger.e(TAG, "OPP push error: ${e.message}")
             onLog("[OPP] ✗ Error: ${e.message}")
             mapOf("success" to false, "file" to filePath, "message" to (e.message ?: "Unknown error"))
         }

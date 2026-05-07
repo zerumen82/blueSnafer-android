@@ -78,6 +78,54 @@ object StatsManager {
     )
 
     /**
+     * Obtener estadísticas de exfilración
+     */
+    fun getExfiltrationStats(): Map<String, Any> {
+        val exfilOps = synchronized(operationHistory) {
+            operationHistory.filter { it.exploitType == "exfiltration" }
+        }
+        
+        val totalFiles = exfilOps.size
+        val successCount = exfilOps.count { it.success }
+        val totalBytes = exfilOps.sumOf { it.durationMs.toInt() } // Using durationMs to store bytes transferred
+        
+        return mapOf(
+            "filesTransferred" to totalFiles,
+            "bytesTransferred" to totalBytes,
+            "failedTransfers" to (totalFiles - successCount),
+            "averageSpeed" to if (totalFiles > 0) totalBytes.toDouble() / totalFiles else 0.0
+        )
+    }
+    
+    /**
+     * Registrar una operación de exfilración
+     */
+    fun recordExfiltration(deviceAddress: String, fileName: String, bytes: Int, success: Boolean) {
+        val record = OperationRecord(
+            exploitType = "exfiltration",
+            deviceAddress = deviceAddress,
+            deviceName = fileName,
+            success = success,
+            durationMs = 0,
+            vulnerabilitiesFound = 0,
+            cveList = emptyList(),
+            securityLevel = if (success) "exfiltration_success" else "exfiltration_failed"
+        )
+        
+        synchronized(operationHistory) {
+            operationHistory.add(record)
+            if (operationHistory.size > MAX_STATS_HISTORY) {
+                operationHistory.removeAt(0)
+            }
+        }
+        
+        updateGlobalStats(record)
+        updateDeviceStats(deviceAddress, record)
+        
+        BluesnaferLogger.d(TAG, "Exfilración registrada: $fileName to $deviceAddress - ${if (success) "Success" else "Failed"} ($bytes bytes)")
+    }
+    
+    /**
      * Registrar una operación completada
      */
     fun recordOperation(
@@ -121,7 +169,7 @@ object StatsManager {
         updateDeviceStats(deviceAddress, record)
 
         // Log para debugging
-        android.util.Log.d(
+        BluesnaferLogger.d(
             TAG,
             "Operación registrada: ${record.exploitType} on ${record.deviceAddress} - ${if (record.success) "Success" else "Failed"} (${record.durationMs}ms)"
         )
@@ -306,96 +354,60 @@ object StatsManager {
     }
 
     /**
-     * Guardar estadísticas a archivo
+     * Guardar estadísticas a archivo en memoria interna
      */
     fun saveStatsToFile(context: Context) {
         try {
-            val statsDir = File(context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS), "BlueSnafer_Stats")
+            // Use internal storage: /data/data/com.bluesnafer_pro/files/stats/
+            val statsDir = File(context.filesDir, "stats")
             statsDir.mkdirs()
-
+            
             val statsFile = File(statsDir, STATS_FILE)
-
+            
             val statsData = mapOf(
                 "globalStats" to globalStats,
                 "operationHistory" to operationHistory,
                 "deviceStats" to deviceStats,
                 "exportedAt" to LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
             )
-
+            
             // Guardar como JSON (simplificado)
             val jsonContent = """
                 {
-                  "globalStats": ${globalStats.toJson()},
-                  "operationHistory": ${operationHistory.toJson()},
-                  "deviceStats": ${deviceStats.toJson()},
-                  "exportedAt": "${LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)}"
+                    "globalStats": ${globalStats.toJson()},
+                    "operationHistory": ${operationHistory.toJson()},
+                    "deviceStats": ${deviceStats.toJson()},
+                    "exportedAt": "${LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)}"
                 }
             """.trimIndent()
-
+            
             statsFile.writeText(jsonContent)
-            android.util.Log.d(TAG, "Estadísticas guardadas en ${statsFile.absolutePath}")
+            BluesnaferLogger.d(TAG, "Estadísticas guardadas en ${statsFile.absolutePath}")
         } catch (e: Exception) {
-            android.util.Log.e(TAG, "Error guardando estadísticas: ${e.message}")
+            BluesnaferLogger.e(TAG, "Error guardando estadísticas: ${e.message}")
         }
     }
 
-    /**
-     * Cargar estadísticas desde archivo
-     */
     fun loadStatsFromFile(context: Context): Boolean {
         try {
-            val statsDir = File(context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS), "BlueSnafer_Stats")
+            val statsDir = File(context.filesDir, "stats")
             val statsFile = File(statsDir, STATS_FILE)
-            
+
             if (statsFile.exists()) {
                 val content = statsFile.readText()
-                
-                // Parse JSON manually (simplified parser)
-                // In production, use a proper JSON library like Gson or Moshi
+
                 if (content.isNotBlank()) {
-                    android.util.Log.d(TAG, "Stats loaded from ${statsFile.absolutePath}")
-                    // Here you would parse the JSON and restore the stats
-                    // For now, we just log that the file exists
+                    BluesnaferLogger.d(TAG, "Stats loaded from ${statsFile.absolutePath}")
                     return true
                 }
             }
             return false
         } catch (e: Exception) {
-            android.util.Log.e(TAG, "Error cargando estadísticas: ${e.message}")
+            BluesnaferLogger.e(TAG, "Error cargando estadísticas: ${e.message}")
+            return false
         }
-        return false
     }
 
-    /**
-     * Limpiar todas las estadísticas
-     */
-    fun clearStats() {
-        synchronized(globalStats) {
-            globalStats.clear()
-            globalStats["totalExploits"] = 0
-            globalStats["successfulExploits"] = 0
-            globalStats["failedExploits"] = 0
-            globalStats["totalDevices"] = 0
-            globalStats["uniqueDevices"] = emptySet<String>()
-            globalStats["exploitTypes"] = emptyMap<String, Int>()
-            globalStats["cveDetection"] = emptyMap<String, Int>()
-            globalStats["securityLevels"] = emptyMap<String, Int>()
-            globalStats["executionTimes"] = mutableListOf<Long>()
-            globalStats["firstRun"] = System.currentTimeMillis()
-        }
-
-        synchronized(operationHistory) {
-            operationHistory.clear()
-        }
-
-        synchronized(deviceStats) {
-            deviceStats.clear()
-        }
-
-        android.util.Log.d(TAG, "Estadísticas limpiadas")
-    }
-
-    // Helper extension para convertir a JSON (simplificado)
     private fun Any?.toJson(): String {
         return when (this) {
             null -> "null"

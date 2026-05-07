@@ -26,9 +26,17 @@ class BluetoothMethodHandler private constructor(
         private const val CHANNEL = "bluesnafer_pro/bluetooth"
         @Volatile private var appContext: Context? = null
 
-        fun initialize(flutterPlugin: FlutterPlugin) {
-            appContext = flutterPlugin.applicationContext
-            val binaryMessenger = flutterPlugin.binding.binaryMessenger
+        fun registerWith(flutterEngine: io.flutter.embedding.engine.FlutterEngine, context: Context) {
+            appContext = context
+            val binaryMessenger = flutterEngine.dartExecutor.binaryMessenger
+            val channel = MethodChannel(binaryMessenger, CHANNEL)
+            val handler = BluetoothMethodHandler(context, channel)
+            channel.setMethodCallHandler(handler)
+        }
+
+        fun initialize(binding: FlutterPlugin.FlutterPluginBinding) {
+            appContext = binding.applicationContext
+            val binaryMessenger = binding.binaryMessenger
             val channel = MethodChannel(binaryMessenger, CHANNEL)
             val handler = BluetoothMethodHandler(appContext!!, channel)
             channel.setMethodCallHandler(handler)
@@ -58,7 +66,7 @@ class BluetoothMethodHandler private constructor(
             "executeBlueBorne" -> handleExecuteBlueBorne(call, result)
             "rotateIdentity" -> handleRotateIdentity(call, result)
             "startBLESpam" -> handleStartBLESpam(call, result)
-            "stopBLESpam" -> handleStopBLESpam(call, result)
+            "stopBLESpam" -> handleStopBLESpam(result)
             "analyzeFirmware" -> handleAnalyzeFirmware(call, result)
             "openBluetoothSettings" -> handleOpenBluetoothSettings(result)
             "checkVulnerabilities" -> handleCheckVulnerabilities(call, result)
@@ -71,6 +79,16 @@ class BluetoothMethodHandler private constructor(
     }
 
     // Region: Device Information Methods
+    private fun handleTestProtocol(call: MethodCall, result: MethodChannel.Result) {
+        val protocol = call.argument<String>("protocol")
+        if (protocol == null) {
+            result.error("INVALID_ARGS", "protocol required", null)
+            return
+        }
+        // Real implementation would test Bluetooth protocol (L2CAP, RFCOMM, etc.)
+        result.success("Protocol test for $protocol initiated")
+    }
+
     private fun handleGetDeviceInfo(result: MethodChannel.Result) {
         val adapter = BluetoothAdapter.getDefaultAdapter()
         if (adapter == null) {
@@ -93,10 +111,9 @@ class BluetoothMethodHandler private constructor(
             return
         }
         // Get Bluetooth version from adapter properties (simplified)
-        val version = when (adapter.bluetoothLeSupported) {
-            true -> "LE Supported (4.0+)"
-            else -> "Classic Only (Pre-4.0)"
-        }
+        val packageManager = context.packageManager
+        val hasLe = packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_BLUETOOTH_LE)
+        val version = if (hasLe) "LE Supported (4.0+)" else "Classic Only (Pre-4.0)"
         result.success(version)
     }
 
@@ -186,7 +203,7 @@ class BluetoothMethodHandler private constructor(
 
     private fun handleExecuteDoSAttack(call: MethodCall, result: MethodChannel.Result) {
         val deviceAddress = call.argument<String>("deviceAddress")
-        val attackType = call.argument<String>("type", "l2cap")
+        val attackType = call.argument<String>("type") ?: "l2cap"
         if (deviceAddress == null) {
             result.error("INVALID_ARGS", "deviceAddress required", null)
             return
@@ -208,7 +225,7 @@ class BluetoothMethodHandler private constructor(
 
     // Region: Device Management
     private fun handleScanDevices(call: MethodCall, result: MethodChannel.Result) {
-        val duration = call.argument<Int>("duration", 5)
+        val duration = call.argument<Int>("duration") ?: 5
         val adapter = BluetoothAdapter.getDefaultAdapter()
         if (adapter == null || !adapter.isEnabled) {
             result.error("BLUETOOTH_OFF", "Bluetooth not enabled", null)
@@ -227,15 +244,16 @@ class BluetoothMethodHandler private constructor(
         }
         adapter.bluetoothLeScanner?.startScan(scanCallback)
         // Simulate scan duration (in real app, use handler to stop after duration)
+        val durationMs = (duration ?: 5) * 1000L
         android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
             adapter.bluetoothLeScanner?.stopScan(scanCallback)
             result.success(devices)
-        }, duration * 1000L)
+        }, durationMs)
     }
 
     private fun handleInstallBackdoor(call: MethodCall, result: MethodChannel.Result) {
         val deviceAddress = call.argument<String>("deviceAddress")
-        val backdoorType = call.argument<String>("type", "persistent_pairing")
+        val backdoorType = call.argument<String>("type") ?: "persistent_pairing"
         if (deviceAddress == null) {
             result.error("INVALID_ARGS", "deviceAddress required", null)
             return
@@ -246,7 +264,7 @@ class BluetoothMethodHandler private constructor(
 
     private fun handleModifyAutoPairing(call: MethodCall, result: MethodChannel.Result) {
         val deviceAddress = call.argument<String>("deviceAddress")
-        val enable = call.argument<Boolean>("enable", false)
+        val enable = call.argument<Boolean>("enable") ?: false
         if (deviceAddress == null) {
             result.error("INVALID_ARGS", "deviceAddress required", null)
             return
@@ -280,13 +298,13 @@ class BluetoothMethodHandler private constructor(
 
     private fun handleModifyDeviceWhitelist(call: MethodCall, result: MethodChannel.Result) {
         val deviceAddress = call.argument<String>("deviceAddress")
-        val addToWhitelist = call.argument<Boolean>("add", true)
+        val addToWhitelist = call.argument<Boolean>("add") ?: true
         if (deviceAddress == null) {
             result.error("INVALID_ARGS", "deviceAddress required", null)
             return
         }
         // Real implementation would add/remove from trusted/whitelist via Bluetooth adapter
-        val action = if (addToWhitelist) "added to" else "removed from"
+        val action = if (addToWhitelist == true) "added to" else "removed from"
         result.success("Device $deviceAddress $action trusted whitelist")
     }
 
@@ -307,7 +325,7 @@ class BluetoothMethodHandler private constructor(
     }
 
     private fun handleStartBLESpam(call: MethodCall, result: MethodChannel.Result) {
-        val interval = call.argument<Int>("interval", 1000)
+        val interval = call.argument<Int>("interval") ?: 1000
         val adapter = BluetoothAdapter.getDefaultAdapter()
         if (adapter == null || !adapter.isEnabled) {
             result.error("BLUETOOTH_OFF", "Bluetooth not enabled", null)
@@ -332,7 +350,7 @@ class BluetoothMethodHandler private constructor(
 
     private fun handleAnalyzeFirmware(call: MethodCall, result: MethodChannel.Result) {
         val deviceAddress = call.argument<String>("deviceAddress")
-        val target = call.argument<String>("target", "version")
+        val target = call.argument<String>("target") ?: "version"
         if (deviceAddress == null) {
             result.error("INVALID_ARGS", "deviceAddress required", null)
             return
@@ -393,7 +411,7 @@ class BluetoothMethodHandler private constructor(
 
     private fun handleExecuteCommand(call: MethodCall, result: MethodChannel.Result) {
         val command = call.argument<String>("command")
-        val arguments = call.argument<List<String>>("arguments", emptyList())
+        val arguments = call.argument<List<String>>("arguments") ?: emptyList()
         if (command == null) {
             result.error("INVALID_ARGS", "command required", null)
             return

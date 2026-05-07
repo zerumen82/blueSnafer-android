@@ -282,7 +282,7 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
   Suggestion? _currentSuggestion;
   List<String> _executedAttacks = [];
   Map<String, double> _successRates = {};
-  bool _isStatusExpanded = false;
+  bool _isStatusExpanded = true;
 
   // ==================== MEJORAS MODELO AUTOMÁTICO ====================
   
@@ -1223,12 +1223,11 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
     if (!mounted) return;
     setState(() {
       _log.add(msg);
-      // Keep last 200 entries to avoid memory issues
       if (_log.length > 200) _log = _log.sublist(_log.length - 200);
     });
-    // Auto-scroll to bottom
+    // NO guardar aquí - Kotlin ya guarda en external storage
     Future.delayed(const Duration(milliseconds: 50), () {
-      if (_logScrollController.hasClients) {
+      if (_logScrollController.hasClients && _logScrollController.position.hasContentDimensions) {
         _logScrollController.animateTo(
           _logScrollController.position.maxScrollExtent,
           duration: const Duration(milliseconds: 200),
@@ -1236,6 +1235,70 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
         );
       }
     });
+  }
+  
+  Future<void> _saveLogsToExternalStorage(String newLog) async {
+    try {
+      final externalDir = await getExternalStorageDirectory();
+      if (externalDir == null) return;
+      final logDir = Directory('${externalDir.path}/bluesnafer_logs');
+      if (!await logDir.exists()) {
+        await logDir.create(recursive: true);
+      }
+      final now = DateTime.now();
+      final fileName = 'console_log_${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}.txt';
+      final logFile = File('${logDir.path}/$fileName');
+      // Write with UTF-8 encoding explicitly
+      final sink = logFile.openWrite(mode: FileMode.append, encoding: utf8);
+      sink.write('${newLog}\n');
+      await sink.flush();
+      await sink.close();
+    } catch (e) {
+      // Silently fail - don't call _appendLog here to avoid recursion
+    }
+  }
+  
+  Future<void> _exportLogs() async {
+    try {
+      String allLogs = "=== BLUESNAFER PRO - LOGS DE CONSOLA ===\n";
+      allLogs += "Fecha: ${DateTime.now()}\n";
+      allLogs += "${"=" * 50}\n\n";
+      allLogs += _log.join('\n');
+      
+      // Guardar en almacenamiento externo accesible por USB
+      // Ruta: /storage/emulated/0/Android/data/com.bluesnafer_pro/files/bluesnafer_logs/
+      try {
+        final externalDir = await getExternalStorageDirectory();
+        if (externalDir != null) {
+          final logDir = Directory('${externalDir.path}/bluesnafer_logs');
+          if (!await logDir.exists()) {
+            await logDir.create(recursive: true);
+          }
+          final exportFile = File('${logDir.path}/console_logs_${DateTime.now().millisecondsSinceEpoch}.txt');
+          await exportFile.writeAsString(allLogs);
+          _appendLog('✅ Logs exportados a: ${exportFile.path}');
+          _appendLog('   Conecta el móvil al PC vía USB y navega a:');
+          _appendLog('   Almacenamiento interno > Android > data > com.bluesnafer_pro > files > bluesnafer_logs');
+          return;
+        }
+      } catch (e) {
+        // Fallback si getExternalStorageDirectory falla
+      }
+      
+      // Fallback: usar getApplicationDocumentsDirectory
+      final directory = await getApplicationDocumentsDirectory();
+      final logDir = Directory('${directory.path}/bluesnafer_logs');
+      if (!await logDir.exists()) {
+        await logDir.create(recursive: true);
+      }
+      final exportFile = File('${logDir.path}/console_logs_${DateTime.now().millisecondsSinceEpoch}.txt');
+      await exportFile.writeAsString(allLogs);
+      _appendLog('✅ Logs guardados en: ${exportFile.path}');
+      _appendLog('⚠️ Esta ubicación requiere ADB para acceder');
+      
+    } catch (e) {
+      _appendLog('❌ Error exportando: $e');
+    }
   }
 
   // Mostrar reporte automático
@@ -2541,7 +2604,18 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
           height: 200, width: double.infinity, margin: const EdgeInsets.fromLTRB(16, 0, 16, 0), padding: const EdgeInsets.all(12),
           decoration: const BoxDecoration(color: Color(0xFF0F172A), borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Row(children: [Icon(Icons.terminal, color: Colors.cyanAccent, size: 14), SizedBox(width: 8), Text('CONSOLA DE SISTEMA', style: TextStyle(color: Colors.white24, fontSize: 10, fontWeight: FontWeight.bold))]),
+            const Row(children: [
+              Icon(Icons.terminal, color: Colors.cyanAccent, size: 14), 
+              SizedBox(width: 8), 
+              Text('CONSOLA DE SISTEMA', style: TextStyle(color: Colors.white24, fontSize: 10, fontWeight: FontWeight.bold))
+            ]),
+            IconButton(
+              icon: const Icon(Icons.save_alt, color: Colors.blue, size: 16),
+              onPressed: _exportLogs,
+              tooltip: 'Exportar logs a TXT',
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+            ),
             const Divider(color: Colors.white10),
             Expanded(
               child: ListView.builder(
@@ -2560,7 +2634,7 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
                   } else if (entry.startsWith('📡')) {
                     textColor = Colors.purpleAccent;
                   } else if (entry.startsWith('⚠️')) {
-                    textColor = Colors.yellow;
+                    textColor = Colors.amber;
                   } else if (entry.startsWith('💥')) {
                     textColor = Colors.red;
                   } else {

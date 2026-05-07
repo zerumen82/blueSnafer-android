@@ -8,7 +8,6 @@ import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothSocket
 import android.content.Context
 import android.os.Environment
-import android.util.Log
 import java.io.File
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -45,7 +44,7 @@ object GlobalExceptionHandler {
         }
 
         // Log inmediato para debugging
-        Log.e(TAG, "Exception in $contextDesc: ${exception.message ?: "Unknown error"}", exception)
+        BluesnaferLogger.e(TAG, "Exception in $contextDesc: ${exception.message ?: "Unknown error"}", exception)
 
         // Guardar en archivo si es posible
         saveExceptionToFile(record, context)
@@ -100,7 +99,7 @@ object GlobalExceptionHandler {
                 Charsets.UTF_8
             )
         } catch (e: Exception) {
-            Log.e(TAG, "Error saving exception to file", e)
+            BluesnaferLogger.e(TAG, "Error saving exception to file", e)
         }
     }
 }

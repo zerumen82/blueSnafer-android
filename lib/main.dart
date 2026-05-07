@@ -12,6 +12,8 @@ void main() {
   
   runZonedGuarded(() async {
     await AdvancedLogger.initialize();
+    // Test log to verify it works
+    AdvancedLogger.staticLogger.logInfo('App started, logger initialized');
     runApp(const BlueSnaferApp());
   }, (error, stack) async {
     try {
