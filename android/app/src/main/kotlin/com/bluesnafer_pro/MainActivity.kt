@@ -8,6 +8,7 @@ import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattService
 import android.bluetooth.BluetoothProfile
 import android.content.Context
+import android.util.Log
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
@@ -28,8 +29,10 @@ class MainActivity : FlutterActivity() {
         RealFileExfiltrationClient.init(applicationContext)
         
         // Registrar ExploitIntegration
+        val context = applicationContext ?: this
+        Log.d("MainActivity", "Context available: ${context != null}, hash: ${context.hashCode()}")
         ExploitIntegration.registerWith(flutterEngine)
-        ExploitIntegration.setContext(applicationContext)
+        ExploitIntegration.setContext(context)
 
         // Registrar BluetoothMethodHandler para com.bluesnafer_pro/bluetooth
         BluetoothMethodHandler.registerWith(flutterEngine, applicationContext)

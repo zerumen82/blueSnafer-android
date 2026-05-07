@@ -1303,6 +1303,8 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
 
   // Mostrar reporte automático
   void _showAutomatedReport() async {
+    if (!mounted) return;
+    
     if (_automatedReport.isEmpty) {
       _appendLog('📊 No hay reporte disponible. Ejecuta el modo automático primero.');
       return;
@@ -1310,9 +1312,11 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
     
     final report = _automatedReport;
     
+    if (!mounted) return;
+    
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         backgroundColor: const Color(0xFF0F172A),
         title: const Row(
           children: [
@@ -1353,7 +1357,9 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () {
+              if (mounted) Navigator.pop(context);
+            },
             child: const Text('CERRAR', style: TextStyle(color: Colors.cyanAccent)),
           ),
         ],
@@ -1363,13 +1369,17 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
 
   // Mostrar reportes guardados
   void _showSavedReports() async {
+    if (!mounted) return;
+    
     final reports = await _loadAllDeviceReports();
+    
+    if (!mounted) return;
     
     if (reports.isEmpty) {
       _appendLog('📋 No hay reportes guardados.');
       showDialog(
         context: context,
-        builder: (context) => AlertDialog(
+        builder: (dialogContext) => AlertDialog(
           backgroundColor: const Color(0xFF0F172A),
           title: const Row(
             children: [
@@ -1384,7 +1394,9 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () {
+                if (mounted) Navigator.pop(context);
+              },
               child: const Text('CERRAR', style: TextStyle(color: Colors.cyanAccent)),
             ),
           ],
@@ -1393,9 +1405,11 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
       return;
     }
     
+    if (!mounted) return;
+    
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         backgroundColor: const Color(0xFF0F172A),
         title: Row(
           children: [
@@ -1461,6 +1475,8 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
 
   // Mostrar aprendizaje IA
   void _showAIlearning() async {
+    if (!mounted) return;
+    
     final deviceTypes = ['smartphone', 'iot', 'laptop', 'car', 'wearable', 'smart_lock'];
     final allLearning = <String, Map<String, int>>{};
     
@@ -1469,22 +1485,26 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
       if (techniques.isNotEmpty) allLearning[type] = techniques;
     }
     
+    if (!mounted) return;
+    
     if (allLearning.isEmpty) {
       showDialog(
         context: context,
-        builder: (context) => AlertDialog(
+        builder: (dialogContext) => AlertDialog(
           backgroundColor: const Color(0xFF0F172A),
           title: const Row(children: [Icon(Icons.psychology, color: Colors.purpleAccent), SizedBox(width: 8), Text('APRENDIZAJE IA', style: TextStyle(color: Colors.white))]),
           content: const Text('No hay datos de aprendizaje.\nLa IA aprende al ejecutar ataques.', style: TextStyle(color: Colors.white70)),
-          actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('CERRAR', style: TextStyle(color: Colors.cyanAccent)))],
+          actions: [TextButton(onPressed: () { if (mounted) Navigator.pop(context); }, child: const Text('CERRAR', style: TextStyle(color: Colors.cyanAccent)))],
         ),
       );
       return;
     }
     
+    if (!mounted) return;
+    
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         backgroundColor: const Color(0xFF0F172A),
         title: const Row(children: [Icon(Icons.psychology, color: Colors.purpleAccent), SizedBox(width: 8), Text('APRENDIZAJE IA', style: TextStyle(color: Colors.white))]),
         content: SizedBox(
@@ -1526,8 +1546,8 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
           ),
         ),
         actions: [
-          TextButton(onPressed: () { Navigator.pop(context); _clearAIlearning(); }, child: const Text('LIMPIAR', style: TextStyle(color: Colors.redAccent))),
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('CERRAR', style: TextStyle(color: Colors.cyanAccent))),
+          TextButton(onPressed: () { if (mounted) { Navigator.pop(context); _clearAIlearning(); } }, child: const Text('LIMPIAR', style: TextStyle(color: Colors.redAccent))),
+          TextButton(onPressed: () { if (mounted) Navigator.pop(context); }, child: const Text('CERRAR', style: TextStyle(color: Colors.cyanAccent))),
         ],
       ),
     );
@@ -2259,42 +2279,44 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
         _appendLog(success ? '✅ $attackLabel OK' : '❌ $attackLabel FALLÓ: $message');
 
         // Show result snackbar
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  children: [
-                    Icon(success ? Icons.check_circle : Icons.error,
-                         color: success ? Colors.greenAccent : Colors.redAccent, size: 16),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        '${success ? "ÉXITO" : "FALLO"}: $type:$attackLabel',
-                        style: TextStyle(
-                          color: success ? Colors.greenAccent : Colors.redAccent,
-                          fontWeight: FontWeight.bold, fontSize: 12,
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      Icon(success ? Icons.check_circle : Icons.error,
+                           color: success ? Colors.greenAccent : Colors.redAccent, size: 16),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          '${success ? "ÉXITO" : "FALLO"}: $type:$attackLabel',
+                          style: TextStyle(
+                            color: success ? Colors.greenAccent : Colors.redAccent,
+                            fontWeight: FontWeight.bold, fontSize: 12,
+                          ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(resultMsg, style: const TextStyle(color: Colors.white70, fontSize: 10)),
-              ],
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(resultMsg, style: const TextStyle(color: Colors.white70, fontSize: 10)),
+                ],
+              ),
+              backgroundColor: success ? Colors.green[900] : Colors.red[900],
+              duration: const Duration(seconds: 3),
+              behavior: SnackBarBehavior.floating,
+              margin: const EdgeInsets.only(bottom: 120, left: 16, right: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(color: (success ? Colors.greenAccent : Colors.redAccent).withOpacity(0.3)),
+              ),
             ),
-            backgroundColor: success ? Colors.green[900] : Colors.red[900],
-            duration: const Duration(seconds: 3),
-            behavior: SnackBarBehavior.floating,
-            margin: const EdgeInsets.only(bottom: 120, left: 16, right: 16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-              side: BorderSide(color: (success ? Colors.greenAccent : Colors.redAccent).withOpacity(0.3)),
-            ),
-          ),
-        );
+          );
+        }
       }
     } catch (e) {
       _appendLog('💥 EXCEPTION en ataque: $e');
@@ -3132,14 +3154,16 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
           _saveState(); // Persist OBEX file list and download results
           
           final totalDownloaded = (importantFiles.isNotEmpty ? importantFiles.length : 0) + (photoFiles.isNotEmpty ? photoFiles.length : 0);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('📂 ${rawFiles.length} archivos, ${totalDownloaded} descargados (docs+fotos)', style: const TextStyle(fontSize: 12)),
-              backgroundColor: Colors.green[900],
-              duration: const Duration(seconds: 5),
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('📂 ${rawFiles.length} archivos, ${totalDownloaded} descargados (docs+fotos)', style: const TextStyle(fontSize: 12)),
+                backgroundColor: Colors.green[900],
+                duration: const Duration(seconds: 5),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
         }
       } else {
         final msg = result['message']?.toString() ?? '';
@@ -3162,13 +3186,13 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
                           icon: const Icon(Icons.flash_on, size: 14),
                           label: const Text('Quick Connect', style: TextStyle(fontSize: 10)),
                           style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
-                          onPressed: () { ScaffoldMessenger.of(context).hideCurrentSnackBar(); _bypassQuickConnect(); },
+                          onPressed: () { if (mounted) { ScaffoldMessenger.of(context).hideCurrentSnackBar(); _bypassQuickConnect(); } },
                         ),
                         TextButton.icon(
                           icon: const Icon(Icons.lock_reset, size: 14),
                           label: const Text('Trust Abuse', style: TextStyle(fontSize: 10)),
                           style: TextButton.styleFrom(foregroundColor: Colors.orange),
-                          onPressed: () { ScaffoldMessenger.of(context).hideCurrentSnackBar(); _bypassOBEXTrust(); },
+                          onPressed: () { if (mounted) { ScaffoldMessenger.of(context).hideCurrentSnackBar(); _bypassOBEXTrust(); } },
                         ),
                       ],
                     ),
@@ -3213,22 +3237,24 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
             .map<Map<String, dynamic>>((s) => Map<String, dynamic>.from(s as Map))
             .toList();
 
-        if (mounted) {
-          setState(() {
-            _sdpServices = services;
-            _collectedData.add('🔍 [$displayName] ${services.length} servicios descubiertos via SDP');
-          });
-          _appendLog('✅ SDP: ${services.length} servicios encontrados');
-          _saveState(); // Persist SDP results
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('🔍 ${services.length} servicios descubiertos en $displayName', style: const TextStyle(fontSize: 12)),
-              backgroundColor: Colors.cyan[900],
-              duration: const Duration(seconds: 3),
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-        }
+         if (mounted) {
+           setState(() {
+             _sdpServices = services;
+             _collectedData.add('🔍 [$displayName] ${services.length} servicios descubiertos via SDP');
+           });
+           _appendLog('✅ SDP: ${services.length} servicios encontrados');
+           _saveState(); // Persist SDP results
+           if (mounted) {
+             ScaffoldMessenger.of(context).showSnackBar(
+               SnackBar(
+                 content: Text('🔍 ${services.length} servicios descubiertos en $displayName', style: const TextStyle(fontSize: 12)),
+                 backgroundColor: Colors.cyan[900],
+                 duration: const Duration(seconds: 3),
+                 behavior: SnackBarBehavior.floating,
+               ),
+             );
+           }
+         }
       } else {
         _appendLog('❌ SDP fallido: ${result['message']}');
       }
@@ -3275,14 +3301,16 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
           final callCount = result['callCount'] ?? 0;
           _appendLog('✅ PBAP: $contactCount contactos, $callCount llamadas extraidas');
           _saveState(); // Persist PBAP extraction results
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('📇 $contactCount contactos, $callCount llamadas extraidas de $displayName', style: const TextStyle(fontSize: 12)),
-              backgroundColor: Colors.orange[900],
-              duration: const Duration(seconds: 3),
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('📇 $contactCount contactos, $callCount llamadas extraidas de $displayName', style: const TextStyle(fontSize: 12)),
+                backgroundColor: Colors.orange[900],
+                duration: const Duration(seconds: 3),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
         }
       } else {
         final msg = result['message']?.toString() ?? '';
@@ -3305,13 +3333,13 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
                           icon: const Icon(Icons.flash_on, size: 14),
                           label: const Text('Quick Connect', style: TextStyle(fontSize: 10)),
                           style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
-                          onPressed: () { ScaffoldMessenger.of(context).hideCurrentSnackBar(); _bypassQuickConnect(); },
+                          onPressed: () { if (mounted) { ScaffoldMessenger.of(context).hideCurrentSnackBar(); _bypassQuickConnect(); } },
                         ),
                         TextButton.icon(
                           icon: const Icon(Icons.lock_reset, size: 14),
                           label: const Text('Trust Abuse', style: TextStyle(fontSize: 10)),
                           style: TextButton.styleFrom(foregroundColor: Colors.orange),
-                          onPressed: () { ScaffoldMessenger.of(context).hideCurrentSnackBar(); _bypassOBEXTrust(); },
+                          onPressed: () { if (mounted) { ScaffoldMessenger.of(context).hideCurrentSnackBar(); _bypassOBEXTrust(); } },
                         ),
                       ],
                     ),
@@ -3333,13 +3361,14 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
   // ========== OPP FILE PUSH ==========
 
   Future<void> _oppPushFile() async {
+    if (!mounted) return;
     if (_selectedDevice == null) return;
     final displayName = device_utils.getDeviceDisplayName(_selectedDevice!);
 
     // Show file picker dialog
     final selectedPath = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Seleccionar archivo'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -3358,20 +3387,21 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
               ),
               style: const TextStyle(fontSize: 12),
               onSubmitted: (value) {
-                Navigator.pop(context, value);
+                Navigator.pop(dialogContext, value);
               },
             ),
           ],
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Cancelar'),
           ),
         ],
       ),
     );
 
+    if (!mounted) return;
     if (selectedPath == null || selectedPath.isEmpty) return;
 
     _appendLog('📤 OPP Push → $displayName ($selectedPath)');

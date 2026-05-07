@@ -86,22 +86,26 @@ class _BluetoothScannerScreenState extends State<BluetoothScannerScreen> {
   }
 
   void _showBluetoothDialog() {
+    if (!mounted) return;
+    
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Bluetooth Desactivado'),
         content: const Text(
           'El Bluetooth está desactivado. Por favor actívalo desde la configuración de tu dispositivo.',
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () {
+              if (mounted) Navigator.pop(context);
+            },
             child: const Text('Cancelar'),
           ),
           ElevatedButton(
             onPressed: () {
-              Navigator.pop(context);
+              if (mounted) Navigator.pop(context);
               openAppSettings();
             },
             child: const Text('Abrir Configuración'),
@@ -112,8 +116,12 @@ class _BluetoothScannerScreenState extends State<BluetoothScannerScreen> {
   }
 
   Future<void> _startAnalysis(Map<String, dynamic> device) async {
+    bool analysisCompleted = false;
+    
     try {
       // Mostrar diálogo de progreso
+      if (!mounted) return;
+      
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -151,20 +159,32 @@ class _BluetoothScannerScreenState extends State<BluetoothScannerScreen> {
       // 6. Ejecutar ataque de spoofing (opcional)
       final spoofResult = await _bluetoothService.executeSpoofingAttack(device['address']);
 
-      // Cerrar diálogo de progreso
-      Navigator.pop(context);
+      analysisCompleted = true;
 
-      // Mostrar resultados combinados
-      _showAnalysisResults(device, firmwareResult, attackResult, atResult, exfilResult, dosResult, spoofResult);
+      // Cerrar diálogo de progreso solo si el widget sigue montado
+      if (mounted) {
+        Navigator.pop(context);
+      }
 
+      // Mostrar resultados combinados solo si el widget sigue montado
+      if (mounted) {
+        _showAnalysisResults(device, firmwareResult, attackResult, atResult, exfilResult, dosResult, spoofResult);
+      }
     } catch (e) {
-      Navigator.pop(context); // Cerrar diálogo de progreso
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error durante el análisis: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      // Cerrar diálogo de progreso si está abierto y el widget está montado
+      if (analysisCompleted == false && mounted) {
+        Navigator.pop(context);
+      }
+      
+      // Mostrar error solo si el widget está montado
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error durante el análisis: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -177,6 +197,8 @@ class _BluetoothScannerScreenState extends State<BluetoothScannerScreen> {
     Map<String, dynamic> dosResult,
     Map<String, dynamic> spoofResult,
   ) {
+    if (!mounted) return;
+    
     final firmwareInfo = Map<String, dynamic>.from(firmwareResult['deviceInfo'] ?? {});
     final attackAnalysis = Map<String, dynamic>.from(attackResult['analysis'] ?? {});
     final atSummary = Map<String, dynamic>.from(atResult['summary'] ?? {});
@@ -187,7 +209,7 @@ class _BluetoothScannerScreenState extends State<BluetoothScannerScreen> {
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Resultado del Análisis Completo'),
         content: SingleChildScrollView(
           child: Column(
@@ -289,17 +311,21 @@ class _BluetoothScannerScreenState extends State<BluetoothScannerScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () {
+              if (mounted) Navigator.pop(context);
+            },
             child: const Text('OK'),
           ),
           TextButton(
             onPressed: () {
-              Navigator.pop(context);
+              if (mounted) Navigator.pop(context);
               // Navegar al dashboard de estadísticas
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const StatsDashboard()),
-              );
+              if (mounted) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const StatsDashboard()),
+                );
+              }
             },
             child: const Text('Ver Estadísticas'),
           ),

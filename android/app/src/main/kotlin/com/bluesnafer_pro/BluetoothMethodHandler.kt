@@ -41,6 +41,8 @@ class BluetoothMethodHandler private constructor(
             val handler = BluetoothMethodHandler(appContext!!, channel)
             channel.setMethodCallHandler(handler)
         }
+
+        fun getAppContext(): Context? = appContext
     }
 
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
