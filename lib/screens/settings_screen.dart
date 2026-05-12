@@ -7,7 +7,7 @@ import '../utils/export_manager.dart';
 import 'encrypted_files_viewer.dart';
 import 'exploit_config_screen.dart';
 import '../services/bluetooth_service.dart';
-import 'unified_attack_screen.dart';
+import '../unified_attack_screen.dart';
 
 /// Pantalla de configuración
 class SettingsScreen extends StatefulWidget {

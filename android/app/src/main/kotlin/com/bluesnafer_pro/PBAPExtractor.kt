@@ -11,7 +11,6 @@ import java.util.concurrent.Executors
 object PBAPExtractor {
     private const val TAG = "PBAPExtractor"
     private val PBAP_UUID = UUID.fromString("0000112F-0000-1000-8000-00805F9B34FB")
-    private val executor = Executors.newCachedThreadPool()
     
     /**
      * Extract contacts from device
