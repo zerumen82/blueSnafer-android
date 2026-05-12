@@ -93,8 +93,28 @@ web/
 .svn/
 migrate_working_dir/
 
-# Aider
-.aider*
+ # Aider
+ .aider*
+
+ # Temp debugging & analysis scripts
+ *.py
+ *.txt
+ *.bak
+ *.backup
+ *.log
+ analyze_*.py
+ brace_*.py
+ *_debug.py
+ *_events.txt
+ *_trace.txt
+ *_balance.py
+ simular_*.py
+ generate_icon.ps1
+ build_log.txt
+ build_output.txt
+ analyze_output.txt
+ full_diff.patch
+ original_attack_section.txt
 
 # Generated native build files
 *.apk

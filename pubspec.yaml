@@ -39,6 +39,7 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.0
 
 flutter:
   uses-material-design: true
@@ -46,14 +47,12 @@ flutter:
   assets:
     - assets/
     - assets/models/
+    - assets/icons/
 
-  # fonts:
-  #   - family: Roboto
-  #     fonts:
-  #       - asset: fonts/Roboto-Regular.ttf
-  #       - asset: fonts/Roboto-Bold.ttf
-  #         weight: 700
-# NOTAS IMPORTANTES:
-# - Configuraciones de Android (package, permisos, etc.) van en android/app/build.gradle y AndroidManifest.xml
-# - Configuraciones de iOS (bundle identifier, etc.) van en ios/Runner/Info.plist y ios/Runner.xcodeproj
-# - Estas configuraciones no son válidas directamente en pubspec.yaml
+flutter_icons:
+  android: true
+  ios: true
+  image_path: "assets/icons/bluetooth_capsule.png"
+  adaptive_icon_background: "#1E40AF"
+  adaptive_icon_foreground: "assets/icons/bluetooth_capsule.png"
+  remove_alpha_ios: true

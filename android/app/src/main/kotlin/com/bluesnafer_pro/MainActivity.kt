@@ -3,8 +3,9 @@ package com.bluesnafer_pro
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.util.Log
-import io.flutter.embedding.android.FlutterActivity
-import io.flutter.embedding.engine.FlutterEngine
+ import io.flutter.embedding.android.FlutterActivity
+ import io.flutter.embedding.engine.FlutterEngine
+ import io.flutter.plugin.common.EventChannel
 
 class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
