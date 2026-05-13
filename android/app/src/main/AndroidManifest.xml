@@ -31,7 +31,7 @@
         android:required="true" />
 
     <application
-        android:label="BlueSnafer Pro"
+        android:label="blusnafer"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="false">
