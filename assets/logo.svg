@@ -1,0 +1,4 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <rect width="512" height="512" rx="128" ry="128" fill="#2196F3"/>
+  <text x="256" y="256" dominant-baseline="middle" text-anchor="middle" fill="#FFFFFF" font-size="256" font-family="Segoe UI Symbol, Apple Symbols, DejaVu Sans">⚵</text>
+</svg>
