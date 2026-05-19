@@ -275,10 +275,9 @@ public class $className {
     }
   }
 
-  /// Esperar que el output se complete
+  /// Esperar que el output se complete (cede al event loop para procesar el envío)
   Future<void> _waitForOutput() async {
-    // Simular delay para que el output se complete
-    await Future.delayed(const Duration(milliseconds: 100));
+    await Future.delayed(Duration.zero);
   }
 
   /// Esperar respuesta de la inyección

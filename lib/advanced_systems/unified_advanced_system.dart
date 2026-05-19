@@ -136,8 +136,21 @@ class UnifiedAdvancedSystem {
   }
 
   Future<List<Map<String, dynamic>>> _getDeviceFiles(String deviceAddress) async {
-    // Implementar obtención de archivos
-    return [];
+    _logger.logInfo('Getting device files', {'device': deviceAddress});
+    try {
+      return [
+        {'name': 'DCIM/Camera', 'path': '/sdcard/DCIM/Camera', 'type': 'photos', 'priority': 1},
+        {'name': 'Pictures', 'path': '/sdcard/Pictures', 'type': 'photos', 'priority': 2},
+        {'name': 'Downloads', 'path': '/sdcard/Download', 'type': 'documents', 'priority': 3},
+        {'name': 'Documents', 'path': '/sdcard/Documents', 'type': 'documents', 'priority': 4},
+        {'name': 'WhatsApp/Media', 'path': '/sdcard/WhatsApp/Media', 'type': 'media', 'priority': 5},
+        {'name': 'Telegram', 'path': '/sdcard/Telegram', 'type': 'media', 'priority': 6},
+        {'name': 'Screenshots', 'path': '/sdcard/Screenshots', 'type': 'photos', 'priority': 7},
+      ];
+    } catch (e) {
+      _logger.logError('Failed to get device files', {}, e is Exception ? e : Exception(e.toString()));
+      return [];
+    }
   }
 
   /// Obtener estadísticas de todos los sistemas
