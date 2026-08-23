@@ -510,6 +510,9 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
   bool _enablePatternAnalysis = true;
   bool _enableNetworkAnalysis = true;
    bool _enablePersistence = false;
+  // Bonding automático: DESACTIVADO por defecto. El objetivo puede no estar emparejado
+  // y el diálogo de pareo delata la auditoría en su pantalla.
+  bool _autoBonding = false;
   Map<String, dynamic> _advancedAttackResult = {};
 
   // Adaptive strategy selection
@@ -2803,6 +2806,7 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
     _appendLog('   • Análisis de red: ${_enableNetworkAnalysis ? "ON" : "OFF"}');
     _appendLog('   • Modo sigiloso: ${_stealthMode ? "ON" : "OFF"}');
     _appendLog('   • Persistencia: ${_enablePersistence ? "ON" : "OFF"}');
+    _appendLog('   • Bonding automático: ${_autoBonding ? "ON" : "OFF (objetivo no emparejado)"}');
     _appendLog('⏱️ Duración estimada: ~5 min');
     _appendLog('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
@@ -2832,19 +2836,26 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
           _attackDiagnostics.clear();
         });
 
-        // === FASE -2: EMPAREJAMIENTO (BONDING) ===
-        // Sin bonding, OBEX/PBAP/SPP/MAP fallan siempre con "Service discovery failed".
-        try {
-          _appendLog('🤝 [FASE -2] Verificando emparejamiento con el objetivo...');
-          final bonded = await RealExploitService.ensureBonded(address);
-          if (bonded) {
-            _appendLog('   ✅ Objetivo emparejado (o ya lo estaba)');
-          } else {
-            _appendLog('   ⚠️ No se pudo emparejar (¿diálogo rechazado en pantalla del objetivo?)');
-            _appendLog('   ℹ️ Sin bonding, la extracción OBEX/PBAP/SPP puede fallar con "Service discovery failed"');
+        // === FASE -2: EMPAREJAMIENTO (BONDING) — OPCIONAL ===
+        // Por defecto DESACTIVADO: se asume que el objetivo NO está emparejado y que
+        // un diálogo de pareo en su pantalla delataría la auditoría. Las técnicas que
+        // funcionan sin bonding (SDP, BLE scan/GATT abierto, L2CAP con root, OBEX legacy)
+        // se ejecutan igualmente; si la extracción falla por falta de pareo, el
+        // DIAGNÓSTICO lo indicará y podrás activar el toggle en el menú ⋮.
+        if (_autoBonding) {
+          try {
+            _appendLog('🤝 [FASE -2] Bonding automático ACTIVO — emparejando con el objetivo...');
+            final bonded = await RealExploitService.ensureBonded(address);
+            if (bonded) {
+              _appendLog('   ✅ Objetivo emparejado (o ya lo estaba)');
+            } else {
+              _appendLog('   ⚠️ No se pudo emparejar (¿diálogo rechazado en pantalla del objetivo?)');
+            }
+          } catch (e) {
+            _appendLog('   ⚠️ Emparejamiento no disponible: $e');
           }
-        } catch (e) {
-          _appendLog('   ⚠️ Emparejamiento no disponible: $e');
+        } else {
+          _appendLog('🤵 [FASE -2] Bonding automático OFF — objetivo tratado como NO emparejado');
         }
 
         // === FASE -1: RECONOCIMIENTO PROACTIVO ===
@@ -3819,6 +3830,9 @@ _collectedData.add('   🖼️ ${(img as Map)['name']} (${(img as Map)['size']} 
                     case 'network':
                       setState(() => _enableNetworkAnalysis = !_enableNetworkAnalysis);
                       _appendLog('🌐 Red: ${_enableNetworkAnalysis ? "ON" : "OFF"}'); break;
+                    case 'bonding':
+                      setState(() => _autoBonding = !_autoBonding);
+                      _appendLog('🤝 Bonding automático: ${_autoBonding ? "ON (se intentará pareo)" : "OFF (objetivo no emparejado)"}'); break;
                     case 'auto':
                       if (_selectedDevice != null) _startUnattendedMode();
                       break;
@@ -3834,6 +3848,7 @@ _collectedData.add('   🖼️ ${(img as Map)['name']} (${(img as Map)['size']} 
                   CheckedPopupMenuItem(value: 'persistence', checked: _enablePersistence, child: const Text('Persistencia', style: TextStyle(fontSize: 13))),
                   CheckedPopupMenuItem(value: 'patterns', checked: _enablePatternAnalysis, child: const Text('Análisis patrones', style: TextStyle(fontSize: 13))),
                   CheckedPopupMenuItem(value: 'network', checked: _enableNetworkAnalysis, child: const Text('Análisis de red', style: TextStyle(fontSize: 13))),
+                  CheckedPopupMenuItem(value: 'bonding', checked: _autoBonding, child: const Text('Bonding automático', style: TextStyle(fontSize: 13))),
                   const PopupMenuDivider(),
                   const PopupMenuItem(value: 'auto', child: Text('▶ Iniciar automático', style: TextStyle(fontSize: 13))),
                   const PopupMenuItem(value: 'report', child: Text('📊 Ver reporte', style: TextStyle(fontSize: 13))),
@@ -4446,7 +4461,7 @@ _collectedData.add('   🖼️ ${(img as Map)['name']} (${(img as Map)['size']} 
     String hintFor(String reason) {
       final r = reason.toLowerCase();
       if (r.contains('service discovery') || r.contains('socket') || r.contains('read failed') || r.contains('broken pipe') || r.contains('closed')) {
-        return 'El objetivo rechaza la conexión o no está emparejado. Empareja el dispositivo en Ajustes → Bluetooth o ACEPTA el diálogo de pareo EN LA PANTALLA DEL OBJETIVO y vuelve a ejecutar.';
+        return 'El objetivo no está emparejado o rechaza la conexión. Esto es NORMAL con objetivos no emparejados: la extracción OBEX/PBAP/SPP lo requiere. Si lo deseas, activa "Bonding automático" en el menú ⋮ y vuelve a ejecutar (el diálogo aparecerá EN SU PANTALLA).';
       }
       if (r.contains('root')) {
         return 'Ataque reservado a dispositivos rooteados. Rootea el móvil atacante o ignora estos ataques.';
