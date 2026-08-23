@@ -429,6 +429,8 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
   String _aiPrediction = '';
   Suggestion? _currentSuggestion;
   List<String> _executedAttacks = [];
+  // Diagnóstico de ataques fallidos: type, label, reason (para pestaña DATOS)
+  final List<Map<String, String>> _attackDiagnostics = [];
   Map<String, double> _successRates = {};
 
 
@@ -2827,8 +2829,24 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
           _gattMirrorResults.clear();
           _fullScanResults.clear();
           _atInjectionResults.clear();
+          _attackDiagnostics.clear();
         });
-        
+
+        // === FASE -2: EMPAREJAMIENTO (BONDING) ===
+        // Sin bonding, OBEX/PBAP/SPP/MAP fallan siempre con "Service discovery failed".
+        try {
+          _appendLog('🤝 [FASE -2] Verificando emparejamiento con el objetivo...');
+          final bonded = await RealExploitService.ensureBonded(address);
+          if (bonded) {
+            _appendLog('   ✅ Objetivo emparejado (o ya lo estaba)');
+          } else {
+            _appendLog('   ⚠️ No se pudo emparejar (¿diálogo rechazado en pantalla del objetivo?)');
+            _appendLog('   ℹ️ Sin bonding, la extracción OBEX/PBAP/SPP puede fallar con "Service discovery failed"');
+          }
+        } catch (e) {
+          _appendLog('   ⚠️ Emparejamiento no disponible: $e');
+        }
+
         // === FASE -1: RECONOCIMIENTO PROACTIVO ===
         if (_proactiveRecon) {
           _appendLog('🔍 [FASE -1] Reconocimiento proactivo...');
@@ -3313,14 +3331,16 @@ while (attempt <= maxRetries && !success) {
           );
 
           success = result['success'] == true;
-          finalMessage = result['message'] ?? (success ? 'OK' : 'Sin respuesta');
+          // Los handlers Kotlin devuelven el motivo en 'error' o 'note', no siempre en 'message'
+          finalMessage = (result['message'] ?? result['error'] ?? result['note'])?.toString() ??
+              (success ? 'OK' : 'Sin respuesta');
 
           final bool rootRequired = result['rootRequired'] == true;
           final bool rootAvailable = result['rootAvailable'] == true;
 
           if (rootRequired && !rootAvailable) {
             _appendLog('  🔒 $attackLabel: REQUIERE ROOT (no disponible)');
-            _appendLog('  ⚠️  ${result['message'] ?? 'Este exploit necesita un dispositivo rooteado'}');
+            _appendLog('  ⚠️  ${result['message'] ?? result['error'] ?? result['note'] ?? 'Este exploit necesita un dispositivo rooteado'}');
             break;
           }
 
@@ -3355,6 +3375,14 @@ while (attempt <= maxRetries && !success) {
          }
        }
       }
+
+        // === Registrar diagnóstico de fallo para la pestaña DATOS ===
+        if (!success) {
+          final reason = finalMessage.isEmpty ? 'sin respuesta del objetivo' : finalMessage;
+          _attackDiagnostics.add({'type': type, 'label': attackLabel, 'reason': reason});
+          if (_attackDiagnostics.length > 200) _attackDiagnostics.removeAt(0);
+          if (mounted) setState(() {});
+        }
 
         // Registrar resultado en SuccessOptimizer para mejorar backoff futuro
         if (addr.isNotEmpty) {
@@ -4130,6 +4158,20 @@ _collectedData.add('   🖼️ ${(img as Map)['name']} (${(img as Map)['size']} 
         _buildDataPanel(),
         const SizedBox(height: 12),
       ],
+      // ===== DIAGNÓSTICO DE ATAQUES FALLIDOS =====
+      if (_attackDiagnostics.isNotEmpty) ...[
+        _buildCollapsibleSection(
+          title: '🩺 DIAGNÓSTICO',
+          subtitle: '${_attackDiagnostics.length} ataques fallidos y sus causas',
+          icon: Icons.healing,
+          color: Colors.redAccent,
+          initiallyExpanded: _collectedData.isEmpty,
+          children: [
+            _buildDiagnosticsPanel(),
+          ],
+        ),
+        const SizedBox(height: 12),
+      ],
       // ===== RECONOCIMIENTO =====
       _buildCollapsibleSection(
         title: '📡 RECONOCIMIENTO',
@@ -4396,6 +4438,73 @@ _collectedData.add('   🖼️ ${(img as Map)['name']} (${(img as Map)['size']} 
           ],
         ),
       ),
+    );
+  }
+
+  /// Panel de diagnóstico: cada ataque fallido con su motivo real y una pista accionable.
+  Widget _buildDiagnosticsPanel() {
+    String hintFor(String reason) {
+      final r = reason.toLowerCase();
+      if (r.contains('service discovery') || r.contains('socket') || r.contains('read failed') || r.contains('broken pipe') || r.contains('closed')) {
+        return 'El objetivo rechaza la conexión o no está emparejado. Empareja el dispositivo en Ajustes → Bluetooth o ACEPTA el diálogo de pareo EN LA PANTALLA DEL OBJETIVO y vuelve a ejecutar.';
+      }
+      if (r.contains('root')) {
+        return 'Ataque reservado a dispositivos rooteados. Rootea el móvil atacante o ignora estos ataques.';
+      }
+      if (r.contains('timeout')) {
+        return 'El objetivo no respondió a tiempo: probablemente no expone ese servicio o está fuera de rango.';
+      }
+      if (r.contains('permission') || r.contains('permiso') || r.contains('security exception')) {
+        return 'Falta un permiso en el móvil atacante (BLUETOOTH_CONNECT / BLUETOOTH_SCAN en Android 12+). Concédelos al abrir la app.';
+      }
+      if (r.contains('unknown attack type')) {
+        return 'Tipo de ataque sin handler nativo registrado — no se ejecutará.';
+      }
+      return 'Sin pista específica: revisa el log completo en la pestaña RADAR.';
+    }
+
+    return Column(
+      children: [
+        for (final d in _attackDiagnostics.take(50))
+          Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.redAccent.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.redAccent.withValues(alpha: 0.3)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.error_outline, size: 14, color: Colors.redAccent),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        '❌ ${d['label']}  (${d['type']})',
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text('Motivo: ${d['reason']}', style: TextStyle(fontSize: 11, color: Colors.grey[300])),
+                const SizedBox(height: 4),
+                Text('💡 ${hintFor(d['reason'] ?? '')}', style: const TextStyle(fontSize: 11, color: Colors.amberAccent)),
+              ],
+            ),
+          ),
+        if (_collectedData.isEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              '⚠️ Ningún ataque tuvo éxito todavía. Un objetivo moderno (Android 6+/iOS) exige ACEPTAR el emparejamiento/transmisión EN SU PANTALLA: eso no es evadible por software. Empareja primero el objetivo, acepta los diálogos, y prioriza objetivos legacy/IoT para extracción.',
+              style: TextStyle(fontSize: 11, color: Colors.orange[300], fontStyle: FontStyle.italic),
+            ),
+          ),
+      ],
     );
   }
 
