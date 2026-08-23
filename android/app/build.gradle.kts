@@ -1,3 +1,14 @@
+import java.util.Properties
+import java.io.FileInputStream
+
+// Leer la versión desde local.properties (generado por Flutter desde pubspec.yaml)
+val localProperties = Properties().apply {
+    val f = rootProject.file("local.properties")
+    if (f.exists()) FileInputStream(f).use { load(it) }
+}
+val flutterVersionCode = (localProperties.getProperty("flutter.versionCode") ?: "1").toInt()
+val flutterVersionName = localProperties.getProperty("flutter.versionName") ?: "1.0.0"
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -58,8 +69,8 @@ android {
         applicationId = "com.bluesnafer_pro"
         minSdk = 26  // Requerido por tflite_flutter
         targetSdk = 36
-        versionCode = 6
-        versionName = "1.1.0"
+        versionCode = flutterVersionCode
+        versionName = flutterVersionName
     }
 
     signingConfigs {
