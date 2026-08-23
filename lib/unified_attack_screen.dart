@@ -409,6 +409,7 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
   List<String> _collectedData = []; // Datos reales recolectados (cap 100)
   List<Map<String, dynamic>> _obexFiles = []; // Archivos encontrados via OBEX
   List<Map<String, dynamic>> _sdpServices = []; // Servicios descubiertos via SDP
+  List<Map<String, dynamic>> _gattDump = []; // Dump completo GATT sin pareo (servicio/characteristic/valor)
   List<Map<String, dynamic>> _pbapContacts = []; // Contactos extraidos via PBAP
   List<Map<String, dynamic>> _pbapCalls = []; // Historial llamadas via PBAP
   List<Map<String, dynamic>> _blueBorneResults = []; // Resultados BlueBorne
@@ -1649,6 +1650,9 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
       if (_sdpServices.isNotEmpty) {
         prefs.setString('sdp_services', jsonEncode(_sdpServices));
       }
+      if (_gattDump.isNotEmpty) {
+        prefs.setString('gatt_dump', jsonEncode(_gattDump));
+      }
       if (_obexFiles.isNotEmpty) {
         prefs.setString('obex_files', jsonEncode(_obexFiles));
       }
@@ -1796,6 +1800,7 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
       _pbapContacts = _loadJsonList(prefs, 'pbap_contacts');
       _pbapCalls = _loadJsonList(prefs, 'pbap_calls');
       _sdpServices = _loadJsonList(prefs, 'sdp_services');
+      _gattDump = _loadJsonList(prefs, 'gatt_dump');
       _obexFiles = _loadJsonList(prefs, 'obex_files');
       _extractedImages = _loadJsonList(prefs, 'extracted_images');
       _mediastoreEnhanced = _loadJsonList(prefs, 'mediastore_enhanced');
@@ -3513,6 +3518,28 @@ while (attempt <= maxRetries && !success) {
               final sampleList = sample as List;
               _collectedData.add('📋 [$targetName] Muestra GATT: ${sampleList.take(3).join('; ')}');
             }
+            // Almacenar dump completo para el tab DATOS (valores legibles sin pareo)
+            final fullDump = result?['fullDump'] as List?;
+            if (fullDump != null && fullDump.isNotEmpty) {
+              if (mounted) {
+                setState(() {
+                  _gattDump.removeWhere((e) => e['device'] == targetName);
+                  for (final entry in fullDump) {
+                    final parts = entry.toString().split('=');
+                    final path = parts[0];
+                    final hexValue = parts.length > 1 ? parts[1] : '';
+                    _gattDump.add({
+                      'device': targetName,
+                      'path': path,
+                      'hex': hexValue,
+                      'ascii': _hexToAscii(hexValue),
+                    });
+                  }
+                });
+                _saveState();
+              }
+              _collectedData.add('📶 [$targetName] ${fullDump.length} valores GATT almacenados sin pareo');
+            }
           }
 
           if (type == 'gatt_monitor') {
@@ -4202,6 +4229,20 @@ _collectedData.add('   🖼️ ${(img as Map)['name']} (${(img as Map)['size']} 
           ],
         ],
       ),
+      // ===== DATOS SIN PAREO (BLE/GATT) =====
+      if (_gattDump.isNotEmpty) ...[
+        _buildCollapsibleSection(
+          title: '📶 BLE / GATT — DATOS SIN PAREO',
+          subtitle: '${_gattDump.length} valores leídos sin emparejamiento',
+          icon: Icons.bluetooth_searching,
+          color: Colors.greenAccent,
+          initiallyExpanded: true,
+          children: [
+            _buildGattDumpPanel(),
+          ],
+        ),
+        const SizedBox(height: 12),
+      ],
       // ===== DATOS PERSONALES =====
       _buildCollapsibleSection(
         title: '📇 DATOS PERSONALES',
@@ -4414,6 +4455,73 @@ _collectedData.add('   🖼️ ${(img as Map)['name']} (${(img as Map)['size']} 
         const SizedBox(height: 20),
       ],
     ]);
+  }
+
+  // Decodifica hex a ASCII imprimible (para valores GATT legibles)
+  String _hexToAscii(String hex) {
+    final buf = StringBuffer();
+    for (int i = 0; i + 1 < hex.length; i += 2) {
+      final code = int.tryParse(hex.substring(i, i + 2), radix: 16);
+      if (code == null) continue;
+      if (code >= 0x20 && code < 0x7F) {
+        buf.writeCharCode(code);
+      } else if (code == 0x0A || code == 0x0D) {
+        buf.write(' ');
+      }
+    }
+    return buf.toString();
+  }
+
+  // Panel del dump GATT obtenido sin pareo
+  Widget _buildGattDumpPanel() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: Colors.green[900]!.withOpacity(0.3),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.greenAccent.withOpacity(0.3)),
+          ),
+          child: const Text(
+            'Valores leídos de características BLE sin cifrar — no se requirió emparejamiento. '
+            'Los valores en texto son decodificados de hex; los ilegibles se muestran como bytes.',
+            style: TextStyle(fontSize: 11, color: Colors.white70),
+          ),
+        ),
+        const SizedBox(height: 8),
+        ..._gattDump.map((entry) {
+          final path = entry['path']?.toString() ?? '';
+          final ascii = entry['ascii']?.toString() ?? '';
+          final hex = entry['hex']?.toString() ?? '';
+          final readable = ascii.isNotEmpty;
+          return Container(
+            margin: const EdgeInsets.only(bottom: 6),
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.black26,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  Icon(readable ? Icons.text_fields : Icons.memory, size: 13, color: Colors.greenAccent),
+                  const SizedBox(width: 5),
+                  Expanded(child: Text(path, style: const TextStyle(fontSize: 10, fontFamily: 'monospace', color: Colors.cyanAccent))),
+                ]),
+                const SizedBox(height: 3),
+                SelectableText(
+                  readable ? '"$ascii"' : 'hex: $hex',
+                  style: TextStyle(fontSize: 11, fontFamily: 'monospace', color: readable ? Colors.greenAccent : Colors.white54),
+                ),
+              ],
+            ),
+          );
+        }),
+      ],
+    );
   }
 
   // Sección colapsable para mantener la UI organizada y sin saturación
@@ -6023,7 +6131,8 @@ _collectedData.add('   🖼️ ${(img as Map)['name']} (${(img as Map)['size']} 
     return _sdpServices.isNotEmpty || _obexFiles.isNotEmpty || 
            _pbapContacts.isNotEmpty || _pbapCalls.isNotEmpty ||
            _blueBorneResults.isNotEmpty || _gattMirrorResults.isNotEmpty ||
-           _fullScanResults.isNotEmpty || _atInjectionResults.isNotEmpty;
+           _fullScanResults.isNotEmpty || _atInjectionResults.isNotEmpty ||
+           _gattDump.isNotEmpty;
   }
 
   Widget _buildResultsDashboard() {
