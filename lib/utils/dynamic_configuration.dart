@@ -215,8 +215,10 @@ class DynamicConfiguration {
       'enable_analytics': false,
       'method_channels': {
         'bluetooth': 'com.bluesnafer_pro/bluetooth',
-        'commands': 'bluetooth_commands',
-        'logs': 'bluetooth_logs'
+        'commands': 'com.bluesnafer_pro/bluetooth',
+        'logs': 'bluetooth_logs',
+        'events': 'exploit_events',
+        'notifications': 'com.bluesnafer_pro/notifications'
       },
       'timeouts': {
         'vulnerability_check': 10000,
@@ -232,7 +234,7 @@ class DynamicConfiguration {
     return {
       'enable_adaptive_payloads': true,
       'enable_evasion_techniques': true,
-      'enable_ml_predictions': true,
+      'enable_predictions': true,
       'enable_combination_attacks': true,
       'default_success_rate_threshold': 0.5,
       'max_payloads_per_exploit': 5,
@@ -398,16 +400,20 @@ extension ConfigExtensions on DynamicConfiguration {
   static String get bluetoothChannel => DynamicConfiguration.getConfig(
       'main', 'method_channels.bluetooth', 'com.bluesnafer_pro/bluetooth');
   static String get commandsChannel => DynamicConfiguration.getConfig(
-      'main', 'method_channels.commands', 'bluetooth_commands');
+      'main', 'method_channels.commands', 'com.bluesnafer_pro/bluetooth');
   static String get logsChannel => DynamicConfiguration.getConfig(
       'main', 'method_channels.logs', 'bluetooth_logs');
+  static String get eventsChannel => DynamicConfiguration.getConfig(
+      'main', 'method_channels.events', 'exploit_events');
+  static String get notificationsChannel => DynamicConfiguration.getConfig(
+      'main', 'method_channels.notifications', 'com.bluesnafer_pro/notifications');
 
   static bool get enableAdaptivePayloads => DynamicConfiguration.getConfig(
       'exploits', 'enable_adaptive_payloads', true);
   static bool get enableEvasionTechniques => DynamicConfiguration.getConfig(
       'exploits', 'enable_evasion_techniques', true);
-  static bool get enableMlPredictions =>
-      DynamicConfiguration.getConfig('exploits', 'enable_ml_predictions', true);
+  static bool get enablePredictions =>
+      DynamicConfiguration.getConfig('exploits', 'enable_predictions', true);
   static double get defaultSuccessRateThreshold =>
       DynamicConfiguration.getConfig(
           'exploits', 'default_success_rate_threshold', 0.5);

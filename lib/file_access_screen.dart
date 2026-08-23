@@ -216,7 +216,7 @@ class _FileAccessScreenState extends State<FileAccessScreen> {
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
-            color: Colors.blue.withOpacity(0.1),
+            color: Colors.blue.withValues(alpha: 0.1),
             child: Row(
               children: [
                 const Icon(Icons.folder_open, color: Colors.blue),
@@ -299,7 +299,7 @@ class _FileAccessScreenState extends State<FileAccessScreen> {
                             Icon(
                               Icons.folder_off,
                               size: 64,
-                              color: Colors.white.withOpacity(0.3),
+                              color: Colors.white.withValues(alpha: 0.3),
                             ),
                             const SizedBox(height: 16),
                             const Text(
@@ -329,7 +329,7 @@ class _FileAccessScreenState extends State<FileAccessScreen> {
                             margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                             decoration: BoxDecoration(
                               color: isSelected
-                                  ? const Color(0xFFEB1555).withOpacity(0.2)
+                                  ? const Color(0xFFEB1555).withValues(alpha: 0.2)
                                   : const Color(0xFF1D1E33),
                               borderRadius: BorderRadius.circular(8),
                               border: Border.all(
@@ -341,7 +341,7 @@ class _FileAccessScreenState extends State<FileAccessScreen> {
                             ),
                             child: ListTile(
                               leading: CircleAvatar(
-                                backgroundColor: _getFileColor(fileName).withOpacity(0.2),
+                                backgroundColor: _getFileColor(fileName).withValues(alpha: 0.2),
                                 child: Icon(
                                   _getFileIcon(fileName),
                                   color: _getFileColor(fileName),
@@ -363,7 +363,7 @@ class _FileAccessScreenState extends State<FileAccessScreen> {
                                   Text(
                                     filePath,
                                     style: TextStyle(
-                                      color: Colors.white.withOpacity(0.5),
+                                      color: Colors.white.withValues(alpha: 0.5),
                                       fontSize: 11,
                                     ),
                                     maxLines: 1,
@@ -386,7 +386,7 @@ class _FileAccessScreenState extends State<FileAccessScreen> {
                                             vertical: 2,
                                           ),
                                           decoration: BoxDecoration(
-                                            color: Colors.orange.withOpacity(0.2),
+                                            color: Colors.orange.withValues(alpha: 0.2),
                                             borderRadius: BorderRadius.circular(4),
                                           ),
                                           child: Text(
@@ -422,7 +422,7 @@ class _FileAccessScreenState extends State<FileAccessScreen> {
                 color: const Color(0xFF1D1E33),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.3),
+                    color: Colors.black.withValues(alpha: 0.3),
                     blurRadius: 10,
                     offset: const Offset(0, -5),
                   ),

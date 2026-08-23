@@ -37,7 +37,7 @@ class CommandCategoryPanel extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           decoration: BoxDecoration(
-            color: categoryColor.withOpacity(0.2),
+            color: categoryColor.withValues(alpha: 0.2),
             borderRadius: BorderRadius.circular(4),
           ),
           child: Text(
@@ -66,7 +66,7 @@ class CommandCategoryPanel extends StatelessWidget {
             return ElevatedButton(
               onPressed: isLoading ? null : () => onCommandSelected(cmd['cmd']!),
               style: ElevatedButton.styleFrom(
-                backgroundColor: categoryColor.withOpacity(0.8),
+                backgroundColor: categoryColor.withValues(alpha: 0.8),
                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
               ),
               child: Text(

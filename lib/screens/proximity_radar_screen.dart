@@ -87,7 +87,7 @@ class _ProximityRadarScreenState extends State<ProximityRadarScreen> {
               width: i * 60, height: i * 60,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                border: Border.all(color: Colors.greenAccent.withOpacity(0.2 / i)),
+                border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.2 / i)),
               ),
             ),
           // Punto del objetivo
@@ -153,7 +153,7 @@ class _ProximityRadarScreenState extends State<ProximityRadarScreen> {
           double h = (val + 100) * 2.0;
           return Container(
             width: 8, height: h.clamp(2, 100),
-            decoration: BoxDecoration(color: Colors.greenAccent.withOpacity(0.5), borderRadius: BorderRadius.circular(2)),
+            decoration: BoxDecoration(color: Colors.greenAccent.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(2)),
           );
         }).toList(),
       ),

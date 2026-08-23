@@ -291,8 +291,6 @@ class RealNotificationService {
     for (final notification in dueNotifications) {
       final title = notification['title'] as String;
       final body = notification['body'] as String;
-      final payload = notification['payload'] as String?;
-      final id = notification['id'] as int;
 
       // Mostrar notificación
       print('🔔 NOTIFICACIÓN PROGRAMADA: $title - $body');

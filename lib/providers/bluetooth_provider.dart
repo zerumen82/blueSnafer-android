@@ -1,5 +1,6 @@
-// Provider para state management de Bluetooth - Refactorización de arquitectura
+// Provider para state management de Bluetooth — delega a BluetoothScannerService (canal nativo real)
 import 'package:flutter/foundation.dart';
+import '../services/bluetooth_scanner_service.dart';
 
 /// Modelo de estado para dispositivos Bluetooth
 class BluetoothDevice {
@@ -21,11 +22,11 @@ class BluetoothDevice {
 
   factory BluetoothDevice.fromMap(Map<String, dynamic> map) {
     return BluetoothDevice(
-      name: map['name']?.toString() ?? '',
-      address: map['address']?.toString() ?? '',
-      rssi: map['rssi'] ?? 0,
-      deviceType: map['deviceType']?.toString(),
-      isConnected: map['isConnected'] ?? false,
+      name: map['name']?.toString() ?? map['deviceName']?.toString() ?? 'Unknown',
+      address: map['address']?.toString() ?? map['deviceAddress']?.toString() ?? '',
+      rssi: (map['rssi'] as num?)?.toInt() ?? 0,
+      deviceType: map['deviceType']?.toString() ?? map['type']?.toString(),
+      isConnected: map['isConnected'] == true,
       additionalData: map,
     );
   }
@@ -104,35 +105,22 @@ class BluetoothProviderState {
     String? currentStatus,
     String? error,
     bool? isLoading,
+    bool clearConnectedDevice = false,
+    bool clearError = false,
   }) {
     return BluetoothProviderState(
       isBluetoothEnabled: isBluetoothEnabled ?? this.isBluetoothEnabled,
       isScanning: isScanning ?? this.isScanning,
       discoveredDevices: discoveredDevices ?? this.discoveredDevices,
-      connectedDevice: connectedDevice ?? this.connectedDevice,
+      connectedDevice: clearConnectedDevice ? null : (connectedDevice ?? this.connectedDevice),
       currentStatus: currentStatus ?? this.currentStatus,
-      error: error ?? this.error,
+      error: clearError ? null : (error ?? this.error),
       isLoading: isLoading ?? this.isLoading,
     );
   }
 
-  /// Obtener dispositivos conectados
   List<BluetoothDevice> get connectedDevices {
-    return discoveredDevices.where((device) => device.isConnected).toList();
-  }
-
-  /// Verificar si hay dispositivos disponibles
-  bool get hasDiscoveredDevices => discoveredDevices.isNotEmpty;
-
-  /// Obtener dispositivo por dirección
-  BluetoothDevice? getDeviceByAddress(String address) {
-    try {
-      return discoveredDevices.firstWhere(
-        (device) => device.address == address,
-      );
-    } catch (e) {
-      return null;
-    }
+    return discoveredDevices.where((d) => d.isConnected).toList();
   }
 
   @override
@@ -144,8 +132,7 @@ class BluetoothProviderState {
         'connectedDevice: $connectedDevice, '
         'currentStatus: $currentStatus, '
         'error: $error, '
-        'isLoading: $isLoading'
-        '}';
+        'isLoading: $isLoading}';
   }
 
   @override
@@ -154,7 +141,7 @@ class BluetoothProviderState {
     return other is BluetoothProviderState &&
         other.isBluetoothEnabled == isBluetoothEnabled &&
         other.isScanning == isScanning &&
-        listEquals(other.discoveredDevices, discoveredDevices) &&
+        other.discoveredDevices.length == discoveredDevices.length &&
         other.connectedDevice == connectedDevice &&
         other.currentStatus == currentStatus &&
         other.error == error &&
@@ -162,22 +149,21 @@ class BluetoothProviderState {
   }
 
   @override
-  int get hashCode {
-    return isBluetoothEnabled.hashCode ^
-        isScanning.hashCode ^
-        discoveredDevices.hashCode ^
-        connectedDevice.hashCode ^
-        currentStatus.hashCode ^
-        error.hashCode ^
-        isLoading.hashCode;
-  }
+  int get hashCode => Object.hash(
+        isBluetoothEnabled,
+        isScanning,
+        discoveredDevices.length,
+        connectedDevice,
+        currentStatus,
+        error,
+        isLoading,
+      );
 }
 
-/// Provider principal para manejo de estado de Bluetooth
 class BluetoothProvider with ChangeNotifier {
   BluetoothProviderState _state = const BluetoothProviderState();
+  bool _initialized = false;
 
-  // Getters para acceso rápido al estado
   bool get isBluetoothEnabled => _state.isBluetoothEnabled;
   bool get isScanning => _state.isScanning;
   List<BluetoothDevice> get discoveredDevices => _state.discoveredDevices;
@@ -185,8 +171,6 @@ class BluetoothProvider with ChangeNotifier {
   String get currentStatus => _state.currentStatus;
   String? get error => _state.error;
   bool get isLoading => _state.isLoading;
-
-  /// Estado completo (solo lectura)
   BluetoothProviderState get state => _state;
 
   void _updateState(BluetoothProviderState newState) {
@@ -196,99 +180,119 @@ class BluetoothProvider with ChangeNotifier {
     }
   }
 
-  void _updateError(String error) {
-    _updateState(_state.copyWith(
-      error: error,
-      isLoading: false,
-      currentStatus: 'Error: $error',
-    ));
+  List<BluetoothDevice> _mapDevices(List<dynamic> raw) {
+    return raw
+        .whereType<Map>()
+        .map((d) => BluetoothDevice.fromMap(Map<String, dynamic>.from(d)))
+        .where((d) => d.address.isNotEmpty)
+        .toList();
   }
 
-  void _updateStatus(String status) {
-    _updateState(_state.copyWith(
-      currentStatus: status,
-      error: null,
-    ));
-  }
-
-  // Métodos principales del Provider
-
-  /// Inicializar el provider y servicio de Bluetooth
   Future<void> initialize() async {
+    if (_initialized) return;
     try {
-      _updateState(_state.copyWith(isLoading: true, error: null));
+      _updateState(_state.copyWith(isLoading: true, clearError: true));
 
-      // Simular inicialización
+      await BluetoothScannerService.initialize();
+
+      BluetoothScannerService.setBluetoothStateCallback((enabled) {
+        _updateState(_state.copyWith(
+          isBluetoothEnabled: enabled,
+          currentStatus: enabled ? 'Bluetooth activo' : 'Bluetooth desactivado',
+        ));
+      });
+
+      BluetoothScannerService.setDevicesFoundCallback((devices) {
+        final mapped = _mapDevices(devices);
+        _updateState(_state.copyWith(
+          discoveredDevices: mapped,
+          isScanning: BluetoothScannerService.isScanning,
+          currentStatus: BluetoothScannerService.currentStatus,
+        ));
+      });
+
+      BluetoothScannerService.setConnectionStatusCallback((status) {
+        if (status == 'disconnected') {
+          _updateState(_state.copyWith(
+            clearConnectedDevice: true,
+            currentStatus: 'Dispositivo desconectado',
+          ));
+        }
+      });
+
+      final enabled = await BluetoothScannerService.isBluetoothEnabled;
       _updateState(_state.copyWith(
         isLoading: false,
-        currentStatus: 'Provider de Bluetooth inicializado',
+        isBluetoothEnabled: enabled,
+        currentStatus: 'Provider conectado al canal nativo Bluetooth',
       ));
+      _initialized = true;
     } catch (e) {
-      _updateError('Error inicializando Bluetooth: $e');
+      _updateState(_state.copyWith(
+        isLoading: false,
+        error: 'Error inicializando Bluetooth: $e',
+        currentStatus: 'Error: $e',
+      ));
     }
   }
 
-
-
-  // Métodos de acción
-
-  /// Habilitar Bluetooth
   Future<bool> enableBluetooth() async {
     try {
-      _updateState(_state.copyWith(isLoading: true));
-
-      // Simular resultado
+      _updateState(_state.copyWith(isLoading: true, clearError: true));
+      final ok = await BluetoothScannerService.enableBluetooth();
       _updateState(_state.copyWith(
         isLoading: false,
-        isBluetoothEnabled: true,
-        currentStatus: 'Bluetooth activado - ¡Listo para escanear!',
+        isBluetoothEnabled: ok,
+        currentStatus: ok ? 'Bluetooth activado' : 'No se pudo activar Bluetooth',
       ));
-
-      return true;
+      return ok;
     } catch (e) {
-      _updateError('Error habilitando Bluetooth: $e');
+      _updateState(_state.copyWith(
+        isLoading: false,
+        error: 'Error habilitando Bluetooth: $e',
+      ));
       return false;
     }
   }
 
-  /// Escanear dispositivos Bluetooth
   Future<List<BluetoothDevice>> scanDevices({
     int timeoutSeconds = 10,
     bool continuous = false,
   }) async {
     try {
+      if (!_initialized) await initialize();
+
       if (_state.isScanning) {
-        _updateStatus('Escaneo ya en progreso...');
+        _updateState(_state.copyWith(currentStatus: 'Escaneo ya en progreso...'));
         return _state.discoveredDevices;
       }
 
       if (!_state.isBluetoothEnabled) {
-        _updateError('Bluetooth no está activado');
+        _updateState(_state.copyWith(error: 'Bluetooth no está activado'));
         return [];
       }
 
       _updateState(_state.copyWith(
         isScanning: true,
-        error: null,
+        clearError: true,
         currentStatus: '🔍 Buscando dispositivos...',
       ));
 
-      // Simular resultado
-      final devices = <dynamic>[];
-      final bluetoothDevices = devices
-          .map((device) =>
-              BluetoothDevice.fromMap(device as Map<String, dynamic>))
-          .toList();
+      final devices = await BluetoothScannerService.scanDevices(
+        timeoutSeconds: timeoutSeconds,
+        continuous: continuous,
+      );
+      final mapped = _mapDevices(devices);
 
       _updateState(_state.copyWith(
         isScanning: false,
-        discoveredDevices: bluetoothDevices,
-        currentStatus: bluetoothDevices.isEmpty
+        discoveredDevices: mapped,
+        currentStatus: mapped.isEmpty
             ? 'No se encontraron dispositivos'
-            : '✅ ${bluetoothDevices.length} dispositivo${bluetoothDevices.length != 1 ? 's' : ''} encontrado${bluetoothDevices.length != 1 ? 's' : ''}',
+            : '✅ ${mapped.length} dispositivo${mapped.length != 1 ? 's' : ''} encontrado${mapped.length != 1 ? 's' : ''}',
       ));
 
-      return bluetoothDevices;
+      return mapped;
     } catch (e) {
       _updateState(_state.copyWith(
         isScanning: false,
@@ -298,53 +302,55 @@ class BluetoothProvider with ChangeNotifier {
     }
   }
 
-  /// Detener escaneo
   Future<void> stopScanning() async {
     try {
+      await BluetoothScannerService.stopScanning();
       _updateState(_state.copyWith(
         isScanning: false,
         currentStatus: 'Escaneo detenido',
       ));
     } catch (e) {
-      _updateError('Error deteniendo escaneo: $e');
+      _updateState(_state.copyWith(error: 'Error deteniendo escaneo: $e'));
     }
   }
 
-  /// Conectar a un dispositivo
   Future<bool> connectToDevice(BluetoothDevice device) async {
     try {
       _updateState(_state.copyWith(
         isLoading: true,
+        clearError: true,
         currentStatus: 'Conectando a ${device.name}...',
       ));
 
-      // Simular resultado
+      final ok = await BluetoothScannerService.connectToDevice(device.toMap());
       _updateState(_state.copyWith(
         isLoading: false,
-        connectedDevice: device.copyWith(isConnected: true),
-        currentStatus: 'Conectado a ${device.name}',
+        connectedDevice: ok ? device.copyWith(isConnected: true) : null,
+        currentStatus: ok ? 'Conectado a ${device.name}' : 'Error conectando a ${device.name}',
+        error: ok ? null : 'Conexión fallida',
       ));
-
-      return true;
+      return ok;
     } catch (e) {
-      _updateError('Error conectando: $e');
+      _updateState(_state.copyWith(
+        isLoading: false,
+        error: 'Error conectando: $e',
+      ));
       return false;
     }
   }
 
-  /// Desconectar dispositivo
   Future<void> disconnectDevice() async {
     try {
+      await BluetoothScannerService.disconnectDevice();
       _updateState(_state.copyWith(
-        connectedDevice: null,
+        clearConnectedDevice: true,
         currentStatus: 'Dispositivo desconectado',
       ));
     } catch (e) {
-      _updateError('Error desconectando: $e');
+      _updateState(_state.copyWith(error: 'Error desconectando: $e'));
     }
   }
 
-  /// Limpiar dispositivos descubiertos
   void clearDiscoveredDevices() {
     _updateState(_state.copyWith(
       discoveredDevices: [],
@@ -352,37 +358,33 @@ class BluetoothProvider with ChangeNotifier {
     ));
   }
 
-  /// Limpiar errores
   void clearError() {
-    _updateState(_state.copyWith(error: null));
+    _updateState(_state.copyWith(clearError: true));
   }
 
-  /// Refrescar estado desde el servicio
   Future<void> refreshState() async {
     try {
-      // Simular resultado
-      final enabled = _state.isBluetoothEnabled;
-      final scanning = _state.isScanning;
-      final devices = _state.discoveredDevices;
-
+      final enabled = await BluetoothScannerService.isBluetoothEnabled;
+      final devices = _mapDevices(BluetoothScannerService.discoveredDevices);
       _updateState(_state.copyWith(
         isBluetoothEnabled: enabled,
-        isScanning: scanning,
+        isScanning: BluetoothScannerService.isScanning,
         discoveredDevices: devices,
+        currentStatus: BluetoothScannerService.currentStatus,
       ));
     } catch (e) {
-      _updateError('Error refrescando estado: $e');
+      _updateState(_state.copyWith(error: 'Error refrescando estado: $e'));
     }
   }
 
-  /// Obtener información de depuración
   Map<String, dynamic> getDebugInfo() {
     return {
       'state': _state.toString(),
       'discoveredDevicesCount': _state.discoveredDevices.length,
-      'connectedDevicesCount': _state.connectedDevices.length,
+      'connectedDevicesCount': _state.connectedDevice != null ? 1 : 0,
       'hasError': _state.error != null,
-      'isInitialized': !_state.isLoading,
+      'isInitialized': _initialized,
+      'service': BluetoothScannerService.getDebugInfo(),
     };
   }
 }

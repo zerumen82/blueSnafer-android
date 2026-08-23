@@ -61,12 +61,15 @@ object BLESpammer {
         } catch (_: Exception) {}
     }
     
-    fun stopSpam() {
+    fun stopSpam(): Boolean {
+        val wasActive = spamming
         spamming = false
         spamTask?.cancel(true)
-        callbacks.forEach { 
+        spamTask = null
+        callbacks.forEach {
             try { advertiser?.stopAdvertising(it) } catch (_: Exception) {}
         }
         callbacks.clear()
+        return wasActive
     }
 }

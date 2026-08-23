@@ -34,6 +34,8 @@ object BluesnaferLogger {
     fun setEventSink(sink: EventChannel.EventSink?) {
         eventSink = sink
     }
+
+    fun getEventSink(): EventChannel.EventSink? = eventSink
     
     // ===== Wrapper methods for Log.d, Log.e, Log.w, Log.i =====
     fun d(tag: String, message: String) {

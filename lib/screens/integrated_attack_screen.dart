@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
-import '../services/integrated_ai_service.dart';
-// import '../services/tflite_ai_service.dart';
-import '../models/tflite_models.dart';
+import '../services/heuristic_analysis_service.dart';
 import '../utils/advanced_logger.dart';
 import '../utils/device_utils.dart' as device_utils;
 
-/// Pantalla integrada que utiliza modelos TFLite reales en el flujo de ataque completo
+/// Pantalla integrada de análisis heurístico en el flujo de ataque completo
 class IntegratedAttackScreen extends StatefulWidget {
   final Map<String, dynamic> device;
 
@@ -16,13 +14,13 @@ class IntegratedAttackScreen extends StatefulWidget {
 }
 
 class _IntegratedAttackScreenState extends State<IntegratedAttackScreen> {
-  final IntegratedAIService _aiService = IntegratedAIService();
+  final HeuristicAnalysisService _heuristicEngine = HeuristicAnalysisService();
 
   bool _isInitialized = false;
   bool _isAnalyzing = false;
   bool _isGeneratingExploits = false;
 
-  String _statusMessage = 'Sistema listo para análisis con modelos TFLite';
+  String _statusMessage = 'Sistema listo para análisis heurístico';
   String _currentStep = '';
 
   // Resultados del análisis
@@ -41,7 +39,7 @@ class _IntegratedAttackScreenState extends State<IntegratedAttackScreen> {
   }
 
   void _initializeDeviceData() {
-    // Preparar datos del dispositivo para análisis TFLite
+    // Preparar datos del dispositivo para el análisis heurístico
     _deviceData.addAll({
       'bluetooth_version': 5.0,
       'android_version': 11.0,
@@ -64,26 +62,26 @@ class _IntegratedAttackScreenState extends State<IntegratedAttackScreen> {
   Future<void> _initializeAIService() async {
     setState(() {
       _isAnalyzing = true;
-      _statusMessage = 'Inicializando modelos TFLite...';
+      _statusMessage = 'Inicializando motor heurístico...';
       _currentStep = 'Inicialización';
     });
 
     try {
-      await _aiService.initializeAll();
+      await _heuristicEngine.initializeAll();
 
       setState(() {
         _isInitialized = true;
         _isAnalyzing = false;
-        _statusMessage = 'Modelos TFLite inicializados correctamente';
+        _statusMessage = 'Motor heurístico inicializado correctamente';
       });
 
-      AdvancedLogger.staticLogger.logInfo('Servicio integrado inicializado exitosamente');
+      AdvancedLogger.staticLogger.logInfo('Motor heurístico inicializado exitosamente');
     } catch (e) {
       setState(() {
         _isAnalyzing = false;
-        _statusMessage = 'Error inicializando modelos TFLite: ${e.toString()}';
+        _statusMessage = 'Error inicializando motor heurístico: ${e.toString()}';
       });
-      AdvancedLogger.staticLogger.logError('Error inicializando servicio integrado', {'error': e.toString()});
+      AdvancedLogger.staticLogger.logError('Error inicializando motor heurístico', {'error': e.toString()});
     }
   }
 
@@ -92,13 +90,13 @@ class _IntegratedAttackScreenState extends State<IntegratedAttackScreen> {
 
     setState(() {
       _isAnalyzing = true;
-      _statusMessage = 'Ejecutando análisis completo con modelos TFLite...';
+      _statusMessage = 'Ejecutando análisis completo heurístico...';
       _currentStep = 'Análisis completo';
       _analysisResult = null;
     });
 
     try {
-      final analysis = await _aiService.runCompleteSecurityAnalysis(
+      final analysis = await _heuristicEngine.runCompleteSecurityAnalysis(
         deviceAddress: widget.device['address'],
         deviceData: _deviceData,
       );
@@ -132,7 +130,7 @@ class _IntegratedAttackScreenState extends State<IntegratedAttackScreen> {
     });
 
     try {
-      final exploits = await _aiService.generateOptimalExploits(
+      final exploits = await _heuristicEngine.generateOptimalExploits(
         analysis: _analysisResult!,
         targetPlatform: _deviceData['platform'],
       );
@@ -140,7 +138,7 @@ class _IntegratedAttackScreenState extends State<IntegratedAttackScreen> {
       setState(() {
         _generatedExploits = exploits;
         _isGeneratingExploits = false;
-        _statusMessage = '${exploits.length} exploits generados basados en modelos TFLite';
+        _statusMessage = '${exploits.length} exploits generados por análisis heurístico';
       });
 
       AdvancedLogger.staticLogger.logInfo('Exploits generados exitosamente', {'count': exploits.length});
@@ -159,13 +157,13 @@ class _IntegratedAttackScreenState extends State<IntegratedAttackScreen> {
 
     setState(() {
       _isAnalyzing = true;
-      _statusMessage = 'Ejecutando ataque óptimo basado en modelos TFLite...';
+      _statusMessage = 'Ejecutando ataque óptimo según análisis...';
       _currentStep = 'Ejecución de ataque';
       _attackExecution = null;
     });
 
     try {
-      final execution = await _aiService.executeOptimalAttack(
+      final execution = await _heuristicEngine.executeOptimalAttack(
         deviceAddress: widget.device['address'],
         deviceData: _deviceData,
       );
@@ -174,8 +172,8 @@ class _IntegratedAttackScreenState extends State<IntegratedAttackScreen> {
         _attackExecution = execution;
         _isAnalyzing = false;
         _statusMessage = execution.success
-            ? 'Ataque ejecutado exitosamente con modelo TFLite'
-            : 'Ataque no pudo ejecutarse: ${execution.message}';
+            ? 'Ataque planificado con éxito según análisis heurístico'
+            : 'Ataque no pudo planificarse: ${execution.message}';
       });
 
       AdvancedLogger.staticLogger.logInfo('Ataque óptimo ejecutado',
@@ -194,7 +192,7 @@ class _IntegratedAttackScreenState extends State<IntegratedAttackScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Ataque Integrado TFLite - ${device_utils.getDeviceDisplayName(widget.device)}'),
+        title: Text('Ataque Integrado - ${device_utils.getDeviceDisplayName(widget.device)}'),
         backgroundColor: const Color(0xFF1D1E33),
         elevation: 0,
         leading: IconButton(
@@ -223,7 +221,7 @@ class _IntegratedAttackScreenState extends State<IntegratedAttackScreen> {
               if (!_isAnalyzing && !_isGeneratingExploits) ...[
                 _buildActionButton(
                   '🔍 ANÁLISIS COMPLETO',
-                  'Ejecutar análisis completo con modelos TFLite',
+                  'Ejecutar análisis completo con motor heurístico',
                   _runCompleteAnalysis,
                   Colors.blue,
                 ),
@@ -241,7 +239,7 @@ class _IntegratedAttackScreenState extends State<IntegratedAttackScreen> {
                     const SizedBox(height: 16),
                     _buildActionButton(
                       '🚀 EJECUTAR ATAQUE',
-                      'Ejecutar ataque óptimo con modelos TFLite',
+                      'Ejecutar ataque óptimo recomendado',
                       _executeOptimalAttack,
                       Colors.red,
                     ),
@@ -276,9 +274,9 @@ class _IntegratedAttackScreenState extends State<IntegratedAttackScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
+        color: Colors.white.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -313,7 +311,7 @@ class _IntegratedAttackScreenState extends State<IntegratedAttackScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _isInitialized ? Colors.green.withOpacity(0.1) : Colors.orange.withOpacity(0.1),
+        color: _isInitialized ? Colors.green.withValues(alpha: 0.1) : Colors.orange.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: _isInitialized ? Colors.green : Colors.orange,
@@ -330,7 +328,7 @@ class _IntegratedAttackScreenState extends State<IntegratedAttackScreen> {
               ),
               const SizedBox(width: 12),
               Text(
-                _isInitialized ? 'Modelos TFLite Cargados' : 'Modelos No Inicializados',
+                _isInitialized ? 'Motor Heurístico Listo' : 'Motor No Inicializado',
                 style: TextStyle(
                   color: _isInitialized ? Colors.green : Colors.orange,
                   fontSize: 16,
@@ -396,7 +394,7 @@ class _IntegratedAttackScreenState extends State<IntegratedAttackScreen> {
     return Expanded(
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.05),
+          color: Colors.white.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Column(
@@ -414,7 +412,7 @@ class _IntegratedAttackScreenState extends State<IntegratedAttackScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Procesando con modelos TFLite...',
+              'Procesando análisis heurístico...',
               style: const TextStyle(color: Colors.white60, fontSize: 12),
               textAlign: TextAlign.center,
             ),
@@ -430,14 +428,14 @@ class _IntegratedAttackScreenState extends State<IntegratedAttackScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
+        color: Colors.white.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Resultados del Análisis TFLite',
+            'Resultados del Análisis Heurístico',
             style: TextStyle(
               color: Colors.white,
               fontSize: 16,
@@ -487,9 +485,9 @@ class _IntegratedAttackScreenState extends State<IntegratedAttackScreen> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [
@@ -535,9 +533,9 @@ class _IntegratedAttackScreenState extends State<IntegratedAttackScreen> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.purple.withOpacity(0.1),
+        color: Colors.purple.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.purple.withOpacity(0.3)),
+        border: Border.all(color: Colors.purple.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -566,14 +564,14 @@ class _IntegratedAttackScreenState extends State<IntegratedAttackScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
+        color: Colors.white.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Exploits Generados por Modelos TFLite',
+            'Exploits Recomendados por el Motor Heurístico',
             style: TextStyle(
               color: Colors.white,
               fontSize: 16,
@@ -585,9 +583,9 @@ class _IntegratedAttackScreenState extends State<IntegratedAttackScreen> {
             margin: const EdgeInsets.only(bottom: 8),
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.orange.withOpacity(0.1),
+              color: Colors.orange.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.orange.withOpacity(0.3)),
+              border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -635,7 +633,7 @@ class _IntegratedAttackScreenState extends State<IntegratedAttackScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _attackExecution!.success ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
+        color: _attackExecution!.success ? Colors.green.withValues(alpha: 0.1) : Colors.red.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: _attackExecution!.success ? Colors.green : Colors.red,
@@ -680,7 +678,7 @@ class _IntegratedAttackScreenState extends State<IntegratedAttackScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
+        color: Colors.white.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -695,10 +693,8 @@ class _IntegratedAttackScreenState extends State<IntegratedAttackScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          _buildTechInfoRow('Modelos TFLite Cargados', '6 modelos'),
-          _buildTechInfoRow('Caché de Predicciones', '${_aiService.getSystemStats().then((stats) => stats.cacheStats?['predictions_cached'] ?? 0)} entradas'),
-          _buildTechInfoRow('Caché de Ataques', '${_aiService.getSystemStats().then((stats) => stats.cacheStats?['attacks_cached'] ?? 0)} entradas'),
-          _buildTechInfoRow('Caché de Exploits', '${_aiService.getSystemStats().then((stats) => stats.cacheStats?['exploits_cached'] ?? 0)} entradas'),
+          _buildTechInfoRow('Modo de análisis', 'Heurístico (sin modelos TFLite)'),
+          _buildTechInfoRow('Motor', '${_heuristicEngine.getSystemStats().then((stats) => stats.isInitialized ? "Inicializado" : "No inicializado")}'),
         ],
       ),
     );
@@ -725,7 +721,7 @@ class _IntegratedAttackScreenState extends State<IntegratedAttackScreen> {
 
   @override
   void dispose() {
-    _aiService.dispose();
+    _heuristicEngine.dispose();
     super.dispose();
   }
 }

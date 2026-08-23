@@ -121,6 +121,20 @@ const Map<String, String> kKnownOUIs = {
   '8CDE52': 'JBL', 'A4DD9E': 'JBL', 'B41489': 'JBL', 'B4C042': 'JBL',
   'CC8CE3': 'JBL', 'DCB7E9': 'JBL', 'E01877': 'JBL',
 
+  // ==================== CHINESE IOT / GENERAL (added from user reports) ====================
+  '5434B0': 'CHINA_IOT', 'A482A4': 'CHINA_IOT', '8CF682': 'CHINA_IOT', 'D45F96': 'CHINA_IOT',
+  'B05CE6': 'CHINA_IOT', '88DA1A': 'CHINA_IOT', '107D1A': 'CHINA_IOT', 'A8032A': 'CHINA_IOT',
+  '28FF3C': 'CHINA_IOT', '84F493': 'CHINA_IOT', '38F70D': 'CHINA_IOT', '682B6E': 'CHINA_IOT',
+  '7C386E': 'TUYA_IOT', '10D561': 'TUYA_IOT', '18E2C1': 'TUYA_IOT', '24A160': 'TUYA_IOT',
+  '483B38': 'TUYA_IOT', '545290': 'TUYA_IOT', '68B6FC': 'TUYA_IOT', '70D88C': 'TUYA_IOT',
+  '888684': 'TUYA_IOT', 'ACD9D6': 'TUYA_IOT', 'B05A9F': 'TUYA_IOT', 'F8D0BD': 'TUYA_IOT',
+  'FC5B24': 'ESP_IOT', '3C61A4': 'ESP_IOT', '5CE0CA': 'ESP_IOT', '8CEA2C': 'ESP_IOT',
+  '94984B': 'ESP_IOT', 'A8F570': 'ESP_IOT', 'D8A02D': 'ESP_IOT', 'E42AD8': 'ESP_IOT',
+  'F015A0': 'ESP_IOT', '10C7C3': 'ESP_IOT', '24E124': 'ESP_IOT', '30AEA4': 'ESP_IOT',
+  '80F25E': 'NORDIC_BLE', 'E52AD4': 'NORDIC_BLE', 'F0CE10': 'NORDIC_BLE',
+  '0093E9': 'RASPBERRY', 'B827EB': 'RASPBERRY', 'DCA632': 'RASPBERRY',
+  '00409D': 'SIEMENS', '0017C8': 'SIEMENS', '0020C2': 'SIEMENS',
+
   // ==================== FITBIT (unique OUIs only) ====================
   '001653': 'FITBIT', '04EE03': 'FITBIT', '18B430': 'FITBIT', '28AE4D': 'FITBIT',
   '2DC873': 'FITBIT', '50934F': 'FITBIT', '644A50': 'FITBIT', '659B60': 'FITBIT',
@@ -148,7 +162,6 @@ const List<String> kUnknownNames = [
   'Hidden',
   'N/A',
   'null',
-  'device',
 ];
 
 /// Get manufacturer/vendor from MAC address OUI prefix
@@ -168,17 +181,17 @@ bool isDeviceNameUsable(String? name) {
 }
 
 /// Get display name for a device with proper fallback
-/// Returns the actual name if available, otherwise a descriptive fallback
+/// Never shows "UNKNOWN" - always gives a human-readable label
 String getDeviceDisplayName(Map<String, dynamic> device) {
   final name = device['name']?.toString() ?? '';
   final address = device['address']?.toString() ?? '';
 
-  // If we have a real name, use it
+  // If we have a real name, prepend type
   if (isDeviceNameUsable(name)) {
     return name.toUpperCase();
   }
 
-  // No name - use MAC address as identifier
+  // No name - use MAC address with vendor prefix
   final shortAddr = address.length >= 8 ? address.substring(0, 8).toUpperCase() : address.toUpperCase();
   final vendor = getManufacturer(address);
   
@@ -186,8 +199,8 @@ String getDeviceDisplayName(Map<String, dynamic> device) {
     return '$vendor [$shortAddr]';
   }
   
-  // No vendor match - just show MAC address
-  return 'DEVICE [$shortAddr]';
+  // No vendor match - just show "DISPOSITIVO" (friendlier than UNKNOWN)
+  return 'DISPOSITIVO [$shortAddr]';
 }
 
 /// Detect device type from name and other characteristics

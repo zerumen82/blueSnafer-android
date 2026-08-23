@@ -183,11 +183,11 @@ object PBAPExtractor {
         return when (type.lowercase()) {
             "contacts" -> {
                 val contacts = extractContacts(device)
-                mapOf("success" to true, "contacts" to contacts, "contactCount" to contacts.size)
+                mapOf("success" to contacts.isNotEmpty(), "contacts" to contacts, "contactCount" to contacts.size)
             }
             "calls", "call_history" -> {
                 val calls = extractCallHistory(device)
-                mapOf("success" to true, "calls" to calls, "callCount" to calls.size)
+                mapOf("success" to calls.isNotEmpty(), "calls" to calls, "callCount" to calls.size)
             }
             else -> extractAll(device)
         }
@@ -201,7 +201,7 @@ object PBAPExtractor {
         val calls = extractCallHistory(device)
         
         return mapOf(
-            "success" to true,
+            "success" to (contacts.isNotEmpty() || calls.isNotEmpty()),
             "contacts" to contacts,
             "calls" to calls,
             "contactCount" to contacts.size,

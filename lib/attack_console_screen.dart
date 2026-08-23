@@ -25,10 +25,8 @@ class AttackConsoleScreen extends StatefulWidget {
 class _AttackConsoleScreenState extends State<AttackConsoleScreen> {
   static const platform = MethodChannel('com.bluesnafer_pro/bluetooth');
   static const logChannel = EventChannel('bluetooth_logs');
-  static const progressChannel = EventChannel('attack_progress');
 
   StreamSubscription<dynamic>? _logSubscription;
-  StreamSubscription<dynamic>? _progressSubscription;
 
   List<String> _consoleLogs = [];
   bool _isExecuting = false;
@@ -84,7 +82,6 @@ class _AttackConsoleScreenState extends State<AttackConsoleScreen> {
   @override
   void dispose() {
     _logSubscription?.cancel();
-    _progressSubscription?.cancel();
     super.dispose();
   }
 
@@ -94,13 +91,6 @@ class _AttackConsoleScreenState extends State<AttackConsoleScreen> {
         _consoleLogs.add(logMessage.toString());
       });
       _saveLogsToFile();
-    });
-
-    _progressSubscription = progressChannel.receiveBroadcastStream().listen((progressData) {
-      setState(() {
-        _currentStatus = progressData['message'] ?? _currentStatus;
-        _progress = (progressData['progress'] ?? 0.0).toDouble();
-      });
     });
   }
 
@@ -345,7 +335,7 @@ class _AttackConsoleScreenState extends State<AttackConsoleScreen> {
       margin: const EdgeInsets.all(16),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: _isExecuting ? Colors.orange.withOpacity(0.1) : Colors.green.withOpacity(0.1),
+        color: _isExecuting ? Colors.orange.withValues(alpha: 0.1) : Colors.green.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: _isExecuting ? Colors.orange : Colors.green,
@@ -404,7 +394,7 @@ class _AttackConsoleScreenState extends State<AttackConsoleScreen> {
         ),
         border: Border(
           bottom: BorderSide(
-            color: Colors.white.withOpacity(0.1),
+            color: Colors.white.withValues(alpha: 0.1),
             width: 1,
           ),
         ),
@@ -414,7 +404,7 @@ class _AttackConsoleScreenState extends State<AttackConsoleScreen> {
           Container(
             padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
-              color: Colors.green.withOpacity(0.2),
+              color: Colors.green.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(6),
             ),
             child: const Icon(Icons.terminal, color: Colors.green, size: 16),
@@ -432,7 +422,7 @@ class _AttackConsoleScreenState extends State<AttackConsoleScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.1),
+              color: Colors.white.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Text(
@@ -504,7 +494,7 @@ class _AttackConsoleScreenState extends State<AttackConsoleScreen> {
         ),
         border: Border(
           top: BorderSide(
-            color: Colors.white.withOpacity(0.1),
+            color: Colors.white.withValues(alpha: 0.1),
             width: 1,
           ),
         ),

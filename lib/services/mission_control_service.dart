@@ -1,13 +1,13 @@
 import 'dart:async';
 import 'real_exploit_service.dart';
-import 'integrated_ai_service.dart';
+import 'heuristic_analysis_service.dart';
 import 'real_database_service.dart';
 
 enum MissionState { idle, stealth, reconnaissance, exploitation, exfiltration, completed, failed }
 
 class MissionControlService {
   final RealExploitService _exploitService = RealExploitService();
-  final IntegratedAIService _aiService = IntegratedAIService();
+  final HeuristicAnalysisService _heuristicEngine = HeuristicAnalysisService();
   final RealDatabaseService _dbService = RealDatabaseService();
 
   final _stateController = StreamController<MissionState>.broadcast();
@@ -48,17 +48,17 @@ class MissionControlService {
       final target = targets.first;
       _addLog('Objetivo prioritario fijado: ${target['name']} (${target['address']})');
 
-      // FASE 3: EXPLOTACIÓN (IA)
+      // FASE 3: EXPLOTACIÓN (análisis heurístico)
       _stateController.add(MissionState.exploitation);
-      _addLog('Iniciando Fase 3: Análisis de IA y Explotación...');
-      final aiAnalysis = await _aiService.identifyAndOptimize(target, isBlackoutActive: true);
-      _addLog('IA recomienda: ${aiAnalysis['recommendedAttack']} (Éxito: ${aiAnalysis['successProbability']}%)');
+      _addLog('Iniciando Fase 3: Análisis heurístico y Explotación...');
+      final aiAnalysis = await _heuristicEngine.identifyAndOptimize(target, isBlackoutActive: true);
+      _addLog('Motor recomienda: ${aiAnalysis['recommendedAttack']} (Éxito: ${aiAnalysis['successProbability']}%)');
 
        // Ejecutar ataque según recomendación
        if (aiAnalysis['recommendedAttack'].toString().contains('HID')) {
-         final script = await _aiService.generateAIScript(target);
+         final script = await _heuristicEngine.generateAIScript(target);
          if (script == null) {
-           _addLog('⚠️ No se pudo generar script HID (IA no disponible), saltando inyección');
+           _addLog('⚠️ No se pudo generar script HID (sin señal de perfil HID), saltando inyección');
          } else {
            await _exploitService.injectHIDScript(target['address'], script);
            _addLog('Script HID inyectado automáticamente.');

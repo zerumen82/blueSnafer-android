@@ -130,31 +130,12 @@ class _PermissionRequestScreenState extends State<PermissionRequestScreen> with 
           child: Column(
             children: [
               const SizedBox(height: 30),
-              // Icono
-              Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: LinearGradient(
-                    colors: [
-                      Colors.blueAccent.withOpacity(0.5),
-                      Colors.greenAccent.withOpacity(0.5),
-                    ],
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.blueAccent.withOpacity(0.3),
-                      blurRadius: 20,
-                      spreadRadius: 2,
-                    ),
-                  ],
-                ),
-                child: const Icon(
-                  Icons.bluetooth_searching,
-                  size: 40,
-                  color: Colors.white,
-                ),
+              // Icono del logo - discreto
+              Image.asset(
+                'assets/icons/bluetooth_capsule.png',
+                width: 64,
+                height: 64,
+                color: Colors.cyanAccent.withValues(alpha: 0.7),
               ),
               const SizedBox(height: 20),
               // Título

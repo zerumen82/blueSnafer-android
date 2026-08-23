@@ -22,22 +22,22 @@ object AuthenticationBypasserReal {
             
             // Use a separate thread with longer timeout (15 seconds)
             val latch = java.util.concurrent.CountDownLatch(1)
-            var success = false
-            
+            var connectOk = false
+
             thread {
                 try {
                     socket.connect()
-                    success = true
-                    latch.countDown()
-                } catch (e: Exception) {
+                    connectOk = socket.isConnected
+                } catch (_: Exception) {
+                    connectOk = false
+                } finally {
                     latch.countDown()
                 }
             }
-            
-            // Wait up to 15 seconds for connection
+
             val connected = latch.await(15, java.util.concurrent.TimeUnit.SECONDS)
-            
-            if (!connected || !success) {
+
+            if (!connected || !connectOk) {
                 try { socket.close() } catch (_: Exception) {}
                 BluesnaferLogger.d(TAG, "❌ Quick Connect Race: Timeout after 15s")
                 onLog("[Bypass] ❌ Quick Connect Race: Timeout")

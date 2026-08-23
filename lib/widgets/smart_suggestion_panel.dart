@@ -58,7 +58,7 @@ class SmartSuggestionPanel extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.3),
+            color: Colors.black.withValues(alpha: 0.3),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -78,12 +78,16 @@ class SmartSuggestionPanel extends StatelessWidget {
                   size: 18,
                 ),
                 const SizedBox(width: 8),
-                const Text(
-                  'SUGERENCIAS INTELIGENTES',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
+                const Flexible(
+                  child: Text(
+                    'SUGERENCIAS INTELIGENTES',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
                   ),
                 ),
                 const Spacer(),
@@ -95,7 +99,7 @@ class SmartSuggestionPanel extends StatelessWidget {
           // Divider
           Container(
             height: 1,
-            color: Colors.white.withOpacity(0.1),
+            color: Colors.white.withValues(alpha: 0.1),
           ),
 
           // Comandos sugeridos
@@ -124,7 +128,7 @@ class SmartSuggestionPanel extends StatelessWidget {
                             'Tasa de éxito: ${(successRate * 100).toStringAsFixed(1)}%',
                         child: ActionChip(
                           avatar: CircleAvatar(
-                            backgroundColor: successColor.withOpacity(0.8),
+                            backgroundColor: successColor.withValues(alpha: 0.8),
                             radius: 10,
                             child: Text(
                               '${(successRate * 100).toStringAsFixed(0)}%',
@@ -219,9 +223,9 @@ class SmartSuggestionPanel extends StatelessWidget {
       margin: const EdgeInsets.only(left: 4),
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.2),
+        color: color.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(0.5), width: 1),
+        border: Border.all(color: color.withValues(alpha: 0.5), width: 1),
       ),
       child: Text(
         text,
@@ -246,8 +250,8 @@ class SmartSuggestionPanel extends StatelessWidget {
             '${combo.length} pasos',
             style: const TextStyle(fontSize: 10, color: Colors.white70),
           ),
-          backgroundColor: Colors.orange.withOpacity(0.2),
-          side: BorderSide(color: Colors.orange.withOpacity(0.5)),
+          backgroundColor: Colors.orange.withValues(alpha: 0.2),
+          side: BorderSide(color: Colors.orange.withValues(alpha: 0.5)),
           materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
         ),
       );

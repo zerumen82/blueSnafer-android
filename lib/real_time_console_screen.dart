@@ -86,7 +86,7 @@ class _RealTimeConsoleScreenState extends State<RealTimeConsoleScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: isDump ? Colors.amber.withOpacity(0.05) : Colors.transparent,
+        color: isDump ? Colors.amber.withValues(alpha: 0.05) : Colors.transparent,
         border: Border(bottom: BorderSide(color: Colors.white10, width: 0.5)),
       ),
       child: Column(

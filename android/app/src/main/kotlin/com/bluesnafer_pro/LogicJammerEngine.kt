@@ -14,87 +14,101 @@ import java.util.concurrent.Executors
 
 object LogicJammerEngine {
     private val executor = Executors.newSingleThreadExecutor()
-    
+    private val activeJams = java.util.concurrent.ConcurrentHashMap<String, BluetoothGatt>()
+
     fun startJam(device: BluetoothDevice): Map<String, Any> {
         val result = HashMap<String, Any>()
-        
+
         try {
             val latch = CountDownLatch(1)
+            val readAttempts = java.util.concurrent.atomic.AtomicInteger(0)
             var jamSuccess = false
             var jamMessage = "Jam attempt failed"
-            
+
             executor.submit {
                 var gatt: BluetoothGatt? = null
                 try {
                     val adapter = BluetoothAdapter.getDefaultAdapter()
                     if (adapter == null || !adapter.isEnabled) {
-                        result["success"] = false
-                        result["message"] = "Bluetooth not available"
-                        latch.countDown()
+                        jamMessage = "Bluetooth not available"
                         return@submit
                     }
-                    
+
                     val context = ExploitIntegration.getAppContext()
                     if (context == null) {
-                        result["success"] = false
-                        result["message"] = "No context available"
-                        latch.countDown()
+                        jamMessage = "No context available"
                         return@submit
                     }
-                    
+
                     gatt = device.connectGatt(context, false, object : BluetoothGattCallback() {
                         override fun onConnectionStateChange(gatt: BluetoothGatt?, status: Int, newState: Int) {
                             if (newState == BluetoothProfile.STATE_CONNECTED) {
                                 gatt?.discoverServices()
-                                
-                                gatt?.services?.forEach { service ->
-                                    service.characteristics.firstOrNull { it.properties and BluetoothGattCharacteristic.PROPERTY_READ != 0 }?.let { char ->
-                                        try { gatt?.readCharacteristic(char) } catch (_: Exception) {}
-                                    }
-                                }
-                                jamSuccess = true
-                                jamMessage = "Logic jam: KNOB attempt and traffic generation"
-                                latch.countDown()
                             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                                 latch.countDown()
                             }
                         }
-                        
+
                         override fun onServicesDiscovered(gatt: BluetoothGatt?, status: Int) {
-                            gatt?.services?.forEach { service ->
-                                service.characteristics.take(3).forEach { char ->
+                            if (status != BluetoothGatt.GATT_SUCCESS || gatt == null) {
+                                latch.countDown()
+                                return
+                            }
+                            var issued = 0
+                            gatt.services.forEach { service ->
+                                service.characteristics.take(5).forEach { char ->
                                     if (char.properties and BluetoothGattCharacteristic.PROPERTY_READ != 0) {
-                                        try { gatt?.readCharacteristic(char) } catch (_: Exception) {}
+                                        try {
+                                            if (gatt.readCharacteristic(char)) issued++
+                                        } catch (_: Exception) {}
                                     }
                                 }
                             }
+                            readAttempts.addAndGet(issued)
+                            jamSuccess = issued > 0
+                            jamMessage = if (issued > 0) {
+                                "Logic jam: $issued lecturas GATT iniciadas"
+                            } else {
+                                "Logic jam: sin características legibles"
+                            }
+                            latch.countDown()
                         }
-                    })
-                    
-                    latch.await(5, TimeUnit.SECONDS)
-                    
+                    }, BluetoothDevice.TRANSPORT_LE)
+
+                    if (gatt != null) {
+                        activeJams[device.address] = gatt
+                    }
+                    latch.await(8, TimeUnit.SECONDS)
                 } catch (e: Exception) {
                     jamMessage = "Error: ${e.message}"
                 } finally {
-                    gatt?.close()
+                    result["success"] = jamSuccess
+                    result["message"] = jamMessage
+                    result["readAttempts"] = readAttempts.get()
                 }
-                
-                result["success"] = jamSuccess
-                result["message"] = jamMessage
-                latch.countDown()
             }
-            
+
             latch.await(10, TimeUnit.SECONDS)
-            
+            if (!result.containsKey("success")) {
+                result["success"] = false
+                result["message"] = jamMessage
+                result["readAttempts"] = readAttempts.get()
+            }
         } catch (e: Exception) {
             result["success"] = false
             result["message"] = "Exception: ${e.message}"
         }
-        
+
         return result
     }
-    
-    fun stopJam(deviceAddress: String) {
-        // No-op for now
+
+    fun stopJam(deviceAddress: String): Boolean {
+        val gatt = activeJams.remove(deviceAddress) ?: return false
+        return try {
+            gatt.close()
+            true
+        } catch (_: Exception) {
+            false
+        }
     }
 }

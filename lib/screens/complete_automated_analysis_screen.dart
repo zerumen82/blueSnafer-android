@@ -72,7 +72,7 @@ class _CompleteAutomatedAnalysisScreenState extends State<CompleteAutomatedAnaly
                 decoration: BoxDecoration(
                   color: const Color(0xFF1D1E33),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.purple.withOpacity(0.3)),
+                  border: Border.all(color: Colors.purple.withValues(alpha: 0.3)),
                 ),
                 child: Column(
                   children: [
@@ -141,9 +141,9 @@ class _CompleteAutomatedAnalysisScreenState extends State<CompleteAutomatedAnaly
               Expanded(
                 child: Container(
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.3),
+                    color: Colors.black.withValues(alpha: 0.3),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.white.withOpacity(0.1)),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
                   ),
                   child: ListView.builder(
                     itemCount: _executionLogs.length,
@@ -153,7 +153,7 @@ class _CompleteAutomatedAnalysisScreenState extends State<CompleteAutomatedAnaly
                         decoration: BoxDecoration(
                           border: Border(
                             bottom: BorderSide(
-                              color: Colors.white.withOpacity(0.1),
+                              color: Colors.white.withValues(alpha: 0.1),
                               width: 1,
                             ),
                           ),

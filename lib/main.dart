@@ -3,7 +3,9 @@ import 'package:flutter/services.dart';
 import 'dart:io';
 import 'dart:async';
 import 'package:path_provider/path_provider.dart';
+import 'package:provider/provider.dart';
 import 'unified_attack_screen.dart';
+import 'providers/bluetooth_provider.dart';
 import 'utils/advanced_logger.dart';
 
 void main() {
@@ -27,7 +29,9 @@ void main() {
 class BlueSnaferApp extends StatelessWidget {
   const BlueSnaferApp({super.key});
   @override
-  Widget build(BuildContext context) => MaterialApp(
+  Widget build(BuildContext context) => ChangeNotifierProvider(
+    create: (_) => BluetoothProvider(),
+    child: MaterialApp(
     title: 'BlueSnafer Pro',
     debugShowCheckedModeBanner: false,
     theme: ThemeData.dark().copyWith(
@@ -69,5 +73,6 @@ class BlueSnaferApp extends StatelessWidget {
       ),
     ),
     home: const PermissionScreen(),
+  ),
   );
 }

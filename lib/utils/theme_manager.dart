@@ -85,12 +85,10 @@ class ThemeManager extends ChangeNotifier {
         primary: Color(0xFF667eea),
         secondary: Color(0xFF764ba2),
         surface: Color(0xFF1D1E33),
-        background: Color(0xFF0A0E21),
         error: Color(0xFFE57373),
         onPrimary: Colors.white,
         onSecondary: Colors.white,
         onSurface: Colors.white,
-        onBackground: Colors.white,
         onError: Colors.white,
       ),
 
@@ -123,7 +121,7 @@ class ThemeManager extends ChangeNotifier {
             borderRadius: BorderRadius.circular(16),
           ),
           elevation: 8,
-          shadowColor: const Color(0xFF667eea).withOpacity(0.3),
+          shadowColor: const Color(0xFF667eea).withValues(alpha: 0.3),
         ),
       ),
 
@@ -135,7 +133,7 @@ class ThemeManager extends ChangeNotifier {
 
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: const Color(0xFF1D1E33).withOpacity(0.8),
+        fillColor: const Color(0xFF1D1E33).withValues(alpha: 0.8),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide.none,
@@ -151,17 +149,17 @@ class ThemeManager extends ChangeNotifier {
       ),
 
       switchTheme: SwitchThemeData(
-        thumbColor: MaterialStateProperty.resolveWith((states) {
-          if (states.contains(MaterialState.selected)) {
+        thumbColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
             return const Color(0xFF667eea);
           }
           return Colors.grey;
         }),
-        trackColor: MaterialStateProperty.resolveWith((states) {
-          if (states.contains(MaterialState.selected)) {
-            return const Color(0xFF667eea).withOpacity(0.5);
+        trackColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return const Color(0xFF667eea).withValues(alpha: 0.5);
           }
-          return Colors.grey.withOpacity(0.3);
+          return Colors.grey.withValues(alpha: 0.3);
         }),
       ),
 
@@ -199,12 +197,10 @@ class ThemeManager extends ChangeNotifier {
         primary: Color(0xFF667eea),
         secondary: Color(0xFF764ba2),
         surface: Colors.white,
-        background: Color(0xFFF8F9FA),
         error: Color(0xFFE57373),
         onPrimary: Colors.white,
         onSecondary: Colors.white,
         onSurface: Colors.black87,
-        onBackground: Colors.black87,
         onError: Colors.white,
       ),
 
@@ -223,7 +219,7 @@ class ThemeManager extends ChangeNotifier {
       cardTheme: CardThemeData(
         color: Colors.white,
         elevation: 4,
-        shadowColor: const Color(0xFF667eea).withOpacity(0.1),
+        shadowColor: const Color(0xFF667eea).withValues(alpha: 0.1),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
         ),
@@ -238,7 +234,7 @@ class ThemeManager extends ChangeNotifier {
             borderRadius: BorderRadius.circular(16),
           ),
           elevation: 4,
-          shadowColor: const Color(0xFF667eea).withOpacity(0.2),
+          shadowColor: const Color(0xFF667eea).withValues(alpha: 0.2),
         ),
       ),
 
@@ -266,17 +262,17 @@ class ThemeManager extends ChangeNotifier {
       ),
 
       switchTheme: SwitchThemeData(
-        thumbColor: MaterialStateProperty.resolveWith((states) {
-          if (states.contains(MaterialState.selected)) {
+        thumbColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
             return const Color(0xFF667eea);
           }
           return Colors.grey;
         }),
-        trackColor: MaterialStateProperty.resolveWith((states) {
-          if (states.contains(MaterialState.selected)) {
-            return const Color(0xFF667eea).withOpacity(0.5);
+        trackColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return const Color(0xFF667eea).withValues(alpha: 0.5);
           }
-          return Colors.grey.withOpacity(0.3);
+          return Colors.grey.withValues(alpha: 0.3);
         }),
       ),
 

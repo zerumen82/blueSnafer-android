@@ -1,6 +1,9 @@
 // Pantalla de conexión de dispositivos Bluetooth separada
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+import '../providers/bluetooth_provider.dart';
+import '../unified_attack_screen.dart';
+import 'real_exploit_screen.dart';
 import '../utils/device_utils.dart' as device_utils;
 
 class DeviceConnectionScreen extends StatefulWidget {
@@ -16,8 +19,6 @@ class DeviceConnectionScreen extends StatefulWidget {
 }
 
 class _DeviceConnectionScreenState extends State<DeviceConnectionScreen> {
-  static const platform = MethodChannel('bluetooth_scanner');
-  
   bool _isConnected = false;
   bool _isConnecting = false;
   String _statusMessage = 'Listo para conectar';
@@ -47,7 +48,9 @@ class _DeviceConnectionScreenState extends State<DeviceConnectionScreen> {
     });
 
     try {
-      final bool result = await platform.invokeMethod('connectToDevice', widget.device);
+      final provider = context.read<BluetoothProvider>();
+      final device = BluetoothDevice.fromMap(widget.device);
+      final result = await provider.connectToDevice(device);
       
       setState(() {
         _isConnected = result;
@@ -75,7 +78,7 @@ class _DeviceConnectionScreenState extends State<DeviceConnectionScreen> {
     });
 
     try {
-      await platform.invokeMethod('disconnectDevice');
+      await context.read<BluetoothProvider>().disconnectDevice();
       setState(() {
         _isConnected = false;
         _statusMessage = 'Desconectado';
@@ -132,7 +135,13 @@ class _DeviceConnectionScreenState extends State<DeviceConnectionScreen> {
             ElevatedButton(
               onPressed: () {
                 Navigator.of(context).pop();
-                // Navegar a pantalla de análisis
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => UnifiedAttackScreen(
+                      initialDevice: widget.device,
+                    ),
+                  ),
+                );
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF667eea),
@@ -141,8 +150,22 @@ class _DeviceConnectionScreenState extends State<DeviceConnectionScreen> {
                 ),
               ),
               child: const Text(
-                'Analizar Dispositivo',
+                'Modo Unificado',
                 style: TextStyle(color: Colors.white),
+              ),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => RealExploitScreen(device: widget.device),
+                  ),
+                );
+              },
+              child: const Text(
+                'Exploit Screen',
+                style: TextStyle(color: Colors.cyanAccent),
               ),
             ),
           ],
@@ -184,7 +207,7 @@ class _DeviceConnectionScreenState extends State<DeviceConnectionScreen> {
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFF667eea).withOpacity(0.3),
+                      color: const Color(0xFF667eea).withValues(alpha: 0.3),
                       blurRadius: 15,
                       offset: const Offset(0, 5),
                     ),
@@ -213,7 +236,7 @@ class _DeviceConnectionScreenState extends State<DeviceConnectionScreen> {
                             device_utils.getDeviceDisplayName(widget.device),
                             style: TextStyle(
                               fontSize: 14,
-                              color: Colors.white.withOpacity(0.8),
+                              color: Colors.white.withValues(alpha: 0.8),
                             ),
                           ),
                         ],
@@ -233,10 +256,10 @@ class _DeviceConnectionScreenState extends State<DeviceConnectionScreen> {
                         width: double.infinity,
                         padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.05),
+                          color: Colors.white.withValues(alpha: 0.05),
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                            color: Colors.white.withOpacity(0.1),
+                            color: Colors.white.withValues(alpha: 0.1),
                             width: 1,
                           ),
                         ),
@@ -277,7 +300,7 @@ class _DeviceConnectionScreenState extends State<DeviceConnectionScreen> {
                                       Text(
                                         widget.device['address'] ?? '',
                                         style: TextStyle(
-                                          color: Colors.white.withOpacity(0.7),
+                                          color: Colors.white.withValues(alpha: 0.7),
                                           fontSize: 14,
                                         ),
                                       ),
@@ -290,7 +313,7 @@ class _DeviceConnectionScreenState extends State<DeviceConnectionScreen> {
                             Text(
                               _deviceInfo,
                               style: TextStyle(
-                                color: Colors.white.withOpacity(0.8),
+                                color: Colors.white.withValues(alpha: 0.8),
                                 fontSize: 14,
                                 height: 1.5,
                               ),
@@ -307,17 +330,17 @@ class _DeviceConnectionScreenState extends State<DeviceConnectionScreen> {
                         padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
                           color: _isConnected 
-                              ? Colors.green.withOpacity(0.1)
+                              ? Colors.green.withValues(alpha: 0.1)
                               : _isConnecting
-                                  ? Colors.orange.withOpacity(0.1)
-                                  : Colors.white.withOpacity(0.05),
+                                  ? Colors.orange.withValues(alpha: 0.1)
+                                  : Colors.white.withValues(alpha: 0.05),
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
                             color: _isConnected 
-                                ? Colors.green.withOpacity(0.3)
+                                ? Colors.green.withValues(alpha: 0.3)
                                 : _isConnecting
-                                    ? Colors.orange.withOpacity(0.3)
-                                    : Colors.white.withOpacity(0.1),
+                                    ? Colors.orange.withValues(alpha: 0.3)
+                                    : Colors.white.withValues(alpha: 0.1),
                             width: 1,
                           ),
                         ),
@@ -378,7 +401,7 @@ class _DeviceConnectionScreenState extends State<DeviceConnectionScreen> {
                             elevation: _isConnected || _isConnecting ? 0 : 8,
                             shadowColor: _isConnected || _isConnecting 
                                 ? Colors.transparent
-                                : const Color(0xFF667eea).withOpacity(0.3),
+                                : const Color(0xFF667eea).withValues(alpha: 0.3),
                           ),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
@@ -425,10 +448,10 @@ class _DeviceConnectionScreenState extends State<DeviceConnectionScreen> {
                           width: double.infinity,
                           padding: const EdgeInsets.all(20),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.05),
+                            color: Colors.white.withValues(alpha: 0.05),
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(
-                              color: Colors.white.withOpacity(0.1),
+                              color: Colors.white.withValues(alpha: 0.1),
                               width: 1,
                             ),
                           ),

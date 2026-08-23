@@ -23,23 +23,24 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      backgroundColor: Color(0xFF0A0A14),
+    return Scaffold(
+      backgroundColor: const Color(0xFF0A0A14),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.bluetooth_searching,
-              size: 60,
-              color: Colors.cyanAccent,
+            Image.asset(
+              'assets/icons/bluetooth_capsule.png',
+              width: 56,
+              height: 56,
+              color: Colors.cyanAccent.withValues(alpha: 0.7),
             ),
-            SizedBox(height: 20),
-            CircularProgressIndicator(
+            const SizedBox(height: 20),
+            const CircularProgressIndicator(
               valueColor: AlwaysStoppedAnimation<Color>(Colors.cyanAccent),
             ),
-            SizedBox(height: 20),
-            Text(
+            const SizedBox(height: 20),
+            const Text(
               'CARGANDO BLUESNAFER PRO...',
               style: TextStyle(
                 color: Colors.cyanAccent,

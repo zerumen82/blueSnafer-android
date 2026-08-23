@@ -125,8 +125,8 @@ object GATTBulkReader {
             val sampleData = readChars.take(10).map { "${it["service"]}/${it["characteristic"]}" }
 
             return mapOf(
-                "success" to true,
-                "message" to "GATT bulk read completed",
+                "success" to (totalCharacteristics > 0),
+                "message" to if (totalCharacteristics > 0) "GATT bulk read completed" else "GATT bulk read: sin características leídas",
                 "servicesDiscovered" to totalServices,
                 "characteristicsRead" to totalCharacteristics,
                 "readFailures" to readFailed,
@@ -235,8 +235,8 @@ object GATTBulkReader {
             val sample = changes.take(5).map { "${it["characteristic"]}=${it["value"]?.take(20)}" }
 
             return mapOf(
-                "success" to true,
-                "message" to "Monitoring completed",
+                "success" to (totalChanges > 0),
+                "message" to if (totalChanges > 0) "Monitoring completed" else "Monitoring: sin cambios detectados",
                 "totalChanges" to totalChanges,
                 "uniqueCharacteristics" to uniqueChars,
                 "sample" to sample,

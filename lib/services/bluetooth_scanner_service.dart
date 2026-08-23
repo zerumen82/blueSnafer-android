@@ -5,7 +5,7 @@ import '../utils/device_utils.dart' as device_utils;
 /// Servicio centralizado para operaciones de Bluetooth
 /// Abstrae la comunicación con Android MethodChannel
 class BluetoothScannerService {
-  static const MethodChannel _channel = MethodChannel('bluetooth_scanner');
+  static const MethodChannel _channel = MethodChannel('com.bluesnafer_pro/bluetooth');
   
   // Callbacks para cambios de estado
   static Function(bool)? _onBluetoothStateChanged;

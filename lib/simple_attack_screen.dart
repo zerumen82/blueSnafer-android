@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'file_access_screen.dart';
 import 'services/real_exploit_service.dart';
 import 'utils/device_utils.dart' as device_utils;
@@ -27,7 +26,6 @@ class _SimpleAttackScreenState extends State<SimpleAttackScreen> {
 
   // Información del dispositivo
   int _vulnerabilityCount = 0;
-  List<String> _availableExploits = [];
 
   @override
   void initState() {
@@ -56,7 +54,6 @@ class _SimpleAttackScreenState extends State<SimpleAttackScreen> {
 
         setState(() {
           _vulnerabilityCount = vulns.length;
-          _availableExploits = vulns;
           _canAttack = _vulnerabilityCount > 0;
           _currentStep = 1;
           _statusMessage = _canAttack ? '✅ Dispositivo vulnerable' : '⚠️ Dispositivo seguro';
@@ -208,10 +205,10 @@ class _SimpleAttackScreenState extends State<SimpleAttackScreen> {
               width: double.infinity,
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: _getStatusColor().withOpacity(0.1),
+                color: _getStatusColor().withValues(alpha: 0.1),
                 border: Border(
                   bottom: BorderSide(
-                    color: _getStatusColor().withOpacity(0.3),
+                    color: _getStatusColor().withValues(alpha: 0.3),
                     width: 2,
                   ),
                 ),
@@ -281,9 +278,9 @@ class _SimpleAttackScreenState extends State<SimpleAttackScreen> {
                 margin: const EdgeInsets.fromLTRB(20, 0, 20, 20),
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.3),
+                  color: Colors.black.withValues(alpha: 0.3),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.white.withOpacity(0.1)),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

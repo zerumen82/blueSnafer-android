@@ -299,62 +299,9 @@ class AttackSuggestionEngine {
     }
   }
 
-  // Fallback cuando todo ha fallado
-  Suggestion _getFallbackSuggestion(String deviceType, List<String>? excluded) {
-    final excl = excluded ?? [];
-    if (!excl.contains('full_scan')) {
-      return Suggestion(
-        type: 'full_scan',
-        command: 'scan',
-        confidence: 50.0,
-        reason: 'Re-evaluar superficie de ataque con escaneo completo.',
-        alternativeReason: 'Los resultados guiarán el siguiente paso',
-      );
-    }
-    if (!excl.contains('bypass')) {
-      return Suggestion(
-        type: 'bypass',
-        command: 'quick_connect',
-        confidence: 45.0,
-        reason: 'Intentar bypass de auth con Quick Connect Race.',
-        alternativeReason: 'Si falla → MAC Spoof o OBEX Trust Abuse',
-      );
-    }
-    return Suggestion(
-      type: 'dos',
-      command: 'gatt_flood',
-      confidence: 30.0,
-      reason: 'ÚLTIMO RECURSO: DoS como último intento.',
-      alternativeReason: 'Si todo falla → cambiar de objetivo',
-    );
-  }
-
-  // Razón alternativa basada en tipo sugerido
-  String _getAlternativeReason(String deviceType, String suggestedType) {
-    if (suggestedType == 'sdp_discover' || suggestedType == 'sdp') {
-      return 'Después de SDP → OBEX File Exfil → si falla, Auth Bypass';
-    }
-    if (suggestedType == 'file_exfil' || suggestedType == 'obex_scan') {
-      return 'Si OBEX rechaza → Quick Connect Race o Trust Abuse en AUTH BYPASS';
-    }
-    if (suggestedType == 'bypass') {
-      return 'Si bypass falla → Full Scan para ver qué perfiles siguen accesibles';
-    }
-    if (suggestedType == 'hid' || suggestedType == 'hid_script') {
-      return 'Si HID falla → AT Injection o BlueBorne en ADVANCED EXPLOITS';
-    }
-    if (suggestedType == 'btlejack') {
-      return 'Si BtleJack falla → Mirror Profile para clonar GATT database';
-    }
-    if (suggestedType == 'dos') {
-      return 'Si DoS falla → Full Scan para re-evaluar, luego bypass';
-    }
-    return 'Si todo falla → AUTH BYPASS (Quick Connect / OBEX Trust) en IA/VA';
-  }
-
   // Actualizar estadísticas
   void _updateStats(AttackRecord record) {
-    final typeKey = '${record.type}_${record.command ?? "default"}';
+    final typeKey = '${record.type}_${record.command}';
     final deviceKey = record.deviceType.toLowerCase();
 
     if (!_statsByType.containsKey(typeKey)) {

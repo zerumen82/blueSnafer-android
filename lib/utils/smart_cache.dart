@@ -7,7 +7,6 @@ class SmartCache<K, V> {
   final int _maxSize;
   final Map<String, dynamic> _stats = {};
   int _lastTotalExecutions = 0;
-  final int _lastUpdate = 0;
 
   SmartCache({
     Duration? defaultTtl,
@@ -232,10 +231,8 @@ class CacheManager {
 
   /// Limpiar cachés expirados
   static void cleanupExpired() {
-    for (final cache in _caches.values) {
-      // La limpieza se hace automáticamente en get()
-      // pero podemos forzar una limpieza aquí si es necesario
-    }
+    // La limpieza de elementos expirados se realiza automáticamente en get()
+    // y al superar el TTL o el tamaño máximo configurado.
   }
 }
 

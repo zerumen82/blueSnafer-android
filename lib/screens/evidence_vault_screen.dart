@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../services/real_database_service.dart';
-import 'dart:convert';
 
 class EvidenceVaultScreen extends StatefulWidget {
   const EvidenceVaultScreen({super.key});
@@ -73,7 +72,7 @@ class _EvidenceVaultScreenState extends State<EvidenceVaultScreen> {
     return Card(
       color: const Color(0xFF16213E),
       margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: color.withOpacity(0.3))),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: color.withValues(alpha: 0.3))),
       child: ExpansionTile(
         leading: Icon(icon, color: color),
         title: Text(type, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 12)),

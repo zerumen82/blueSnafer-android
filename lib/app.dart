@@ -1,5 +1,7 @@
 // Aplicación principal minimalista
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'providers/bluetooth_provider.dart';
 import 'screens/welcome_screen.dart';
 
 class BlueSnaferApp extends StatelessWidget {
@@ -7,14 +9,17 @@ class BlueSnaferApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'BlueSnafer Pro',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-        useMaterial3: true,
+    return ChangeNotifierProvider(
+      create: (_) => BluetoothProvider(),
+      child: MaterialApp(
+        title: 'BlueSnafer Pro',
+        theme: ThemeData(
+          primarySwatch: Colors.blue,
+          useMaterial3: true,
+        ),
+        home: const WelcomeScreen(),
+        debugShowCheckedModeBanner: false,
       ),
-      home: const WelcomeScreen(),
-      debugShowCheckedModeBanner: false,
     );
   }
 }

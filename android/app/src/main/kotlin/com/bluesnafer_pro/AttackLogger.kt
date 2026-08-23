@@ -33,6 +33,8 @@ object AttackLogger {
     fun setEventSink(sink: EventChannel.EventSink?) {
         eventSink = sink
     }
+
+    fun getEventSink(): EventChannel.EventSink? = eventSink
     
     fun info(tag: String, message: String, details: Map<String, Any>? = null) {
         log("INFO", tag, message, details)

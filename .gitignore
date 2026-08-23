@@ -128,3 +128,26 @@ migrate_working_dir/
 .settings/
 .project
 .classpath
+
+# Temporal / tooling artifacts
+.aider*
+.aider.tags.cache.v4/
+mcps/
+terminals/
+bg_build*.pid
+bg_build*_*.txt
+build_log.txt
+build_apk_log.txt
+build_apk_latest.txt
+flutter_build_verbose.txt
+gradle_err.txt
+gradle_err_latest.txt
+gradle_out.txt
+gradle_out_latest.txt
+android/gradle_err.txt
+android/gradle_err_latest.txt
+android/gradle_out.txt
+android/gradle_out_latest.txt
+install_and_log.bat
+analyze_result.txt
+kotlin_build.txt

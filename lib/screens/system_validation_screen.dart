@@ -157,7 +157,7 @@ class _SystemValidationScreenState extends State<SystemValidationScreen> {
                 decoration: BoxDecoration(
                   color: const Color(0xFF1D1E33),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.deepPurple.withOpacity(0.3)),
+                  border: Border.all(color: Colors.deepPurple.withValues(alpha: 0.3)),
                 ),
                 child: Column(
                   children: [
@@ -295,16 +295,16 @@ class _SystemValidationScreenState extends State<SystemValidationScreen> {
               Expanded(
                 child: Container(
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.3),
+                    color: Colors.black.withValues(alpha: 0.3),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.white.withOpacity(0.1)),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
                   ),
                   child: Column(
                     children: [
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: Colors.deepPurple.withOpacity(0.2),
+                          color: Colors.deepPurple.withValues(alpha: 0.2),
                           borderRadius: const BorderRadius.only(
                             topLeft: Radius.circular(12),
                             topRight: Radius.circular(12),
@@ -334,7 +334,7 @@ class _SystemValidationScreenState extends State<SystemValidationScreen> {
                               decoration: BoxDecoration(
                                 border: Border(
                                   bottom: BorderSide(
-                                    color: Colors.white.withOpacity(0.1),
+                                    color: Colors.white.withValues(alpha: 0.1),
                                     width: 1,
                                   ),
                                 ),
@@ -375,7 +375,7 @@ class _SystemValidationScreenState extends State<SystemValidationScreen> {
       decoration: BoxDecoration(
         color: const Color(0xFF1D1E33),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -399,9 +399,9 @@ class _SystemValidationScreenState extends State<SystemValidationScreen> {
             margin: const EdgeInsets.only(bottom: 8),
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: Colors.green.withOpacity(0.1),
+              color: Colors.green.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.green.withOpacity(0.3)),
+              border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
             ),
             child: Row(
               children: [
@@ -446,7 +446,7 @@ class _SystemValidationScreenState extends State<SystemValidationScreen> {
       decoration: BoxDecoration(
         color: const Color(0xFF1D1E33),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.blue.withOpacity(0.3)),
+        border: Border.all(color: Colors.blue.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

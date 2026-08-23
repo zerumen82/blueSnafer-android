@@ -257,7 +257,9 @@ class IntelligentExfiltration {
         'encrypt': true,
       });
 
-      return result ?? false;
+      if (result is Map) return result['success'] == true;
+      if (result is bool) return result;
+      return false;
     } catch (e) {
       return false;
     }

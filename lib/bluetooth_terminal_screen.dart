@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'services/integrated_ai_service.dart';
+import 'services/heuristic_analysis_service.dart';
 import 'services/real_exploit_service.dart';
 
 class BluetoothTerminalScreen extends StatefulWidget {
@@ -18,11 +18,11 @@ class BluetoothTerminalScreen extends StatefulWidget {
 }
 
 class _BluetoothTerminalScreenState extends State<BluetoothTerminalScreen> {
-  static const platform = MethodChannel('bluetooth_commands');
+  static const platform = MethodChannel('com.bluesnafer_pro/bluetooth');
   final List<String> _output = [];
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _textController = TextEditingController();
-  final IntegratedAIService _aiService = IntegratedAIService();
+  final HeuristicAnalysisService _heuristicEngine = HeuristicAnalysisService();
   final RealExploitService _exploitService = RealExploitService();
   
   bool _isExecuting = false;
@@ -92,10 +92,10 @@ class _BluetoothTerminalScreenState extends State<BluetoothTerminalScreen> {
     setState(() => _isExecuting = true);
 
     try {
-      final aiResponse = await _aiService.processNaturalCommand(input, widget.deviceAddress);
+      final aiResponse = await _heuristicEngine.processNaturalCommand(input, widget.deviceAddress);
       
       if (aiResponse['action'] != 'UNKNOWN') {
-        _addOutput('🤖 AI: ${aiResponse['rationale']}');
+        _addOutput('🤖 Análisis: ${aiResponse['rationale']}');
         _addOutput('⚡ Ejecutando ${aiResponse['type']}...');
 
         // Ejecución real según la intención detectada

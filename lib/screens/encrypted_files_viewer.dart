@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'dart:io';
 import '../security/file_encryption.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:cross_file/cross_file.dart';
 
 /// Visor y gestor de archivos cifrados
 class EncryptedFilesViewer extends StatefulWidget {
@@ -109,7 +108,7 @@ class _EncryptedFilesViewerState extends State<EncryptedFilesViewer> {
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(16),
-                      color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                      color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -353,9 +352,11 @@ class _EncryptedFilesViewerState extends State<EncryptedFilesViewer> {
 
   Future<void> _shareFile(File file) async {
     try {
-      await Share.shareXFiles(
-        [XFile(file.path)],
-        text: 'Archivo descifrado de BlueSnafer Pro',
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile(file.path)],
+          text: 'Archivo descifrado de BlueSnafer Pro',
+        ),
       );
     } catch (e) {
       if (mounted) {

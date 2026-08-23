@@ -53,7 +53,7 @@ class PersistenceEngine {
         'deviceAddress': deviceAddress,
         'type': 'bluetooth',
       });
-      return result ?? false;
+      return _parseBoolResult(result);
     } catch (e) {
       return false;
     }
@@ -64,7 +64,7 @@ class PersistenceEngine {
       final result = await _methodChannel.invokeMethod('modifyAutoPairing', {
         'deviceAddress': deviceAddress,
       });
-      return result ?? false;
+      return _parseBoolResult(result);
     } catch (e) {
       return false;
     }
@@ -75,7 +75,7 @@ class PersistenceEngine {
       final result = await _methodChannel.invokeMethod('injectBLEService', {
         'deviceAddress': deviceAddress,
       });
-      return result ?? false;
+      return _parseBoolResult(result);
     } catch (e) {
       return false;
     }
@@ -86,7 +86,7 @@ class PersistenceEngine {
       final result = await _methodChannel.invokeMethod('createAutoConnect', {
         'deviceAddress': deviceAddress,
       });
-      return result ?? false;
+      return _parseBoolResult(result);
     } catch (e) {
       return false;
     }
@@ -97,10 +97,16 @@ class PersistenceEngine {
       final result = await _methodChannel.invokeMethod('modifyWhitelist', {
         'deviceAddress': deviceAddress,
       });
-      return result ?? false;
+      return _parseBoolResult(result);
     } catch (e) {
       return false;
     }
+  }
+
+  bool _parseBoolResult(dynamic result) {
+    if (result is Map) return result['success'] == true;
+    if (result is bool) return result;
+    return false;
   }
 
   /// Mantener acceso silencioso
@@ -120,7 +126,7 @@ class PersistenceEngine {
       final result = await _methodChannel.invokeMethod('checkPersistence', {
         'deviceAddress': deviceAddress,
       });
-      return result ?? false;
+      return _parseBoolResult(result);
     } catch (e) {
       return false;
     }

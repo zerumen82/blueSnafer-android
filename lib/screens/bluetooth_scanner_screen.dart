@@ -1,7 +1,8 @@
 // Pantalla de escaneo Bluetooth minimalista
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:provider/provider.dart';
+import '../providers/bluetooth_provider.dart';
 import '../services/bluetooth_service.dart';
 import '../utils/device_utils.dart' as device_utils;
 import 'stats_dashboard.dart';
@@ -25,19 +26,23 @@ class _BluetoothScannerScreenState extends State<BluetoothScannerScreen> {
   @override
   void initState() {
     super.initState();
-    _checkBluetoothState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkBluetoothState());
   }
+
+  BluetoothProvider get _btProvider => context.read<BluetoothProvider>();
 
   Future<void> _checkBluetoothState() async {
     try {
-      final result = await _bluetoothService.getConfig();
+      await _btProvider.initialize();
       setState(() {
-        _isBluetoothEnabled = result['bluetoothEnabled'] ?? true;
+        _isBluetoothEnabled = _btProvider.isBluetoothEnabled;
+        _statusMessage = _btProvider.currentStatus;
       });
-    } on PlatformException catch (e) {
-      print('❌ Error verificando Bluetooth: ${e.message}');
+    } catch (e) {
+      print('❌ Error verificando Bluetooth: $e');
       setState(() {
-        _isBluetoothEnabled = true; // Asumir habilitado por defecto
+        _isBluetoothEnabled = false;
+        _statusMessage = 'Error inicializando Bluetooth: $e';
       });
     }
   }
@@ -57,24 +62,22 @@ class _BluetoothScannerScreenState extends State<BluetoothScannerScreen> {
       _devices = [];
     });
 
-    print('🔍 Iniciando escaneo Bluetooth...');
+    print('🔍 Iniciando escaneo Bluetooth (canal nativo)...');
 
     try {
-      final devices = await _bluetoothService.scanDevices();
-      print('📱 Dispositivos encontrados: ${devices.length}');
+      final devices = await _btProvider.scanDevices(timeoutSeconds: 12);
+      final mapped = devices.map((d) => d.toMap()).toList();
+      print('📱 Dispositivos encontrados: ${mapped.length}');
 
       setState(() {
-        _devices = devices;
-        _isScanning = false;
-        _statusMessage = _devices.isEmpty
-            ? 'No se encontraron dispositivos.\n\nAsegúrate de:\n• Tener dispositivos BLE cercanos\n• Que estén en modo emparejamiento\n• Tener ubicación activada'
-            : '✅ ${_devices.length} dispositivo${_devices.length != 1 ? 's' : ''} encontrado${_devices.length != 1 ? 's' : ''}';
-      });
-    } on PlatformException catch (e) {
-      print('❌ PlatformException durante el escaneo: ${e.code} - ${e.message}');
-      setState(() {
-        _isScanning = false;
-        _statusMessage = 'Error ${e.code}: ${e.message}';
+        _devices = mapped;
+        _isScanning = _btProvider.isScanning;
+        _isBluetoothEnabled = _btProvider.isBluetoothEnabled;
+        _statusMessage = _btProvider.currentStatus.isNotEmpty
+            ? _btProvider.currentStatus
+            : (_devices.isEmpty
+                ? 'No se encontraron dispositivos.\n\nAsegúrate de:\n• Tener dispositivos BLE cercanos\n• Que estén en modo emparejamiento\n• Tener ubicación activada'
+                : '✅ ${_devices.length} dispositivo${_devices.length != 1 ? 's' : ''} encontrado${_devices.length != 1 ? 's' : ''}');
       });
     } catch (e) {
       print('❌ Error durante el escaneo: $e');
@@ -349,7 +352,7 @@ class _BluetoothScannerScreenState extends State<BluetoothScannerScreen> {
         decoration: BoxDecoration(
           gradient: isSelected
               ? LinearGradient(
-                  colors: [color.withOpacity(0.3), color.withOpacity(0.1)],
+                  colors: [color.withValues(alpha: 0.3), color.withValues(alpha: 0.1)],
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                 )
@@ -363,7 +366,7 @@ class _BluetoothScannerScreenState extends State<BluetoothScannerScreen> {
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: color.withOpacity(0.3),
+                    color: color.withValues(alpha: 0.3),
                     blurRadius: 8,
                     spreadRadius: 1,
                   ),
@@ -457,7 +460,7 @@ class _BluetoothScannerScreenState extends State<BluetoothScannerScreen> {
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.blue.withOpacity(0.1),
+                    color: Colors.blue.withValues(alpha: 0.1),
                     blurRadius: 10,
                     spreadRadius: 2,
                   ),
@@ -546,10 +549,10 @@ class _BluetoothScannerScreenState extends State<BluetoothScannerScreen> {
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
-                            colors: [Colors.red.withOpacity(0.2), Colors.red.withOpacity(0.1)],
+                            colors: [Colors.red.withValues(alpha: 0.2), Colors.red.withValues(alpha: 0.1)],
                           ),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.red.withOpacity(0.3)),
+                          border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
                         ),
                         child: Row(
                           children: [
@@ -587,10 +590,10 @@ class _BluetoothScannerScreenState extends State<BluetoothScannerScreen> {
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
-                            colors: [Colors.amber.withOpacity(0.2), Colors.amber.withOpacity(0.1)],
+                            colors: [Colors.amber.withValues(alpha: 0.2), Colors.amber.withValues(alpha: 0.1)],
                           ),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.amber.withOpacity(0.3)),
+                          border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -667,7 +670,7 @@ class _BluetoothScannerScreenState extends State<BluetoothScannerScreen> {
                             : '';
 
                         return Card(
-                          color: isBonded ? Colors.green[900]?.withOpacity(0.2) : null,
+                          color: isBonded ? Colors.green[900]?.withValues(alpha: 0.2) : null,
                           child: ListTile(
                             leading: Icon(
                               isBonded ? Icons.bluetooth_connected : Icons.bluetooth_searching,
