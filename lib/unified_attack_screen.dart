@@ -312,6 +312,7 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
       'map_folders': {'timeout': 10000, 'retries': 1, 'delay': 1000},
       // Extracción OBEX
       'file_exfil': {'timeout': 15000, 'retries': 2, 'delay': 3000},
+      'obex_extract': {'timeout': 25000, 'retries': 2, 'delay': 2000},
       'file_exfil_dir': {'timeout': 20000, 'retries': 2, 'delay': 3000},
       'pbap_extract': {'timeout': 30000, 'retries': 2, 'delay': 3000},
       // Bluesnarf (OBEX GET) - CVE-2003-0300
