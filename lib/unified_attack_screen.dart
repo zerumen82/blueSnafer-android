@@ -979,6 +979,18 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
     return patterns;
   }
 
+  /// Extrae el motivo de fallo de un resultado de canal nativo probando todas
+  /// las claves posibles ('message', 'error', 'note', 'msg'). Los handlers
+  /// Kotlin no usan siempre la misma clave, y leer solo 'message' produce
+  /// logs del tipo "❌ X fallido: " sin información.
+  String _resultReason(Map<dynamic, dynamic> r, [String fallback = 'sin detalle del canal nativo']) {
+    for (final key in const ['message', 'error', 'note', 'msg']) {
+      final v = r[key]?.toString();
+      if (v != null && v.trim().isNotEmpty) return v;
+    }
+    return fallback;
+  }
+
   // Reconocimiento proactivo pre-ataque
   Future<Map<String, dynamic>> _proactiveReconnaissance(String address) async {
       final info = <String, dynamic>{};
@@ -4828,7 +4840,7 @@ _collectedData.add('   🖼️ ${(img as Map)['name']} (${(img as Map)['size']} 
           }
         }
       } else {
-        final msg = result['message']?.toString() ?? '';
+        final msg = _resultReason(result);
         _appendLog('❌ OBEX fallido: $msg');
         
         // Si es fallo de auth, sugerir bypass
@@ -4918,7 +4930,7 @@ _collectedData.add('   🖼️ ${(img as Map)['name']} (${(img as Map)['size']} 
            }
          }
       } else {
-        _appendLog('❌ SDP fallido: ${result['message']}');
+        _appendLog('❌ SDP fallido: ${_resultReason(result)}');
       }
     } catch (e) {
       _appendLog('💥 SDP Error: $e');
@@ -5413,7 +5425,7 @@ _collectedData.add('   🖼️ ${(img as Map)['name']} (${(img as Map)['size']} 
           }
         }
       } else {
-        final msg = result['message']?.toString() ?? '';
+        final msg = _resultReason(result);
         _appendLog('❌ PBAP fallido: $msg');
         
         // Si es fallo de auth, sugerir bypass
@@ -5524,7 +5536,7 @@ _collectedData.add('   🖼️ ${(img as Map)['name']} (${(img as Map)['size']} 
           );
         }
       } else {
-        _appendLog('❌ OPP fallido: ${result['message']}');
+        _appendLog('❌ OPP fallido: ${_resultReason(result)}');
       }
     } catch (e) {
       _appendLog('💥 OPP Error: $e');
@@ -5654,7 +5666,7 @@ _collectedData.add('   🖼️ ${(img as Map)['name']} (${(img as Map)['size']} 
       );
       if (result['success'] == true) {
         final isVuln = result['vulnerable'] == true;
-        _appendLog('✅ BlueBorne: ${result['message']}');
+        _appendLog('✅ BlueBorne: ${_resultReason(result)}');
         _collectedData.add('🦠 [$displayName] BlueBorne: ${isVuln ? "VULNERABLE" : "Parcheado"}');
         
         // Store full structured result
@@ -5670,7 +5682,7 @@ _collectedData.add('   🖼️ ${(img as Map)['name']} (${(img as Map)['size']} 
         });
         _saveState(); // Persist BlueBorne results
       } else {
-        _appendLog('❌ BlueBorne fallido: ${result['message']}');
+        _appendLog('❌ BlueBorne fallido: ${_resultReason(result)}');
       }
     } catch (e) { _appendLog('💥 BlueBorne Error: $e'); }
   }
@@ -5699,7 +5711,7 @@ _collectedData.add('   🖼️ ${(img as Map)['name']} (${(img as Map)['size']} 
           'timestamp': DateTime.now().toIso8601String(),
         });
         _saveState(); // Persist GATT mirror results
-      } else { _appendLog('❌ Mirror fallido: ${result['message']}'); }
+      } else { _appendLog('❌ Mirror fallido: ${_resultReason(result)}'); }
     } catch (e) { _appendLog('💥 Mirror Error: $e'); }
   }
 
@@ -5727,7 +5739,7 @@ _collectedData.add('   🖼️ ${(img as Map)['name']} (${(img as Map)['size']} 
           'timestamp': DateTime.now().toIso8601String(),
         });
         _saveState(); // Persist AT injection results
-      } else { _appendLog('❌ AT fallido: ${result['message']}'); }
+      } else { _appendLog('❌ AT fallido: ${_resultReason(result)}'); }
     } catch (e) { _appendLog('💥 AT Error: $e'); }
   }
 
@@ -5762,7 +5774,7 @@ _collectedData.add('   🖼️ ${(img as Map)['name']} (${(img as Map)['size']} 
           'timestamp': DateTime.now().toIso8601String(),
         });
         _saveState(); // Persist full scan results
-      } else { _appendLog('❌ Scan fallido: ${result['message']}'); }
+      } else { _appendLog('❌ Scan fallido: ${_resultReason(result)}'); }
     } catch (e) { _appendLog('💥 Scan Error: $e'); }
   }
 
@@ -5837,7 +5849,7 @@ _collectedData.add('   🖼️ ${(img as Map)['name']} (${(img as Map)['size']} 
           );
         }
       } else { 
-        _appendLog('❌ Download fallido: ${result['message']}'); 
+        _appendLog('❌ Download fallido: ${_resultReason(result)}');
       }
     } catch (e) { _appendLog('💥 Download Error: $e'); }
   }
