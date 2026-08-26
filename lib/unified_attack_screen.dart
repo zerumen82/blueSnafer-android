@@ -431,6 +431,12 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
   String _aiPrediction = '';
   Suggestion? _currentSuggestion;
   List<String> _executedAttacks = [];
+  // Contador de éxitos GENUINOS: solo cuentan los que devolvieron datos reales
+  // (o ataques que no producen datos pero el protocolo se ejecutó). Los intentos
+  // de extracción que terminan sin datos NO se cuentan como éxito.
+  int _genuineSuccessCount = 0;
+  // true solo si durante el ataque al objetivo se obtuvo al menos un dato real
+  bool _succeededAfterAnyData = false;
   // Diagnóstico de ataques fallidos: type, label, reason (para pestaña DATOS)
   final List<Map<String, String>> _attackDiagnostics = [];
   Map<String, double> _successRates = {};
@@ -2548,6 +2554,8 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
     setState(() {
       _selectedDevice = device;
       _executedAttacks = [];
+      _genuineSuccessCount = 0;
+      _succeededAfterAnyData = false;
     });
 
     int deviceFiles = 0;
@@ -2850,6 +2858,8 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
         setState(() {
           _selectedDevice = device;
           _executedAttacks = [];
+          _genuineSuccessCount = 0;
+          _succeededAfterAnyData = false;
           _obexFiles = [];
           _pbapContacts = [];
           _pbapCalls = [];
@@ -2987,17 +2997,20 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
           totalContacts: _pbapContacts.length,
           totalVulns: totalVulns,
           attacksExecuted: attackSequence.length,
-          attacksSucceeded: _executedAttacks.length,
+          attacksSucceeded: _genuineSuccessCount,
         );
         
         // Save per-device success report
+        _succeededAfterAnyData = _genuineSuccessCount > 0 ||
+            _obexFiles.isNotEmpty || _pbapContacts.isNotEmpty ||
+            _gattDump.isNotEmpty || _extractedImages.isNotEmpty;
         await _saveDeviceReport(address, {
           'files': _obexFiles.length,
           'contacts': _pbapContacts.length,
           'appData': 0,
           'attacks': attackSequence.map((a) => a['name'] ?? a['type']).toList(),
           'timestamp': DateTime.now().toIso8601String(),
-          'success': true,
+          'success': _succeededAfterAnyData,
           'deviceType': deviceType,
         });
         
@@ -3434,17 +3447,11 @@ while (attempt <= maxRetries && !success) {
           }
 
           if (success) {
-            final bool dataType = _dataResultTypes.contains(type);
-            final int got = _realDataCount(type, result);
-            if (dataType && got > 0) {
-              _appendLog('  📥 $attackLabel: DATOS OBTENIDOS ($got elementos reales, no inventados)');
-            } else if (dataType) {
-              _appendLog('  ⚠️ $attackLabel: sesión ejecutada pero SIN datos devueltos (extracción no confirmada)');
-            } else {
-              _appendLog('  ✅ $attackLabel: protocolo/comando ejecutado (no produce datos por sí mismo)');
-            }
+            // La clasificación honesta (DATOS/SIN datos/protocolo) se muestra
+            // UNa sola vez al final del ataque (tras reintentos). Aquí solo progreso.
+            _appendLog('  ▶ $attackLabel intento $attempt completado');
           } else {
-            _appendLog('  ❌ $attackLabel falló: $finalMessage');
+            _appendLog('  ❌ $attackLabel intento $attempt falló: $finalMessage');
           }
 
        } on TimeoutException catch (e) {
@@ -3806,13 +3813,33 @@ _collectedData.add('   🖼️ ${(img as Map)['name']} (${(img as Map)['size']} 
       if (mounted) {
        setState(() {
          if (success) {
+           // Éxito "real": o bien el ataque no produce datos (protocolo ejecutado)
+           // o bien devolvió datos reales. Una sesión de extracción sin datos NO
+           // se registra como éxito genuino.
+           final bool dataType = _dataResultTypes.contains(type);
+           final int gotData = _realDataCount(type, result);
+           final bool genuine = !dataType || gotData > 0;
+           if (genuine) _genuineSuccessCount++;
            _executedAttacks.add(type);
            if (_isUnattendedRunning) _sessionCompletedAttacks.add(type);
          }
          _getSuggestion();
        });
        _saveState();
-       _appendLog(success ? '✅ $attackLabel OK' : '❌ $attackLabel FALLÓ (intentos: $attempt/$maxRetries): $finalMessage');
+       // Mensaje FINAL honesto y único. Reemplaza el antiguo "✅ OK" genérico.
+       if (success) {
+         final bool dataType = _dataResultTypes.contains(type);
+         final int gotData = _realDataCount(type, result);
+         if (dataType && gotData > 0) {
+           _appendLog('✅ $attackLabel FINALIZADO — DATOS OBTENIDOS: $gotData elementos reales');
+         } else if (dataType) {
+           _appendLog('⚠️ $attackLabel terminó SIN datos (extracción NO confirmada)');
+         } else {
+           _appendLog('✅ $attackLabel finalizado');
+         }
+       } else {
+         _appendLog('❌ $attackLabel FALLÓ (intentos: $attempt/$maxRetries): $finalMessage');
+       }
 
        // Snackbar resultado
        if (mounted) {
