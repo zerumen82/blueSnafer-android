@@ -3272,6 +3272,45 @@ class _UnifiedAttackScreenState extends State<UnifiedAttackScreen> with SingleTi
     return device_utils.detectDeviceType(device);
   }
 
+  // =====================================================================
+  // HONESTIDAD: tipos cuyo éxito debe medirse por DATOS REALES devueltos,
+  // no por "el comando/protocolo se ejecutó sin excepción".
+  // =====================================================================
+  static const Set<String> _dataResultTypes = {
+    'obex_extract', 'obex_get', 'file_exfil_dir', 'obex_ble_transfer',
+    'pbap_extract', 'sap_extract', 'at_extract_identity',
+    'extract_images', 'gatt_image_read', 'mediastore_enhanced',
+    'mediastore_enumerate', 'opp_server_mode', 'map_image_extract',
+    'gatt_bulk_read', 'gatt_monitor', 'multi_extract',
+    'network_scan', 'wifi_scan', 'shareme_credential_extract',
+    'map_extract', 'map_folders', 'quickshare_server', 'gallery_dump',
+  };
+
+  // Cuenta de elementos REALES que devolvió el canal nativo tras el ataque.
+  // Si no hay datos de ningún tipo, el "éxito" es solo "sesión ejecutada".
+  int _realDataCount(String type, Map<String, dynamic>? r) {
+    if (r == null) return 0;
+    var n = 0;
+    n += ((r['files'] as List?)?.length ?? 0);
+    n += ((r['contacts'] as List?)?.length ?? 0);
+    n += ((r['images'] as List?)?.length ?? 0);
+    n += ((r['certificates'] as List?)?.length ?? 0);
+    n += ((r['networks'] as List?)?.length ?? 0);
+    n += ((r['folders'] as List?)?.length ?? 0);
+    n += ((r['sms'] as List?)?.length ?? 0);
+    // Identidad / IMEI (cadena no vacía)
+    if (type == 'at_extract_identity' || type == 'sap_extract') {
+      final idField = (r['identity'] ?? r['imei'] ?? r['serial'])?.toString();
+      if (idField != null && idField.isNotEmpty && idField != 'null') n += 1;
+    }
+    // Dump GATT: entradas con ruta=valor no trivial
+    if ((type == 'gatt_bulk_read' || type == 'gatt_monitor') && r['fullDump'] is List) {
+      final dump = r['fullDump'] as List;
+      n += dump.where((e) => e.toString().contains('=') && e.toString().trim().length > 3).length;
+    }
+    return n;
+  }
+
    /// Ejecuta un ataque individual con timeouts y reintentos adaptativos
    /// Usa backoff exponencial: delay = baseDelay * 2^attempt
      Future<void> _attack(String type, {String? command, String? script, Map<String, dynamic>? extra, bool fromAutomated = false}) async {
@@ -3395,7 +3434,15 @@ while (attempt <= maxRetries && !success) {
           }
 
           if (success) {
-            _appendLog('  ✅ $attackLabel éxito en intento $attempt');
+            final bool dataType = _dataResultTypes.contains(type);
+            final int got = _realDataCount(type, result);
+            if (dataType && got > 0) {
+              _appendLog('  📥 $attackLabel: DATOS OBTENIDOS ($got elementos reales, no inventados)');
+            } else if (dataType) {
+              _appendLog('  ⚠️ $attackLabel: sesión ejecutada pero SIN datos devueltos (extracción no confirmada)');
+            } else {
+              _appendLog('  ✅ $attackLabel: protocolo/comando ejecutado (no produce datos por sí mismo)');
+            }
           } else {
             _appendLog('  ❌ $attackLabel falló: $finalMessage');
           }
